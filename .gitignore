@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Production
+frontend/dist/
+dist/
+
+# Env & Sensitive
+.env
+.env.*
+!.env.example
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Workflows (Optional: if you want to keep them, leave them. 
+# If they are just temporary fix files, we might want to ignore them)
+# For now, I will keep them but maybe ignore the ones that look like temporary fixes
+# workflow_*.json
+# *_wf.json
+# *_wf_*.json
