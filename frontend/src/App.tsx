@@ -10,8 +10,6 @@ import {
   LogOut,
   Search,
   Activity,
-  ArrowUpRight,
-  ChevronRight,
   AlertCircle
 } from 'lucide-react';
 import ChatView from './components/ChatView';
@@ -95,19 +93,13 @@ function App() {
   useEffect(() => {
     fetchLeads();
 
-    // Tentar escutar QUALQUER mudança no banco para debug
-    const subscription = supabase
-      .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sp3chat' }, (payload) => {
-        console.log('MUDANÇA REALTIME DETECTADA:', payload);
-        fetchLeads();
-      })
-      .subscribe((status) => {
-        console.log('Status da conexão Realtime:', status);
-      });
+    // Polling a cada 30 segundos para manter os dados atualizados
+    const interval = setInterval(() => {
+      fetchLeads();
+    }, 30000);
 
     return () => {
-      supabase.removeChannel(subscription);
+      clearInterval(interval);
     };
   }, []);
 
