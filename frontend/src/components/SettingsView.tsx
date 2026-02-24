@@ -7,10 +7,10 @@ const EVO_KEY = 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D';
 const INSTANCE_NAME = 'v1';
 
 const SettingsView = () => {
-    const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading' | 'error'>('loading');
+    const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'profile'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'profile'>('whatsapp');
 
     // Estados do Prompt da IA
     const [aiPrompt, setAiPrompt] = useState<string>('');
@@ -18,6 +18,79 @@ const SettingsView = () => {
     const [isSavingPrompt, setIsSavingPrompt] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+    // Estados do Follow-up
+    const [followupConfig, setFollowupConfig] = useState<any>({
+        start_time: '08:00',
+        end_time: '18:00',
+        active_days: [1, 2, 3, 4, 5],
+        interval_1: 10,
+        interval_2: 30,
+        interval_3: 60
+    });
+    const [isSavingFollowup, setIsSavingFollowup] = useState(false);
+    const [followupSuccess, setFollowupSuccess] = useState(false);
+
+    const fetchFollowupConfig = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('sp3_followup_settings')
+                .select('*')
+                .limit(1)
+                .single();
+
+            if (data) {
+                setFollowupConfig({
+                    ...data,
+                    active_days: data.active_days || [1, 2, 3, 4, 5],
+                    start_time: data.start_time || '08:00',
+                    end_time: data.end_time || '18:00',
+                    interval_1: data.interval_1 || 10,
+                    interval_2: data.interval_2 || 30,
+                    interval_3: data.interval_3 || 60
+                });
+            }
+        } catch (err) {
+            console.error('Erro ao carregar follow-up:', err);
+        }
+    };
+
+    const handleSaveFollowup = async () => {
+        setIsSavingFollowup(true);
+        setFollowupSuccess(false);
+        try {
+            // Tenta dar update no ID 1 ou inserir se não houver
+            const { error } = await supabase
+                .from('sp3_followup_settings')
+                .upsert([
+                    {
+                        id: followupConfig.id || 1,
+                        ...followupConfig,
+                        updated_at: new Date()
+                    }
+                ]);
+
+            if (error) throw error;
+            setFollowupSuccess(true);
+            setTimeout(() => setFollowupSuccess(false), 3000);
+        } catch (err) {
+            console.error('Erro ao salvar follow-up:', err);
+            alert('Erro ao salvar. Verifique se a tabela sp3_followup_settings existe no banco.');
+        } finally {
+            setIsSavingFollowup(false);
+        }
+    };
+
+    const toggleDay = (day: number) => {
+        const currentDays = [...followupConfig.active_days];
+        const index = currentDays.indexOf(day);
+        if (index > -1) {
+            currentDays.splice(index, 1);
+        } else {
+            currentDays.push(day);
+        }
+        setFollowupConfig({ ...followupConfig, active_days: currentDays.sort() });
+    };
 
     const fetchPromptHistory = async () => {
         setIsLoadingHistory(true);
@@ -73,9 +146,16 @@ const SettingsView = () => {
             const response = await fetch(`${EVO_URL}/instance/connectionStatus/${INSTANCE_NAME}`, {
                 headers: { 'apikey': EVO_KEY }
             });
-            const data = await response.json();
 
-            if (data.instance.state === 'open') {
+            if (!response.ok) {
+                setStatus('disconnected');
+                return;
+            }
+
+            const data = await response.json();
+            const state = data?.instance?.state ?? data?.state ?? null;
+
+            if (state === 'open') {
                 setStatus('connected');
                 setQrCode(null);
             } else {
@@ -83,7 +163,7 @@ const SettingsView = () => {
             }
         } catch (err) {
             console.error('Erro ao buscar status:', err);
-            setStatus('error');
+            setStatus('disconnected');
         }
     };
 
@@ -123,6 +203,7 @@ const SettingsView = () => {
     useEffect(() => {
         checkStatus();
         fetchPromptHistory();
+        fetchFollowupConfig();
     }, []);
 
     return (
@@ -142,6 +223,12 @@ const SettingsView = () => {
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'ia' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'ia' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'ia' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
                         <SettingsIcon size={18} /> Configuração da IA
+                    </button>
+                    <button
+                        onClick={() => setActiveSubTab('followup')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'followup' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'followup' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'followup' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                    >
+                        <History size={18} /> Follow-up (Auto)
                     </button>
                     <button
                         onClick={() => setActiveSubTab('profile')}
@@ -205,6 +292,15 @@ const SettingsView = () => {
                                 </button>
                             )}
                         </div>
+
+                        {/* QR Code */}
+                        {qrCode && status === 'disconnected' && (
+                            <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem', borderRadius: '16px', background: '#f8fafc', border: '1px dashed var(--border-soft)' }}>
+                                <p style={{ fontWeight: '700', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Escaneie o QR Code com o WhatsApp</p>
+                                <img src={qrCode} alt="QR Code WhatsApp" style={{ width: '200px', height: '200px', borderRadius: '12px' }} />
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>O código expira em 60 segundos</p>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -304,6 +400,127 @@ const SettingsView = () => {
                                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Salve sua primeira versão para iniciar o histórico.</p>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeSubTab === 'followup' && (
+                    <div className="glass-card" style={{ padding: '2rem' }}>
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Configurações de Follow-up</h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Defina quando e como o sistema deve cobrar seus leads automaticamente.</p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                            {/* Horários */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Horário de Disparo</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Início</label>
+                                        <input
+                                            type="time"
+                                            value={followupConfig.start_time}
+                                            onChange={(e) => setFollowupConfig({ ...followupConfig, start_time: e.target.value })}
+                                            style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fim</label>
+                                        <input
+                                            type="time"
+                                            value={followupConfig.end_time}
+                                            onChange={(e) => setFollowupConfig({ ...followupConfig, end_time: e.target.value })}
+                                            style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginTop: '1rem' }}>Dias Ativos</h4>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, i) => {
+                                        const isActive = followupConfig.active_days.includes(i);
+                                        return (
+                                            <button
+                                                key={day}
+                                                onClick={() => toggleDay(i)}
+                                                style={{
+                                                    padding: '8px 12px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid',
+                                                    borderColor: isActive ? 'var(--accent)' : 'var(--border-soft)',
+                                                    backgroundColor: isActive ? 'var(--accent-soft)' : 'white',
+                                                    color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: '700',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {day}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Intervalos */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Intervalos (em minutos)</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>1ª Cobrança (Minutos)</span>
+                                        <input
+                                            type="number"
+                                            value={followupConfig.interval_1}
+                                            onChange={(e) => setFollowupConfig({ ...followupConfig, interval_1: parseInt(e.target.value) })}
+                                            style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', textAlign: 'center' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>2ª Cobrança (Minutos)</span>
+                                        <input
+                                            type="number"
+                                            value={followupConfig.interval_2}
+                                            onChange={(e) => setFollowupConfig({ ...followupConfig, interval_2: parseInt(e.target.value) })}
+                                            style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', textAlign: 'center' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>3ª Cobrança (Minutos)</span>
+                                        <input
+                                            type="number"
+                                            value={followupConfig.interval_3}
+                                            onChange={(e) => setFollowupConfig({ ...followupConfig, interval_3: parseInt(e.target.value) })}
+                                            style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', textAlign: 'center' }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '2.5rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
+                            {followupSuccess && (
+                                <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Configurações salvas!</span>
+                            )}
+                            <button
+                                onClick={handleSaveFollowup}
+                                disabled={isSavingFollowup}
+                                style={{
+                                    padding: '12px 24px',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    background: 'var(--accent)',
+                                    color: 'white',
+                                    fontWeight: '700',
+                                    fontSize: '0.9rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
+                            </button>
                         </div>
                     </div>
                 )}
