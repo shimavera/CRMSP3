@@ -1,0 +1,922 @@
+{
+  "Gatilho": {
+    "main": [
+      [
+        {
+          "node": "Parametros do Fluxo",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Filtro de Bloqueio": {
+    "main": [
+      []
+    ]
+  },
+  "Dados Lead": {
+    "main": [
+      [
+        {
+          "node": "Ativar ou desativar ia",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Encontrar Cliente": {
+    "main": [
+      [
+        {
+          "node": "Cliente existe?",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Cliente existe?": {
+    "main": [
+      [
+        {
+          "node": "Merge",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Criar Cliente",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Criar Cliente": {
+    "main": [
+      [
+        {
+          "node": "Merge",
+          "type": "main",
+          "index": 1
+        }
+      ]
+    ]
+  },
+  "Merge": {
+    "main": [
+      [
+        {
+          "node": "Agente IA",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "OpenAI Chat Model": {
+    "ai_languageModel": [
+      [
+        {
+          "node": "Agente IA",
+          "type": "ai_languageModel",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Calculadora": {
+    "ai_tool": [
+      [
+        {
+          "node": "Agente IA",
+          "type": "ai_tool",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Agente IA": {
+    "main": [
+      [
+        {
+          "node": "Basic LLM Chain",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Enviar Mensagem": {
+    "main": [
+      [
+        {
+          "node": "Salvar Resposta da Sarah",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Postgres Chat Memory": {
+    "ai_memory": [
+      [
+        {
+          "node": "Agente IA",
+          "type": "ai_memory",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Wait": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer2",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis Buffer1": {
+    "main": [
+      [
+        {
+          "node": "Wait",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis Buffer2": {
+    "main": [
+      [
+        {
+          "node": "Comparando Lista Mensagens",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis1": {
+    "main": [
+      [
+        {
+          "node": "Mensagem",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagem Texto1": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer Texto",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis Buffer Texto": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagem Texto2": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer Texto",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagem Erro": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer Erro",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis Buffer Erro": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagem Audio": {
+    "main": [
+      [
+        {
+          "node": "Converso de Audio",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis Buffer Audio": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Converso de Audio": {
+    "main": [
+      [
+        {
+          "node": "Transcrever Audio",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Transcrever Audio": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer Audio",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagem Imagem": {
+    "main": [
+      [
+        {
+          "node": "Converso Imagem",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Converso Imagem": {
+    "main": [
+      [
+        {
+          "node": "Analisar Imagem",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Analisar Imagem": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer Imagem",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis Buffer Imagem": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagem pdf": {
+    "main": [
+      [
+        {
+          "node": "Converso pdf",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Converso pdf": {
+    "main": [
+      [
+        {
+          "node": "Extrator pdf",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Extrator pdf": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer pdf",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis Buffer pdf": {
+    "main": [
+      [
+        {
+          "node": "Redis Buffer1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Comparando Lista Mensagens": {
+    "main": [
+      [
+        {
+          "node": "Redis1",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "No Operation, do nothing",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Rotas de Mensagens": {
+    "main": [
+      [
+        {
+          "node": "Mensagem Texto1",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Mensagem Texto2",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Mensagem Audio",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Mensagem Imagem",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Mensagem pdf",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Mensagem Erro",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagem": {
+    "main": [
+      [
+        {
+          "node": "Encontrar Cliente",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Auto-fixing Output Parser": {
+    "ai_outputParser": [
+      [
+        {
+          "node": "Basic LLM Chain",
+          "type": "ai_outputParser",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Structured Output Parser": {
+    "ai_outputParser": [
+      [
+        {
+          "node": "Auto-fixing Output Parser",
+          "type": "ai_outputParser",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "OpenAI Chat Model1": {
+    "ai_languageModel": [
+      [
+        {
+          "node": "Auto-fixing Output Parser",
+          "type": "ai_languageModel",
+          "index": 0
+        },
+        {
+          "node": "Basic LLM Chain",
+          "type": "ai_languageModel",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Basic LLM Chain": {
+    "main": [
+      [
+        {
+          "node": "Split Out",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Split Out": {
+    "main": [
+      [
+        {
+          "node": "Loop Over Items",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Loop Over Items": {
+    "main": [
+      [],
+      [
+        {
+          "node": "Sortear Áudio",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Wait1": {
+    "main": [
+      [
+        {
+          "node": "Loop Over Items",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Desativar Agente": {
+    "ai_tool": [
+      [
+        {
+          "node": "Agente IA",
+          "type": "ai_tool",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Parametros do Fluxo": {
+    "main": [
+      [
+        {
+          "node": "Switch",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Redis": {
+    "main": [
+      [
+        {
+          "node": "Bot Desativado?!",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Bot Desativado?!": {
+    "main": [
+      [
+        {
+          "node": "No Operation, do nothing1",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Rotas de Mensagens",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Schedule Trigger": {
+    "main": [
+      [
+        {
+          "node": "Claim Due Followups",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Claim Due Followups": {
+    "main": [
+      [
+        {
+          "node": "Split In Batches",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Split In Batches": {
+    "main": [
+      [],
+      [
+        {
+          "node": "Load Followup Settings",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Load Followup Settings": {
+    "main": [
+      [
+        {
+          "node": "Build Followup Text",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Build Followup Text": {
+    "main": [
+      [
+        {
+          "node": "Agente IA1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Enviar Mensagem1": {
+    "main": [
+      [
+        {
+          "node": "Wait2",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Basic LLM Chain1": {
+    "main": [
+      [
+        {
+          "node": "Split Out1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Auto-fixing Output Parser1": {
+    "ai_outputParser": [
+      [
+        {
+          "node": "Basic LLM Chain1",
+          "type": "ai_outputParser",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Structured Output Parser1": {
+    "ai_outputParser": [
+      [
+        {
+          "node": "Auto-fixing Output Parser1",
+          "type": "ai_outputParser",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "OpenAI Chat Model2": {
+    "ai_languageModel": [
+      [
+        {
+          "node": "Auto-fixing Output Parser1",
+          "type": "ai_languageModel",
+          "index": 0
+        },
+        {
+          "node": "Basic LLM Chain1",
+          "type": "ai_languageModel",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Split Out1": {
+    "main": [
+      [
+        {
+          "node": "Loop Over Items1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Loop Over Items1": {
+    "main": [
+      [
+        {
+          "node": "Update Followup State",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Enviar Mensagem1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Wait2": {
+    "main": [
+      [
+        {
+          "node": "Loop Over Items1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "OpenAI Chat Model3": {
+    "ai_languageModel": [
+      [
+        {
+          "node": "Agente IA1",
+          "type": "ai_languageModel",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Calculadora1": {
+    "ai_tool": [
+      [
+        {
+          "node": "Agente IA1",
+          "type": "ai_tool",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Postgres Chat Memory1": {
+    "ai_memory": [
+      [
+        {
+          "node": "Agente IA1",
+          "type": "ai_memory",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Desativar Agente1": {
+    "ai_tool": [
+      [
+        {
+          "node": "Agente IA1",
+          "type": "ai_tool",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Agente IA1": {
+    "main": [
+      [
+        {
+          "node": "Basic LLM Chain1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Update Followup State": {
+    "main": [
+      [
+        {
+          "node": "Fim1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Mensagens do celular": {
+    "main": [
+      []
+    ]
+  },
+  "Switch": {
+    "main": [
+      [
+        {
+          "node": "Mensagens do celular",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Salvar Mensagem Cliente (human)",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Ativar ou desativar ia": {
+    "main": [
+      [
+        {
+          "node": "IA ligada?",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Salvar Mensagem Cliente (human)": {
+    "main": [
+      [
+        {
+          "node": "Dados Lead",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "IA ligada?": {
+    "main": [
+      [
+        {
+          "node": "Redis",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "No Operation, do nothing2",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Salvar Resposta da Sarah": {
+    "main": [
+      [
+        {
+          "node": "Wait1",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Sortear Áudio": {
+    "main": [
+      [
+        {
+          "node": "Gerar Áudio ElevenLabs",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      [
+        {
+          "node": "Enviar Mensagem",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Gerar Áudio ElevenLabs": {
+    "main": [
+      [
+        {
+          "node": "Enviar Áudio Evolution",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Enviar Áudio Evolution": {
+    "main": [
+      [
+        {
+          "node": "Texto p/ Salvar Áudio",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  },
+  "Texto p/ Salvar Áudio": {
+    "main": [
+      [
+        {
+          "node": "Salvar Resposta da Sarah",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    ]
+  }
+}

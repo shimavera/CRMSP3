@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__n8n__n8n_get_workflow",
+      "mcp__n8n__tools_documentation",
+      "mcp__n8n__n8n_update_partial_workflow",
+      "Bash(python3:*)",
+      "mcp__n8n__n8n_validate_workflow",
+      "mcp__n8n__get_node"
+    ]
+  }
+}

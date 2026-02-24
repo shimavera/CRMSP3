@@ -1,0 +1,3498 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sp3chat",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        1088
+      ],
+      "id": "777b4206-d0dd-434e-855e-32785d3dc441",
+      "name": "Gatilho",
+      "webhookId": "6f576fa3-a6da-4fa0-8555-fd7386432ba8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c667b354-f7e3-4a99-bce8-17f4dee0d49f",
+              "leftValue": "={{ $('Gatilho').item.json.body.data.key.fromMe }}",
+              "rightValue": "=0",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "9554a99c-a9f4-45dd-9570-37eeac814721",
+              "leftValue": "={{$json.body.data.message}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -576,
+        1808
+      ],
+      "id": "6bb31170-1ac1-4e5f-8f1c-ab642691c0f1",
+      "name": "Filtro de Bloqueio",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "20eb4e1b-36d3-41d1-b43f-f50b4e89342c",
+              "name": "Nome",
+              "value": "={{ $('Gatilho').item.json.body.data.pushName }}",
+              "type": "string"
+            },
+            {
+              "id": "b6a992e5-7515-4eef-8e82-3f984c7845d7",
+              "name": "Telefone",
+              "value": "={{ $('Gatilho').item.json.body.data.key.remoteJid.match(/\\d+(?=@)/)[0] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        112,
+        1120
+      ],
+      "id": "31fea5ed-46fc-449a-bc63-3046be82cbdf",
+      "name": "Dados Lead"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "sp3chat",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "keyValue": "={{ $('Dados Lead').item.json.Telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3680,
+        1040
+      ],
+      "id": "cd89a942-17ca-4b80-8010-d18db69dc287",
+      "name": "Encontrar Cliente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "DsTq5kkfhqj2VdXo",
+          "name": "SP3CHAT"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9d546d7c-fc7f-4ce0-a443-34475e3cc41f",
+              "leftValue": "={{ $node[\"Encontrar Cliente\"].json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3904,
+        1040
+      ],
+      "id": "e5ff1feb-bb0c-4fd3-bd2d-79dc3dbdc863",
+      "name": "Cliente existe?",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "tableId": "sp3chat",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "nome",
+              "fieldValue": "={{ $('Dados Lead').item.json.Nome }}"
+            },
+            {
+              "fieldId": "telefone",
+              "fieldValue": "={{ $('Dados Lead').item.json.Telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4128,
+        1168
+      ],
+      "id": "ba2c8997-6c05-4ed1-b750-ebbed71ea539",
+      "name": "Criar Cliente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "DsTq5kkfhqj2VdXo",
+          "name": "SP3CHAT"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        4336,
+        1040
+      ],
+      "id": "42c6e5d8-ec79-417c-86c8-723a529e9e5f",
+      "name": "Merge",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {
+          "temperature": "={{ $('Parametros do Fluxo').item.json.ModeloTemperatura }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        4576,
+        1216
+      ],
+      "id": "ab31cfd7-cd0c-4f8b-af79-f0199585c685",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "fJhGnQirWrE5vu60",
+          "name": "juan pessoal"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $node[\"Gatilho\"].json.body.data.message.conversation || $node[\"Gatilho\"].json.body.data.message.extendedTextMessage?.text }}",
+        "options": {
+          "systemMessage": "=# Variáveis\nData Atual: {{ $now.weekdayLong }}, Semana {{ $now.format('WW') }}, {{ $now.format('DD/MM/yyyy') }}, {{ ((($now.hour) % 24).toString()).padStart(2, '0') }}:{{ $now.minute.toString().padStart(2, '0') }}\n\n<ContextoImagem>\nDados entre os parâmetros <ContextoImagem></ContextoImagem> são imagens enviadas pelo usuário que foram pré processadas e detalhadas por uma IA para que você as entenda.\n</ContextoImagem>\n\n<ContextoPDF>\nDados entre os parâmetros <ContextoPDF></ContextoPDF> são arquivos PDF enviados pelo usuário que foram pré processadas e transcritos por uma IA para que você as entenda.\n</ContextoPDF>\n\n<ErroFormatoMensagem>\nO usuário enviou um formato de mensagem que não podemos processar.\\\\\nCaso seja a única mensagem enviada, diga ao usuário que você não entende esse tipo de mensagem, você entende mensagens de texto, áudio, imagem e pdf.\\\\\n</ErroFormatoMensagem>\n\n---\n\n## Identidade e Missão\n\nVocê é **Sarah**, SDR (Sales Development Representative) da **SP3 Company**, agência especializada em marketing digital e gestão comercial para clínicas odontológicas.\\\\\n\nSua missão é **qualificar leads que chegam de campanhas** e **agendar consultoria estratégica gratuita** com nosso especialista (Closer), utilizando a metodologia **SPIN Selling** para identificar dores, necessidades e oportunidades.\\\\\n\n---\n\n## Sobre a SP3 Company\n\n- **Especialização**: Clínicas Odontológicas\n- **Modelo de Negócio**: Agência modular focada em ROI\n- **Serviços**: \n  - Tráfego Pago (Google Ads e Meta Ads)\n  - Criação e Otimização de Sites\n  - Gestão de CRM e Funil de Vendas\n  - Estruturação Comercial\n  - Estratégias de Conversão e Agendamento\n- **Proposta de Valor**: Ajudamos clínicas odontológicas a atrair mais pacientes qualificados, otimizar processos comerciais e aumentar o faturamento de forma previsível.\\\\\n- **Modelo de Precificação**: Modular e personalizado baseado em ROI - cada projeto é único e depende da quantidade de pessoas e recursos envolvidos para gerar o melhor resultado para você.\\\\\n\n---\n\n## Personalidade e Tom de Voz\n\n- **Tom**: Consultivo, empático, compreensivo, profissional e humano\n- **Estilo**: Conversacional natural, como uma pessoa real conversando\n- **Idioma**: Português brasileiro\n- **Energia**: Positiva, confiante e genuinamente interessada em ajudar\n- **Abordagem**: Fazer perguntas inteligentes (SPIN Selling) de forma progressiva e natural\n- **Empatia**: Demonstrar compreensão real das dores e desafios do lead\n- **Ritmo**: Uma pergunta por vez, respeitando o tempo de resposta do lead\n\n---\n\n## REGRAS CRÍTICAS DE COMUNICAÇÃO\n\n🚨 **ATENÇÃO MÁXIMA**:\n\n### ✅ SEMPRE:\n1. **UMA PERGUNTA POR VEZ** - Nunca envie múltiplas perguntas na mesma mensagem\n2. **USE O NOME APENAS SE JÁ SOUBER** - Nunca use [Nome] se não coletou antes\n3. **SEJA NATURAL** - Evite frases robóticas tipo \"me conta um pouco\" seguido de pergunta direta\n4. **DEMONSTRE EMPATIA REAL** - Especialmente sobre dores de faturamento e desafios\n5. **RESPEITE O CONTEXTO** - Se tem 3 cadeiras, tem múltiplos profissionais\n6. **TERMINE COM CTA** - Toda mensagem precisa de um Call to Action claro\n\n### ❌ NUNCA:\n1. Enviar várias perguntas de uma vez (ex: \"Qual nome? Quantos profissionais? Atende convênio?\")\n2. Usar [Nome] ou qualquer variável que não foi coletada\n3. Fazer perguntas genéricas sem contexto (ex: \"me conta um pouco qual nome da clínica\")\n4. Ignorar respostas anteriores do lead\n5. Fugir do fluxo para conversas paralelas\n6. Dar consultoria técnica por chat\n\n---\n\n## REGRA DE OURO: FOCO ABSOLUTO NO FLUXO\n\nVocê tem UMA missão: **AGENDAR A CONSULTORIA**.\\\\\n\nQualquer dúvida técnica, estratégica ou detalhada = redirecionar para a consultoria.\\\\\n\n---\n\n## Metodologia SPIN Selling\n\nUse a metodologia SPIN para conduzir a conversa de forma natural e progressiva:\n\n### S - Situação (Entender o Contexto)\n- É o proprietário/tomador de decisão?\\\\\n- Nome da clínica\\\\\n- Cidade/Estado\\\\\n- Quantas cadeiras tem no consultório?\\\\\n- Trabalha sozinho ou tem outros profissionais?\\\\\n- Quais especialidades atendem?\\\\\n- Qual especialidade gera mais faturamento?\\\\\n- Atende particular, convênio ou ambos?\\\\\n\n### P - Problema (Identificar Dores)\n- Como está a captação de pacientes hoje?\\\\\n- A agenda está cheia ou tem horários vazios?\\\\\n- Sente que poderia estar atendendo mais?\\\\\n- Já investe em marketing/tráfego pago?\\\\\n- Os contatos que chegam convertem ou desistem?\\\\\n\n### I - Implicação (Aprofundar na Dor)\n- Quanto você estima que perde por mês com horários vagos?\\\\\n- Como essa situação tem afetado você e sua equipe?\\\\\n- Já calculou quanto representa cada cadeira vazia por dia?\\\\\n- Isso tem gerado estresse ou frustração?\\\\\n\n### N - Necessidade de Solução (Mostrar o Caminho)\n- Se pudéssemos mostrar como preencher sua agenda de forma previsível, seria interessante?\\\\\n- Imagina ter um fluxo constante de pacientes qualificados.\\\\Faria diferença?\\\\\n- Que tal entender exatamente onde estão as oportunidades perdidas?\\\\\n\n---\n\n## Informações Essenciais para Coletar\n\nColete de forma **progressiva e natural**:\n\n### 🎯 Informações Prioritárias:\n1. **Nome da pessoa** (perguntar primeiro!)\n2. **É o tomador de decisão?** (proprietário/sócio/diretor)\n3. **Nome da clínica**\n4. **Cidade/Estado**\n5. **E-mail**\n\n### 📊 Informações de Qualificação:\n6. **Estrutura física**: Quantas cadeiras tem?\\\\\n7. **Equipe**: Trabalha sozinho ou tem mais profissionais?\\\\\n8. **Especialidades**: Quais especialidades atendem? Qual dá mais retorno?\\\\\n9. **Modelo de atendimento**: Particular, convênio ou ambos?\\\\\n10. **Situação atual de marketing**: Já faz tráfego pago? Tem site?\\\\\n11. **Se tem site**: Link para análise\\\\\n12. **Estrutura comercial**: Tem atendente/secretária?\\\\\n13. **Se tem estrutura comercial**: Telefone fixo da clínica (para análise do atendimento)\\\\\n14. **Faturamento**: Faixa de faturamento mensal (se couber perguntar)\\\\\n15. **Principal dor/objetivo**\n\n---\n\n## Fluxo de Atendimento Progressivo\n\n### **Mensagem 1: Saudação + Contexto**\n\n\"Oi!\\\\Tudo bem?\\\\Sou a Sarah, da SP3 Company!\\\\\nVi que você demonstrou interesse em conhecer estratégias de captação de pacientes para clínicas odontológicas.\\\\\n\nAntes de mais nada, qual seu nome?\\\\\"\n\n---\n\n### **Mensagem 2: Confirmar Decisor**\n\n\"Prazer, [Nome do Lead]!\\\\\nVocê é o proprietário da clínica?\\\\\"\n\n**Se SIM**: Continuar fluxo  \n**Se NÃO**: \"Entendi!\\\\Você toma decisões sobre marketing e investimentos na clínica?\\\\\"\n\n---\n\n### **Mensagem 3: Nome da Clínica**\n\n\"Perfeito!\\\\Qual o nome da clínica?\\\\\"\n\n---\n\n### **Mensagem 4: Localização**\n\n\"Legal!\\\\Vocês estão em qual cidade?\\\\\"\n\n---\n\n### **Mensagem 5: Estrutura Física**\n\n\"Entendi!\\\\Quantas cadeiras de atendimento vocês têm na clínica?\\\\\"\n\n---\n\n### **Mensagem 6: Equipe (Contexto da Resposta Anterior)**\n\n**Se 1 cadeira**:\n\"Você trabalha sozinho ou tem outros profissionais com você?\\\\\"\n\n**Se 2+ cadeiras**:\n\"Entendi!\\\\Além de você, quantos profissionais atendem?\\\\\"\n\n---\n\n### **Mensagem 7: Especialidades**\n\n\"Bacana!\\\\Quais especialidades vocês atendem?\\\\\"\n\n---\n\n### **Mensagem 8: Especialidade Mais Lucrativa**\n\n\"Legal!\\\\E qual dessas especialidades representa mais faturamento hoje?\\\\\"\n\n---\n\n### **Mensagem 9: Modelo de Atendimento**\n\n\"Entendi!\\\\Vocês atendem mais pacientes particulares, convênios ou ambos?\\\\\"\n\n---\n\n### **Mensagem 10: Situação Atual - Início do SPIN (Problema)**\n\n\"Saquei!\\\\E me diz: como está a captação de pacientes novos hoje?\\\\\"\n\n---\n\n### **Mensagem 11: Aprofundar na Dor**\n\n**Baseado na resposta, aprofundar naturalmente**:\n\nSe disser \"está fraco/difícil/pouco\":\n\"Imagino como isso deve ser frustrante.\\\\A agenda fica com muitos horários vazios?\\\\\"\n\nSe disser \"está ok/razoável\":\n\"Que bom!\\\\Mas sente que ainda poderia estar atendendo mais?\\\\\"\n\nSe disser \"está indo bem\":\n\"Que ótimo!\\\\Mas mesmo assim, acha que tem espaço para crescer?\\\\\"\n\n---\n\n### **Mensagem 12: Marketing Atual**\n\n\"Você já investe em alguma estratégia de marketing digital ou tráfego pago?\\\\\"\n\n---\n\n### **Mensagem 13A: Se Já Investe**\n\n\"Quanto você investe por mês mais ou menos?\\\\E está satisfeito com o retorno?\\\\\"\n\n---\n\n### **Mensagem 13B: Se Não Investe**\n\n\"Entendi!\\\\Já pensou em começar?\\\\\"\n\n---\n\n### **Mensagem 14: Site**\n\n\"Vocês têm um site da clínica?\\\\\"\n\n**Se SIM**: \"Pode me passar o link para eu dar uma olhada?\\\\\"\n\n---\n\n### **Mensagem 15: Estrutura Comercial**\n\n\"E quando chega um contato novo, quem faz o atendimento?\\\\\"\n\n---\n\n### **Mensagem 16: Se Tem Atendente/Secretária**\n\n\"Que bom que tem uma estrutura!\\\\Para o nosso especialista poder avaliar o processo completo de atendimento e dar um feedback detalhado na consultoria, você teria o telefone fixo da clínica?\\\\\"\n\n---\n\n### **Mensagem 17: Implicação da Dor - EMPATIA REAL**\n\n**IMPORTANTE**: Aqui você demonstra compreensão genuína sobre aumentar faturamento.\\\\\n\n\"[Nome], a gente recebe muitos proprietários de clínicas com esse desejo de aumentar o faturamento.\\\\\nE olha, eu te entendo perfeitamente.\\\\\nTer uma clínica estruturada, profissionais bons, mas não ter a agenda cheia é realmente frustrante.\\\\\n\nVocê já parou para calcular quanto cada cadeira vazia representa de perda por mês?\\\\\"\n\n---\n\n### **Mensagem 18: Faturamento (Se Couber)**\n\n\"Para o especialista conseguir preparar uma análise mais direcionada ao seu momento, você consegue me dar uma ideia da faixa de faturamento mensal da clínica?\\\\\"\n\n**Se resistência**: \"Tranquilo!\\\\Podemos conversar sobre isso na consultoria mesmo!\\\\\"\n\n---\n\n### **Mensagem 19: Necessidade de Solução**\n\n\"[Nome], pelo que você me contou, consigo identificar algumas oportunidades bem claras.\\\\\n\nSe eu conseguisse te mostrar como ter um fluxo constante e previsível de pacientes qualificados chegando, sem depender só de indicação, isso seria interessante para você?\\\\\"\n\n---\n\n### **Mensagem 20: Apresentação da Consultoria**\n\n\"Então, é exatamente isso que nosso especialista faz na consultoria de 40min a 1h.\\\\\n\nEle vai:\n✓ Analisar toda sua estrutura digital e comercial\n✓ Identificar onde estão as oportunidades perdidas\n✓ Mostrar como outras clínicas estão preenchendo agenda\n✓ Criar um plano personalizado para o seu momento\n\nE olha, é 100% consultivo, sem compromisso nenhum.\\\\\nSó para você entender o que está deixando de ganhar hoje.\\\\\n\nVale muito a pena!\\\\\"\n\n**CTA**: \"Você topa fazer essa análise?\\\\\"\n\n---\n\n### **Mensagem 21: Agendamento**\n\n\"Perfeito!\\\\Deixa eu ver a agenda do especialista aqui...\\\\\n\nEssa semana temos poucas vagas ainda.\\\\\nTenho:\n📅 [Dia X] às [Horário]\n📅 [Dia Y] às [Horário]\\\\\n\nQual desses funciona melhor para você?\\\\\"\n\n---\n\n### **Mensagem 22: Confirmação**\n\n\"Confirmado!\\\\[Dia escolhido] às [Horário].\\\\\n\nVou te enviar os dados de acesso por e-mail.\\\\\nSó para confirmar, seu e-mail é [email]?\\\\\"\n\n---\n\n### **Mensagem 23: Orientações Finais**\n\n\"Perfeito!\\\\Você vai conversar com [Nome do Closer], nosso especialista em clínicas odontológicas.\\\\\n\nSepara uns 40min a 1h e, se possível, tenha em mãos:\n- Link do site (se tiver)\n- Informações sobre investimentos atuais em marketing\n- Dados de faturamento\\\\\n\nAssim ele consegue fazer uma análise bem completa para você!\\\\\"\n\n**CTA**: \"Tudo certo então?\\\\\"\n\n---\n\n### **Mensagem 24: Despedida**\n\n\"Maravilha!\\\\Qualquer dúvida antes da consultoria, pode me chamar aqui que eu te ajudo!\\\\\n\nNos falamos [dia da reunião].\\\\Prepare-se para insights valiosos!\\\\\"\n\n---\n\n## Tratamento de Objeções com Empatia\n\n### **\"Quanto custa?\"**\n\n\"Entendo sua preocupação!\\\\\nOlha, somos uma agência modular focada em ROI.\\\\\nIsso significa que não temos um valor fixo porque cada clínica é única.\\\\\n\nO investimento vai depender da estrutura que você precisa, quantas pessoas vão trabalhar no seu projeto e qual o resultado que você quer alcançar.\\\\\n\nNa consultoria, o especialista vai entender sua realidade e montar um plano personalizado com investimento justo para o seu momento.\\\\\n\nFaz sentido?\\\\\"\n\n**CTA**: \"Vamos agendar para você conhecer as opções?\\\\\"\n\n---\n\n### **\"Não tenho tempo\"**\n\n\"Eu te entendo perfeitamente!\\\\\nSei que sua agenda já é apertada.\\\\\n\nMas olha, justamente por isso que essa consultoria vale a pena: o especialista vai te mostrar como ganhar tempo E pacientes ao mesmo tempo.\\\\\n\nMuitos clientes nossos tinham essa mesma preocupação e depois perceberam que estavam perdendo tempo justamente por não ter um processo estruturado.\\\\\n\nSão só 40 minutos que podem fazer uma diferença enorme!\\\\\"\n\n**CTA**: \"Qual dia da próxima semana respira melhor para você?\\\\\"\n\n---\n\n### **\"Já tentei e não funcionou\"**\n\n\"Olha, eu compreendo totalmente sua frustração.\\\\\nA gente recebe muitos proprietários que já tentaram fazer tráfego pago, contrataram agências e não viram resultado.\\\\\n\nE sabe o que a gente descobriu?\\\\\nNa maioria das vezes, o problema não era o investimento, mas sim como estava sendo feito.\\\\\n\nPor isso nossa consultoria é tão importante: o especialista vai analisar exatamente o que não funcionou antes e mostrar o que precisa ser diferente agora.\\\\\n\nVocê merece ter clareza sobre isso!\\\\\"\n\n**CTA**: \"Vamos fazer essa análise?\\\\\"\n\n---\n\n### **\"Preciso pensar\"**\n\n\"Claro, super normal!\\\\\nMas deixa eu te perguntar: o que especificamente você precisa pensar?\\\\\n\nÉ sobre encaixar na agenda?\\\\\nÉ preocupação com investimento futuro?\\\\\nOu ficou alguma dúvida que eu possa esclarecer agora?\\\\\"\n\n**Aguardar resposta e tratar especificamente**\n\n---\n\n### **\"Vou conversar com meu sócio\"**\n\n\"Perfeito!\\\\Faz todo sentido vocês dois decidirem juntos.\\\\\n\nInclusive, vocês podem entrar os dois na consultoria!\\\\\nAssim ninguém fica de fora das informações e a decisão fica mais fácil depois.\\\\\"\n\n**CTA**: \"Qual dia funciona para ambos?\\\\\"\n\n---\n\n### **Pergunta Técnica Complexa**\n\n\"Essa é uma pergunta excelente, [Nome]!\\\\\nE olha, eu poderia até tentar te explicar por aqui, mas seria injusto com você.\\\\\n\nO nosso especialista é quem domina isso a fundo e vai conseguir te mostrar na prática, com exemplos reais de clínicas que atendemos, como isso funciona especificamente para o seu caso.\\\\\n\nSeria muito mais rico para você ver isso com ele!\\\\\"\n\n**CTA**: \"Vamos agendar para ele te mostrar tudo isso com mais propriedade?\\\\\"\n\n---\n\n### **Desvio de Assunto**\n\n**Reconhecer + Redirecionar imediatamente**:\n\n\"Que interessante!\\\\[breve comentário].\\\\\nMas voltando ao que é importante para sua clínica: essa consultoria vai te dar muita clareza sobre os próximos passos.\\\\\"\n\n**CTA**: \"Você prefere [dia X] ou [dia Y]?\\\\\"\n\n---\n\n## Empatia sobre Aumento de Faturamento\n\nQuando o lead mencionar desejo de aumentar faturamento, USE ESTA ABORDAGEM:\n\n\"[Nome], olha, a gente recebe muitos proprietários com essa mesma vontade de aumentar o faturamento.\\\\\nE eu te entendo perfeitamente.\\\\\n\nVocê investiu em formação, tem uma estrutura, profissionais qualificados, mas a agenda não está cheia como poderia estar, certo?\\\\\n\nE isso é frustrante porque você SABE o potencial que tem, mas parece que os pacientes não chegam como deveriam.\\\\\n\nA boa notícia?\\\\\nA gente já ajudou várias clínicas que estavam exatamente nessa situação a virarem esse jogo.\\\\\n\nE tudo começa entendendo exatamente onde estão as oportunidades perdidas hoje.\\\\\n\nÉ exatamente isso que o especialista vai fazer com você na consultoria!\\\\\"\n\n**CTA**: \"Vamos agendar para você ter essa clareza?\\\\\"\n\n---\n\n## Regras de Formatação\n\n**REGRA CRÍTICA**: Após TODAS as pontuações finais (. ! ?), adicione **\\\\**\n\n---\n\n## Regras de Ouro\n\nAntes de fazer qualquer pergunta técnica, examine TODO o histórico da conversa. Se o usuário já informou o nome dele ou o nome da clínica, você JAMAIS deve perguntar novamente. Use as informações que já possui para dar continuidade ao atendimento.\n\n### ✅ SEMPRE:\n- Use o nome do lead APENAS depois de coletar\n- Uma pergunta por vez\n- Demonstre empatia real, especialmente sobre faturamento\n- Contextualize perguntas (não pergunte \"quantos profissionais\" se tem 1 cadeira)\n- Termine toda mensagem com CTA\n- Redirecione dúvidas técnicas para consultoria\n- Seja natural e humano\n\n### ❌ NUNCA:\n- Múltiplas perguntas na mesma mensagem\n- Usar [Nome] ou variáveis não coletadas\n- Frases robóticas (\"me conta um pouco qual...\")\n- Fugir do fluxo principal\n- Dar consultoria por chat\n- Ignorar contexto das respostas anteriores\n\nATENÇÃO CRÍTICA: Você é uma assistente de alto nível. ANTES de enviar qualquer mensagem, analise as últimas 10 mensagens do histórico. Se você vir que JÁ PERGUNTOU algo (como o nome da clínica ou especialidade) e o usuário já respondeu, PULE para a próxima etapa. NUNCA repita perguntas que já foram respondidas.\n---\n\n**Seu mantra**: \"Uma pergunta.\\\\Uma resposta.\\\\Um passo de cada vez.\\\\Com empatia e foco no agendamento!\\\\\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        4688,
+        1024
+      ],
+      "id": "d7156bbd-0ba3-4d93-a063-b4b838b40a02",
+      "name": "Agente IA"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        4880,
+        1216
+      ],
+      "id": "ae134b76-d386-4618-81d1-2339c3efcbdc",
+      "name": "Calculadora",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.sp3company.shop/message/sendText/v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Dados Lead').item.json.Telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json['output.mensagens'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6080,
+        1168
+      ],
+      "id": "7bc97ba1-febe-4462-8b2e-e12b06449aed",
+      "name": "Enviar Mensagem",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lm3lTu0WoowRIHHa",
+          "name": "SP3CHAT - EVOLUTION API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Gatilho\nChat Trigger, WhatsApp, Instagram, Telegram, Messenger, etc..",
+        "height": 440,
+        "width": 180,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        880
+      ],
+      "id": "e3941b66-7fd7-4dae-97c5-cfaf138fbaea",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Filtros Iniciais\nPara evitar que fluxo seja executado quando não queremos",
+        "height": 440,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        864
+      ],
+      "id": "c9e8d754-161d-487b-9cf6-4e558ab6ad19",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## Dados do Lead\nInformações principais sobre o lead",
+        "height": 440,
+        "width": 260,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        32,
+        864
+      ],
+      "id": "9d042fcb-85c3-4003-8074-6d20441099f5",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## Registro do Lead no banco de dados (Supabase)\nFluxo para adição do lead no banco de dados postgrees supabase.",
+        "height": 500,
+        "width": 840,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3648,
+        816
+      ],
+      "id": "3111c4b4-9893-4e52-9b30-72c312622e21",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "content": "## Mensagem para o Agente\nMensagem final do usuário para o agente",
+        "height": 500,
+        "width": 260,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3360,
+        816
+      ],
+      "id": "643f7022-d9ad-4d99-a4da-a891cde67cf0",
+      "name": "Sticky Note10"
+    },
+    {
+      "parameters": {
+        "content": "## Agente de IA\nAgente inteligente com memória e prompt pré formatado",
+        "height": 572,
+        "width": 660,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4496,
+        816
+      ],
+      "id": "bf415836-0ad4-439e-a8dc-0278cb5d556b",
+      "name": "Sticky Note11"
+    },
+    {
+      "parameters": {
+        "content": "Ajuste o Node Set com os campos relevantes fornecidos.\n",
+        "height": 280,
+        "width": 210,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        64,
+        992
+      ],
+      "id": "b1f0246c-0a4a-434c-84c4-1fffee55d965",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Ajustes os filtros necessários conforme seu gatilho de entrada",
+        "height": 280,
+        "width": 190,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        1024
+      ],
+      "id": "6c58cd2e-8d27-439b-b9ad-b5563600b49b",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "Faça os ajustes necessários no Prompt do seu agente",
+        "height": 220,
+        "width": 350,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4624,
+        960
+      ],
+      "id": "ff41f3e5-40e9-421f-817c-e690603b69b2",
+      "name": "Sticky Note21"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $node[\"Merge\"].json.telefone }}",
+        "tableName": "memoria_ia_sarah",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        4736,
+        1216
+      ],
+      "id": "fbfa528b-ec62-4105-8c13-f5659a3b500d",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "Q9Iztik7LneSMpvU",
+          "name": "SP3 CHAT - SUPABASE"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parametros do Fluxo').item.json.EsperaBuffer }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2704,
+        1168
+      ],
+      "id": "71d6370a-bc31-4ad8-b2b5-4f20a03d9e01",
+      "name": "Wait",
+      "webhookId": "5c40d18e-94a2-4ba7-a727-14b6b9933673",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "mensagens",
+        "key": "={{ $('Dados Lead').item.json.Telefone }}_buffer",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2544,
+        1168
+      ],
+      "id": "70e921c8-06b9-4174-b233-b4e39fd072d7",
+      "name": "Redis Buffer1",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "mensagens",
+        "key": "={{ $('Dados Lead').item.json.Telefone }}_buffer",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2864,
+        1168
+      ],
+      "id": "2345a630-294f-4f7c-9e7d-f3e128b326dc",
+      "name": "Redis Buffer2",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3168,
+        1280
+      ],
+      "id": "0b68d62b-1c52-4f37-a2e7-70a02d8102ef",
+      "name": "No Operation, do nothing",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('Dados Lead').item.json.Telefone }}_buffer"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3168,
+        1040
+      ],
+      "id": "2a551b56-e454-4c84-b579-a9659fa9f485",
+      "name": "Redis1",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "db72e40b-2ba6-4979-8648-710fd0e859a6",
+              "name": "Texto",
+              "value": "={{ $('Gatilho').item.json.body.data.message.conversation }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        656
+      ],
+      "id": "96a10a60-24f0-49e4-a0e9-06063ece24a3",
+      "name": "Mensagem Texto1"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Dados Lead').item.json.Telefone }}_buffer",
+        "messageData": "={{ $json.Texto }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        816
+      ],
+      "id": "c96d4c04-d84c-4444-8d60-d65c11ab3cf1",
+      "name": "Redis Buffer Texto",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "27ccd1e7-41fa-4940-83d9-e740c8375795",
+              "name": "=Texto",
+              "value": "={{ $('Gatilho').item.json.body.data.message.reactionMessage.text }}",
+              "type": "string"
+            },
+            {
+              "id": "cce135d7-e1db-42f6-97c3-fb60e911d4dc",
+              "name": "",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        816
+      ],
+      "id": "148f2efe-3a49-4e61-b7df-a4778ae4aa0d",
+      "name": "Mensagem Texto2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ae3ac306-ac54-4266-a065-de3ab7c66527",
+              "name": "Erro",
+              "value": "<ErroFormatoMensagem>",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        1520
+      ],
+      "id": "b2d334da-bdde-4592-b9a2-12c470ffba95",
+      "name": "Mensagem Erro"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Dados Lead').item.json.Telefone }}_buffer",
+        "messageData": "={{ $json.Erro }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        1520
+      ],
+      "id": "dc588e29-5a27-4fa5-921e-afe2f3d5997e",
+      "name": "Redis Buffer Erro",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "285f395c-bc9f-40cb-bc2c-16ad784ba962",
+              "name": "Audio",
+              "value": "={{ $('Gatilho').item.json.body.data.message.base64 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        976
+      ],
+      "id": "81282788-b9eb-4b1b-8f11-5e472ce1d8b5",
+      "name": "Mensagem Audio"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Dados Lead').item.json.Telefone }}_buffer",
+        "messageData": "={{ $json.text }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        976
+      ],
+      "id": "0a3b71ed-ddaa-43a7-a0b6-711c074503bc",
+      "name": "Redis Buffer Audio",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "Audio",
+        "options": {
+          "mimeType": "audio/mp4"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1936,
+        976
+      ],
+      "id": "1ef48d96-a0a6-40e5-834d-38c95deebd6d",
+      "name": "Converso de Audio",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "pt"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        2128,
+        976
+      ],
+      "id": "9999bf85-3d05-4345-907d-dccd7fbd59de",
+      "name": "Transcrever Audio",
+      "credentials": {
+        "openAiApi": {
+          "id": "fJhGnQirWrE5vu60",
+          "name": "juan pessoal"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "70c8d8b9-a67f-46ae-af34-bee384c2cb5a",
+              "name": "Imagem",
+              "value": "={{ $('Gatilho').item.json.body.data.message.base64 }}",
+              "type": "string"
+            },
+            {
+              "id": "4f7da426-df38-4af0-bff6-634b19d96b5a",
+              "name": "MensagemImagem",
+              "value": "={{ $('Gatilho').item.json.body.data.message.imageMessage.caption }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        1168
+      ],
+      "id": "cbbb5fb9-85d2-4aab-ae08-4b09c9f6609c",
+      "name": "Mensagem Imagem"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "Imagem",
+        "options": {
+          "mimeType": "image/png"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1936,
+        1168
+      ],
+      "id": "ecdf0e11-fce9-4c80-8f49-18450209e6e0",
+      "name": "Converso Imagem",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "=#Instruções\nO usuário te enviou uma imagem a qual você deve descrever.\n\nA imagem pode vir acompanhada de uma mensagem de texto (<MensagemUsuario>)\n\nCaso venha, utilize a mensagem anexa como contexto extra, tente capturar o sentimento da mensagem e objetivo pelo qual o usuário esteja enviando esta imagem na conversa.\n\nCrie uma resposta descrevendo as informações enviadas para que estas sejam utilizadas por um agente no futuro.\n\nLembre-se:\nEste agente apenas terá as informações que você fornecer, portanto repasse toda informação que julgar importante.\n\n#Dados\n<MensagemUsuario>\n{{ $('Mensagem Imagem').item.json.MensagemImagem }}\n</MensagemUsuario>",
+        "inputType": "base64",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        2128,
+        1168
+      ],
+      "id": "8ce57f36-c7ec-41b5-97fb-d1fc136590ff",
+      "name": "Analisar Imagem",
+      "credentials": {
+        "openAiApi": {
+          "id": "fJhGnQirWrE5vu60",
+          "name": "juan pessoal"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Dados Lead').item.json.Telefone }}_buffer",
+        "messageData": "={{ $json.content }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        1168
+      ],
+      "id": "aa8f2a75-d526-4cac-a3d4-5b77ce3a2c1e",
+      "name": "Redis Buffer Imagem",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cc633d0f-3f31-489a-9cec-3f7b5fd721ca",
+              "name": "Documento",
+              "value": "={{ $('Gatilho').item.json.body.data.message.base64 }}",
+              "type": "string"
+            },
+            {
+              "id": "7f7fd14f-7106-414a-9bf4-2036bd21d26b",
+              "name": "MensagemDocumento",
+              "value": "={{ $('Gatilho').item.json.body.data.message.documentMessage.caption }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        1344
+      ],
+      "id": "5444bd75-3398-4cba-b055-64f5cf4a8bd6",
+      "name": "Mensagem pdf"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "Documento",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1936,
+        1344
+      ],
+      "id": "e0729f33-9ec4-47a9-8f94-d53ecd39c94f",
+      "name": "Converso pdf",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        1344
+      ],
+      "id": "a64f7ec7-3466-4bcc-a3bc-a13283b8016b",
+      "name": "Extrator pdf",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Dados Lead').item.json.Telefone }}_buffer",
+        "messageData": "=<ContextoPDF>\n  <TranscricaoPDF>\n{{ $json.text }}\n</TranscricaoPDF>\nContexto Extra: O usuário encaminhou a mensagem a seguir junto ao PDF.\n  <MensagemUsuario>\n{{ $('Mensagem pdf').item.json.MensagemDocumento }}\n  </MensagemUsuario>\n</ContextoPDF>",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        1344
+      ],
+      "id": "5a181d76-b4aa-41f0-becb-1d5f417f87a0",
+      "name": "Redis Buffer pdf",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "content": "## Tratamento de Mensagens\nPermitir com que agente entenda texto, áudio, imagem, documentos, etc..",
+        "height": 1340,
+        "width": 860,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        368
+      ],
+      "id": "7da1a99f-766e-4de9-9e3c-d8d5aff60c53",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": "### Tipos de Mensagens\nDefina no node Switch as condicionais para definir cada tipo de mídia de acordo com seu gatilho de entrada de dados.\n\nEm cada Node Set:\nMapeie os campos de cada\ntipo de mensagem corretamente.\n\nObs: Não altere o nome\ndos campos pré existentes\nnos nodes SET",
+        "height": 1220,
+        "width": 450,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        464
+      ],
+      "id": "e5e9198f-aae8-4511-83d2-ee4dfb38c48e",
+      "name": "Sticky Note19"
+    },
+    {
+      "parameters": {
+        "content": "### Tratamento de Mensagens\nCada canal pode nos enviar as informações de diferentes formas e aqui trataremos elas de acordo.\n",
+        "height": 1060,
+        "width": 350,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1904,
+        624
+      ],
+      "id": "fbc8148e-c2c5-4f41-84c1-e271531b2f2c",
+      "name": "Sticky Note24"
+    },
+    {
+      "parameters": {
+        "content": "## Buffer de Mensagens\nGarantir que agente compreenda todo o contexto das mensagens enviadas pelo usuário antes de formular uma resposta",
+        "height": 1340,
+        "width": 1040,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2304,
+        368
+      ],
+      "id": "86ed77af-dfe0-43a9-826a-56019e1e572a",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "51b83700-6802-4085-a2de-db6bbca32b62",
+              "leftValue": "={{ $json.mensagens.last() }}",
+              "rightValue": "={{ $('Redis Buffer1').item.json.mensagens.last() }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3024,
+        1168
+      ],
+      "id": "494a5d73-dc2e-4975-890e-ac07cf2808e1",
+      "name": "Comparando Lista Mensagens",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Gatilho').item.json.body.data.messageType }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e5b3d9bb-654d-4467-9a02-3344127c9a18"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Texto1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "425c8e9f-2848-4d95-955b-6a3239637639",
+                    "leftValue": "={{ $('Gatilho').item.json.body.data.messageType }}",
+                    "rightValue": "reactionMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Texto2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c5474037-89e0-479b-96a1-a59abfd3cadb",
+                    "leftValue": "={{ $('Gatilho').item.json.body.data.messageType }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5c32a19b-9b97-4d83-bb96-4de92c6e188e",
+                    "leftValue": "={{ $('Gatilho').item.json.body.data.messageType }}",
+                    "rightValue": "imageMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Imagem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0128331b-aadf-4567-beb4-ff6c2944bf7f",
+                    "leftValue": "={{ $('Gatilho').item.json.body.data.message.documentMessage.mimetype }}",
+                    "rightValue": "application/pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pdf"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Outro"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1488,
+        1024
+      ],
+      "id": "2a81692c-d539-4344-a153-e6c65670dbf2",
+      "name": "Rotas de Mensagens"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c182d6a3-8709-4b13-9740-20f1bbda7fcd",
+              "name": "mensagens",
+              "value": "={{ $json.mensagens.join('\\n\\n') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3440,
+        1040
+      ],
+      "id": "7fbc5415-5892-4952-9cfd-f2bd2b34a5e9",
+      "name": "Mensagem",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=<mensagem_do_usuario>\n{{ $json.output }}\n</mensagem_do_usuario>",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Apenas estruture a <mensagem_do_usuario> no formato JSON solicitado no output parser e seguindo as instruções de formatação abaixo. Não altere nada mais na mensagem\n\n# Formatação\n- Divida as mensagens para que fiquem naturais e humanizadas;\n- Divida as mensagens conforme estrutura do output parser para que não fiquem muito longas (maiores que 240 caractéres);\n- Não separe mensagens vazias;\n- Use quebras de linhas (\\n\\n) após pontos finais;\n- Para negrito (bold) use apenas um '' nunca duas '' (exemplo: *negrito).\n\nExemplo de formato JSON:\n{\n\"mensagens\": [\"Mensagem 0\", \"Mensagem 1\", \"Mensagem 2\"]\n}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        5264,
+        976
+      ],
+      "id": "ce19a4da-a52b-4206-a6cf-26efaf708887",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        5456,
+        1136
+      ],
+      "id": "cddd4084-9eb7-4c4f-9b6d-683c64aecf4a",
+      "name": "Auto-fixing Output Parser"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"mensagens\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\"mensagens\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        5376,
+        1248
+      ],
+      "id": "5a232bdd-f3e0-404f-84ac-86d4e0a711d9",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        5216,
+        1248
+      ],
+      "id": "e75a20dc-a669-4ed8-9df3-b8c896b0385e",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "fJhGnQirWrE5vu60",
+          "name": "juan pessoal"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.mensagens",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        5632,
+        896
+      ],
+      "id": "ec9fee9c-b5dd-42b0-90d9-1f800377752d",
+      "name": "Split Out",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "batchSize": "=1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        5824,
+        960
+      ],
+      "id": "5a5e8cb7-bdd3-4563-8f19-0167c3503166",
+      "name": "Loop Over Items",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        6512,
+        1280
+      ],
+      "id": "6d16c0b2-1e3a-4e65-923b-ce9e094fe81d",
+      "name": "Wait1",
+      "webhookId": "dff649af-172a-40e9-bb10-185b1dc2683e",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "content": "## Envio das Respostas ao Usuário\nEnvio das mensagens quebradas para o usuário",
+        "height": 540,
+        "width": 640,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5776,
+        816
+      ],
+      "id": "ed763696-d280-4b3a-83d4-77d117347650",
+      "name": "Sticky Note13"
+    },
+    {
+      "parameters": {
+        "content": "## Humanizar Resposta\nQuebra de mensagens em mensagens menores e com contexto.",
+        "height": 588,
+        "width": 580,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5184,
+        816
+      ],
+      "id": "453565f1-1c0a-437f-a00b-d5210e5bf746",
+      "name": "Sticky Note14"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Essa tool desativa o seu atendimento e passa a conversa para o atendente humano. Após a desativação, você não poderá mais falar com o atentende.\n\nApenas fale sobre a possibilidade de um atendimento humano caso seja explicitamente requisitado esse tipo de atendimento, ou caso o clima da conversa com o usuário ficar muito negativo.\n\nAntes de desativar, reforce para o cliente sobre quais assuntos você pode ajuda-lo e confirme se mesmo assim ele deseja seguir com atendimento humano.\n\nSempre solicite uma dupla confirmação do usuário antes de desativar o seu atendimento.\n\n# Resposta após desativação:\nResponda ao usuário que a conversa foi encaminhada para um atendente especializado que logo irá entrar em contato e dará seguimento ao atendimento.",
+        "operation": "set",
+        "key": "={{ $('Dados Lead').item.json.Telefone }}_status",
+        "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Value', `Definir como \"Ativo\" ou \"Desativado\"`, 'string') }}",
+        "expire": true,
+        "ttl": "={{ $('Parametros do Fluxo').item.json.TempoInatividade }}"
+      },
+      "type": "n8n-nodes-base.redisTool",
+      "typeVersion": 1,
+      "position": [
+        5024,
+        1216
+      ],
+      "id": "04dee7f6-2090-42f2-b22d-cb1aa5e94ad1",
+      "name": "Desativar Agente",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "352b1b4c-6ab7-4715-87c1-a77027670efc",
+              "name": "EsperaBuffer",
+              "value": 60,
+              "type": "number"
+            },
+            {
+              "id": "6092b729-7772-4db8-833a-896338a5c60b",
+              "name": "TempoInatividade",
+              "value": 3600,
+              "type": "number"
+            },
+            {
+              "id": "d3def16d-f0af-40fa-94df-af336d340349",
+              "name": "ModeloTemperatura",
+              "value": 0.4,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -736,
+        1088
+      ],
+      "id": "ff0ffc08-609a-44c6-8eee-c7cd679586a9",
+      "name": "Parametros do Fluxo"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "AgentesStatus",
+        "key": "={{ $json.telefone }}_status",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        832,
+        1056
+      ],
+      "id": "55744a4f-fa59-4052-a404-f94b860a14b3",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6273559a-d1aa-466e-a4e0-40ba5dad4ce9",
+              "leftValue": "={{ $json.AgentesStatus }}",
+              "rightValue": "Desativado",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        1056
+      ],
+      "id": "308b6f68-5d1d-4e64-8f2c-c0f4e584a912",
+      "name": "Bot Desativado?!"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        928
+      ],
+      "id": "ad99a6d7-9e01-4353-9dc7-94a926dff933",
+      "name": "No Operation, do nothing1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "content": "## Gestão de Fluxo Agente Desativado (Humano em Atendimento)\nGestão do fluxo para atendimento humano.\n",
+        "height": 440,
+        "width": 580,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        816,
+        848
+      ],
+      "id": "3184fe0c-2ea1-4ad6-b635-b50e3d734c91",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "## Variáveis do Fluxo\nCentral de controle do workflow",
+        "height": 440,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        880
+      ],
+      "id": "6d377834-4ab5-4faa-a24e-ed98c1378c09",
+      "name": "Sticky Note12"
+    },
+    {
+      "parameters": {
+        "content": "Ajuste tempos de buffer e inatividade do agente conforme necessidade.\n",
+        "height": 280,
+        "width": 190,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        976
+      ],
+      "id": "92f88bc3-b4f8-43b3-b32b-af9bd48b6973",
+      "name": "Sticky Note18"
+    },
+    {
+      "parameters": {
+        "content": "## Formatos Base64\nBase64 é uma forma de codificar dados binários como texto. Dependendo do tipo de arquivo, os prefixos variam para indicar o formato do dado. Aqui estão alguns dos formatos mais comuns com os respectivos prefixos base64:\n\n### 1. **Imagem**\n   - **PNG**: `data:image/png;base64,`\n   - **JPEG**: `data:image/jpeg;base64,`\n   - **GIF**: `data:image/gif;base64,`\n   - **SVG**: `data:image/svg+xml;base64,`\n   - **BMP**: `data:image/bmp;base64,`\n   \n### 2. **Áudio**\n   - **MP3**: `data:audio/mp3;base64,`\n   - **WAV**: `data:audio/wav;base64,`\n   - **OGG**: `data:audio/ogg;base64,`\n   - **MPEG**: `data:audio/mpeg;base64,`\n\n### 3. **Vídeo**\n   - **MP4**: `data:video/mp4;base64,`\n   - **OGG**: `data:video/ogg;base64,`\n   - **WebM**: `data:video/webm;base64,`\n\n### 4. **Texto**\n   - **Plain Text**: `data:text/plain;base64,`\n   - **HTML**: `data:text/html;base64,`\n   - **CSS**: `data:text/css;base64,`\n   - **JavaScript**: `data:text/javascript;base64,`\n   - **CSV**: `data:text/csv;base64,`\n\n### 5. **Documentos**\n   - **PDF**: `data:application/pdf;base64,`\n   - **JSON**: `data:application/json;base64,`\n   - **ZIP**: `data:application/zip;base64,`\n   - **XML**: `data:application/xml;base64,`\n\nEsses são exemplos de prefixos que podem ser usados ao incluir dados base64 em documentos ou aplicações.",
+        "height": 1166,
+        "width": 593,
+        "color": 7
+      },
+      "id": "c4fb74ab-9587-4002-b7d0-7ee2047887ae",
+      "name": "Sticky Note15",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        112,
+        2432
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## MimeTypes\nO Mime type é o mecanismo para especificar o tipo de documento.\nA estrutura de um MIME type é muito simples; Consiste de um tipo e um subtipo, separados por um '/', onde nenhum espaço é permitido. \nO tipo representa a categoria. \nO subtipo é específico para cada tipo.\n\n### 1. **image**\nRepresenta qualquer tipo de imagens\n- image/gif\n- image/png\n- image/jpeg\n- image/bmp\n- image/webp\n   \n\n### 2. **audio**\nRepresenta qualquer tipo de arquivo de audio\n- audio/midi\n- audio/mpeg\n- audio/webm\n- audio/ogg\n- audio/wav\n- audio/mp3\n- audio/mp4\n\n### 3. **video**\nRepresenta qualquer tipo de arquivo de video\n- video/webm\n- video/ogg\n- video/mp4\n\n### 4. **text**\nRepresenta qualquer documento que contenha texto\n- text/plain\n- text/csv\n- text/html\n- text/css\n- text/javascript\n\n### 5. **application**\nRepresenta qualquer tipo de dados binários.\n- application/octet-stream\n- application/pkcs12\n- application/vnd.mspowerpoint\n- application/xhtml+xml\n- application/xml\n- application/pdf",
+        "height": 1166,
+        "width": 593,
+        "color": 7
+      },
+      "id": "f6174085-7e0a-4ef6-b2d8-ea47bd5ad619",
+      "name": "Sticky Note16",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -528,
+        2432
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Ajuste sua instância e autenficiação da Evolution",
+        "height": 240,
+        "width": 230,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6000,
+        1088
+      ],
+      "id": "83c7578d-5cd9-4390-95d4-6212cfddca99",
+      "name": "Sticky Note22"
+    },
+    {
+      "parameters": {
+        "content": "",
+        "height": 1612,
+        "width": 6892,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1648,
+        2016
+      ],
+      "id": "deb93fb0-240e-4e2c-94e0-fbbc11ce351b",
+      "name": "Sticky Note20"
+    },
+    {
+      "parameters": {
+        "content": "-\n# MASTER AGENT\n-",
+        "height": 140,
+        "width": 304,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        48
+      ],
+      "id": "66ee7fd4-48d9-4f18-bced-ef1b20d3c929",
+      "name": "Sticky Note23"
+    },
+    {
+      "parameters": {
+        "content": "## Instruções de Uso\n🔴 Áreas em vermelho você deve realizar alterações de acordo com seu canal de entrada;\n🟢 Áreas em verde já estão pré configuradas para o canal do Template, caso vá utilizar outro canal, também fazer devidas alterações nesses nodes;\n\n⚠️ Atenção: \n1. Não altere nome de parâmetros pré-existentes para para evitar quebra do fluxo;\n2. Fique a vontade para adicionar novos parâmetros caso necessário;",
+        "height": 220,
+        "width": 690,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        256
+      ],
+      "id": "0567df4a-9998-4507-86e8-29bcd9d8902a",
+      "name": "Sticky Note25"
+    },
+    {
+      "parameters": {
+        "content": "em teste ",
+        "height": 170,
+        "width": 413,
+        "color": 4
+      },
+      "id": "84ad3c8b-2195-4662-b97b-12065cac941e",
+      "name": "Sticky Note29",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "68aa514b-9e10-4a58-99d6-e907fbbdffbc",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        3552,
+        2112
+      ],
+      "retryOnFail": false,
+      "disabled": true,
+      "notes": "select *\nfrom public.sp3_followup_state\nwhere status = 'active'\n  and next_followup_at is not null\n  and next_followup_at <= now();"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH due AS (\n  SELECT telefone\n  FROM public.sp3_followup_state\n  WHERE next_followup_at IS NOT NULL\n    AND next_followup_at <= NOW()\n    AND (locked_at IS NULL OR locked_at < NOW() - INTERVAL '5 minutes')\n    -- ✅ trava: se o lead respondeu depois do último outbound, não envia follow-up\n    AND (last_inbound_at IS NULL OR last_outbound_at IS NULL OR last_inbound_at < last_outbound_at)\n  ORDER BY next_followup_at ASC\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n)\nUPDATE public.sp3_followup_state s\nSET\n  lock_id = gen_random_uuid(),\n  locked_at = NOW(),\n  updated_at = NOW()\nFROM due\nWHERE s.telefone = due.telefone\nRETURNING\n  s.telefone,\n  s.followup_step,\n  s.lock_id,\n  s.locked_at;",
+        "options": {}
+      },
+      "id": "4d3abc7a-de50-4322-a406-55b4321e5493",
+      "name": "Claim Due Followups",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        3728,
+        2112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Q9Iztik7LneSMpvU",
+          "name": "SP3 CHAT - SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 20,
+        "options": {}
+      },
+      "id": "275f511d-0084-423b-8aca-c8a919196857",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3904,
+        2112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "sp3_followup_settings",
+        "limit": 1
+      },
+      "id": "6c5d8434-a008-4bd2-a1d6-e135cae411d6",
+      "name": "Load Followup Settings",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4064,
+        2112
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "DsTq5kkfhqj2VdXo",
+          "name": "SP3CHAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Followup Text (SP3)\n// - garante que telefone exista\n// - monta followup_base_text\n// - anexa followup_settings (do node Load Followup Settings)\n// - mantém tudo no MESMO item para o agente e para o envio\n\n// 1) pega o item \"due\" vindo do Claim Due Followups\nconst due = $json || {};\n\n// 2) pega settings do node Load Followup Settings (primeiro item)\nconst settingsNode = $items(\"Load Followup Settings\")[0];\nconst settings = settingsNode?.json || {};\n\n// 3) normaliza telefone\nconst telefone = String(\n  due.telefone ?? due.remoteJid ?? due.number ?? \"\"\n)\n  .replace(\"@s.whatsapp.net\", \"\")\n  .replace(\"@c.us\", \"\")\n  .trim();\n\n// 4) texto base (pré-IA) — usa o que veio do banco, com fallback\nconst baseText = String(\n  due.followup_base_text ?? \"Oi! Passando rapidinho por aqui 🙂\"\n).trim();\n\n// 5) aqui você pode enriquecer com contexto/abertura padrão\n// (mantive simples para não quebrar seu fluxo)\nconst textoFinal = baseText;\n\n// 6) retorna 1 item consolidado\nreturn [\n  {\n    json: {\n      ...due,\n      telefone,\n      followup_base_text: textoFinal,\n      followup_settings: settings,\n    },\n  },\n];"
+      },
+      "id": "8d3bcc77-8735-4582-9769-faa3f7745f7d",
+      "name": "Build Followup Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4240,
+        2112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.sp3_followup_state\nSET\n  last_outbound_at = NOW(),\n  followup_step = COALESCE(followup_step, 0) + 1,\n  next_followup_at = NOW() + INTERVAL '24 hours',\n  locked_at = NULL,\n  lock_id = NULL,\n  updated_at = NOW()\nWHERE telefone = '{{\n  (\n    $item(0).$node[\"Claim Due Followups\"].json.telefone\n    || $item(0).$node[\"Claim Due Followups\"].json.phone\n    || $item(0).$node[\"Claim Due Followups\"].json.number\n  )\n}}'\nRETURNING *;",
+        "options": {}
+      },
+      "id": "fe63c4d0-77fa-4852-a998-a54ae401c2c5",
+      "name": "Update Followup State",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        5984,
+        2016
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "Q9Iztik7LneSMpvU",
+          "name": "SP3 CHAT - SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6144,
+        1952
+      ],
+      "id": "019faec4-a935-4fa9-9f16-0d6d848ee66e",
+      "name": "Fim1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.sp3company.shop/message/sendText/v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{\n(\"55\" + String($item(0).$node[\"Claim Due Followups\"].json.telefone || \"\")\n.replace(/\\D/g,\"\")\n.replace(/^55/,\"\"))\n}}"
+            },
+            {
+              "name": "text",
+              "value": "={{$json[\"output.mensagens\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6000,
+        2240
+      ],
+      "id": "80dedd75-33fb-483e-a022-fdefb2b43539",
+      "name": "Enviar Mensagem1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lm3lTu0WoowRIHHa",
+          "name": "SP3CHAT - EVOLUTION API"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=<mensagem_do_usuario>\n{{ $json.output }}\n</mensagem_do_usuario>",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Apenas estruture a <mensagem_do_usuario> no formato JSON solicitado no output parser e seguindo as instruções de formatação abaixo. Não altere nada mais na mensagem\n\n# Formatação\n- Divida as mensagens para que fiquem naturais e humanizadas;\n- Divida as mensagens conforme estrutura do output parser para que não fiquem muito longas (maiores que 240 caractéres);\n- Não separe mensagens vazias;\n- Use quebras de linhas (\\n\\n) após pontos finais;\n- Para negrito (bold) use apenas um '' nunca duas '' (exemplo: *negrito).\n\nExemplo de formato JSON:\n{\n\"mensagens\": [\"Mensagem 0\", \"Mensagem 1\", \"Mensagem 2\"]\n}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        5200,
+        2080
+      ],
+      "id": "14610942-5f42-4f41-9685-5500aaab5991",
+      "name": "Basic LLM Chain1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        5392,
+        2240
+      ],
+      "id": "d3606c1e-7dee-49d7-b5cd-69bfc1e948a3",
+      "name": "Auto-fixing Output Parser1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"mensagens\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\"mensagens\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        5312,
+        2352
+      ],
+      "id": "85a949a0-3aad-4533-9fd8-213875d1f3d0",
+      "name": "Structured Output Parser1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        5152,
+        2352
+      ],
+      "id": "b3da08c8-7056-474e-a5c0-a2a26e78de55",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "fJhGnQirWrE5vu60",
+          "name": "juan pessoal"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.mensagens",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        5584,
+        2048
+      ],
+      "id": "9ffa84e9-ade7-4b12-a05f-80dbd398fdbb",
+      "name": "Split Out1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "batchSize": "=1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        5776,
+        2144
+      ],
+      "id": "0a49266c-50a0-42df-b893-16f98e25f31a",
+      "name": "Loop Over Items1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        6192,
+        2240
+      ],
+      "id": "4d3fc69c-a1ff-41ab-a88a-8072923ad151",
+      "name": "Wait2",
+      "webhookId": "dff649af-172a-40e9-bb10-185b1dc2683e",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "content": "## Envio das Respostas ao Usuário\nEnvio das mensagens quebradas para o usuário",
+        "height": 540,
+        "width": 640,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5712,
+        1920
+      ],
+      "id": "eb118273-b65d-4f9e-91bf-e876e31f28d3",
+      "name": "Sticky Note17"
+    },
+    {
+      "parameters": {
+        "content": "## Humanizar Resposta\nQuebra de mensagens em mensagens menores e com contexto.",
+        "height": 540,
+        "width": 580,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5120,
+        1920
+      ],
+      "id": "ef3c9dde-216a-43e1-9f16-7dc3f9d6c929",
+      "name": "Sticky Note28"
+    },
+    {
+      "parameters": {
+        "content": "Ajuste sua instância e autenficiação da Evolution",
+        "height": 240,
+        "width": 230,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5936,
+        2192
+      ],
+      "id": "e15c5195-d6c7-48dd-a13a-5de76dd25140",
+      "name": "Sticky Note30"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        4448,
+        2304
+      ],
+      "id": "2e4d801c-d5d6-4fb0-9d65-931a90cb2659",
+      "name": "OpenAI Chat Model3",
+      "credentials": {
+        "openAiApi": {
+          "id": "fJhGnQirWrE5vu60",
+          "name": "juan pessoal"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.followup_base_text }}",
+        "options": {
+          "systemMessage": "=# Variáveis\nData Atual: {{ $now.weekdayLong }}, Semana {{ $now.format('WW') }}, {{ $now.format('DD/MM/yyyy') }}, {{ ((($now.hour) % 24).toString()).padStart(2, '0') }}:{{ $now.minute.toString().padStart(2, '0') }}\n\n\nVocê é um SDR de follow-up da SP3 (tom humano, premium, objetivo) escrevendo no WhatsApp.\nSua missão: transformar um “texto base” em mensagens curtas e naturais, mantendo contexto e CTA leve.\n\nREGRAS IMPORTANTES\n1) Escreva em PT-BR.\n2) Mensagens curtas (1 a 3 frases por mensagem).\n3) Não use linguagem robótica (“conforme contato anterior”, “venho por meio”, etc).\n4) Sempre personalize com o nome quando existir.\n5) Não invente detalhes: use somente os dados recebidos.\n6) Se faltar contexto, faça 1 pergunta curta para destravar.\n7) Evite gatilhos agressivos (“última chance”, “urgente”, “promoção imperdível”).\n8) O objetivo é: responder o lead e avançar para o próximo passo (CTA).\n\nENTRADAS (vêm no JSON):\n- nome (string, pode estar vazio)\n- telefone\n- followup_step (número)\n- followup_base_text (texto base já montado)\n- followup_settings (objeto com tom, regras, CTA, etc — se existir)\n- memory/context (se existir, use para manter coerência)\n\nSAÍDA OBRIGATÓRIA (apenas JSON válido, sem texto fora do JSON):\n{\n  \"messages\": [\n    {\n      \"order\": 1,\n      \"text\": \"...\"\n    }\n  ],\n  \"meta\": {\n    \"tone\": \"premium_humano\",\n    \"goal\": \"followup_responder_e_avancar\",\n    \"cta\": \"...\"\n  }\n}\n\nCOMO GERAR\n- Gere de 2 a 4 mensagens (máximo 4), para envio em sequência.\n- A mensagem 1 retoma de forma leve.\n- A mensagem 2 dá contexto/benefício em 1 linha.\n- A mensagem 3 faz uma pergunta simples OU CTA (“Quer que eu…?”).\n- Se followup_step for alto, seja ainda mais direto e curto.\n\nAgora gere as mensagens usando os dados recebidos."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        2112
+      ],
+      "id": "3bac6e3e-93f6-480c-83ee-f7191cfdaae8",
+      "name": "Agente IA1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        4752,
+        2320
+      ],
+      "id": "936d6825-4cfa-4ba8-b2fe-77653f00fbf4",
+      "name": "Calculadora1",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "content": "## Agente de IA\nAgente inteligente com memória e prompt pré formatado",
+        "height": 540,
+        "width": 660,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        1904
+      ],
+      "id": "2e2ea4b0-aabd-4249-b520-cf1b673f1bd7",
+      "name": "Sticky Note31"
+    },
+    {
+      "parameters": {
+        "content": "Faça os ajustes necessários no Prompt do seu agente",
+        "height": 220,
+        "width": 350,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4496,
+        2048
+      ],
+      "id": "a1e3df06-04d0-4aad-9ba8-4f6df443b78a",
+      "name": "Sticky Note32"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ String($json.telefone || '').trim() }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        4608,
+        2304
+      ],
+      "id": "6d6af589-5494-476d-9ce1-59b8824d2c2e",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "Q9Iztik7LneSMpvU",
+          "name": "SP3 CHAT - SUPABASE"
+        }
+      },
+      "disabled": true,
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Essa tool desativa o seu atendimento e passa a conversa para o atendente humano. Após a desativação, você não poderá mais falar com o atentende.\n\nApenas fale sobre a possibilidade de um atendimento humano caso seja explicitamente requisitado esse tipo de atendimento, ou caso o clima da conversa com o usuário ficar muito negativo.\n\nAntes de desativar, reforce para o cliente sobre quais assuntos você pode ajuda-lo e confirme se mesmo assim ele deseja seguir com atendimento humano.\n\nSempre solicite uma dupla confirmação do usuário antes de desativar o seu atendimento.\n\n# Resposta após desativação:\nResponda ao usuário que a conversa foi encaminhada para um atendente especializado que logo irá entrar em contato e dará seguimento ao atendimento.",
+        "operation": "set",
+        "key": "={{ $('Dados Lead').item.json.Telefone }}_status",
+        "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Value', `Definir como \"Ativo\" ou \"Desativado\"`, 'string') }}",
+        "expire": true,
+        "ttl": "={{ $('Parametros do Fluxo').item.json.TempoInatividade }}"
+      },
+      "type": "n8n-nodes-base.redisTool",
+      "typeVersion": 1,
+      "position": [
+        4896,
+        2304
+      ],
+      "id": "de6e7bb9-a5a7-4ec6-9587-91de541fe8dc",
+      "name": "Desativar Agente1",
+      "credentials": {
+        "redis": {
+          "id": "wJvC7INWZm3yKXBM",
+          "name": "Sp3chat"
+        }
+      },
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "content": "## Configuracao Inicial\nvem do supabase da SP3 \n",
+        "height": 540,
+        "width": 868,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3488,
+        1904
+      ],
+      "id": "975ce377-4741-4309-9eec-21d487d42497",
+      "name": "Sticky Note33"
+    },
+    {
+      "parameters": {
+        "tableId": "n8n_chat_histories",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $node[\"Gatilho\"].json.body.data.key.remoteJid.split('@')[0] }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ \nJSON.stringify({ \n  \"type\": \"ai\", \n  \"content\": ($node[\"Gatilho\"].json.body.data.message.conversation || ($node[\"Gatilho\"].json.body.data.message.extendedTextMessage ? $node[\"Gatilho\"].json.body.data.message.extendedTextMessage.text : \"Mensagem enviada pelo celular\")) \n}) \n}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        1008
+      ],
+      "id": "07770917-1d33-4915-9b32-4bb26d30b450",
+      "name": "Mensagens do celular",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "DsTq5kkfhqj2VdXo",
+          "name": "SP3CHAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Filtros Iniciais\nPara evitar que fluxo seja executado quando não queremos",
+        "height": 520,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        864
+      ],
+      "id": "bd5b91ec-808b-49c1-a769-edf76a758992",
+      "name": "Sticky Note26"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "sp3chat",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "keyValue": "={{ $node[\"Gatilho\"].json.body.data.key.remoteJid.split('@')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        400,
+        1088
+      ],
+      "id": "ba05cb13-4bf4-43ae-b7e1-22abca62bff0",
+      "name": "Ativar ou desativar ia",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "DsTq5kkfhqj2VdXo",
+          "name": "SP3CHAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## IA SARAH\nPara evitar que fluxo seja executado quando não queremos",
+        "height": 440,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        336,
+        896
+      ],
+      "id": "5b660213-d122-43ed-9368-280cd21706fc",
+      "name": "Sticky Note27"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Gatilho\"].json.body.data.key.fromMe }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "e524757b-f5ee-471a-8692-78a0c2f410b2"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3857f0d0-85f0-4b80-9ac0-fd9c51c25177",
+                    "leftValue": "={{ $node[\"Gatilho\"].json.body.data.key.fromMe }}",
+                    "rightValue": "false",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -464,
+        1104
+      ],
+      "id": "a7386989-c193-4faa-bbc3-e76cd023cf02",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "tableId": "n8n_chat_histories",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $node[\"Gatilho\"].json.body.data.key.remoteJid.split('@')[0] }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ \nJSON.stringify({ \n  \"type\": \"human\", \n  \"content\": ($node[\"Gatilho\"].json.body.data.message.conversation || ($node[\"Gatilho\"].json.body.data.message.extendedTextMessage ? $node[\"Gatilho\"].json.body.data.message.extendedTextMessage.text : \"Mensagem enviada pelo celular\")) \n}) \n}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        1200
+      ],
+      "id": "c4880b18-3fe1-4c85-8cdd-b4d2267324db",
+      "name": "Salvar Mensagem Cliente (human)",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "DsTq5kkfhqj2VdXo",
+          "name": "SP3CHAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ia_active }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "c6a839ae-a32d-40ca-a8c9-352973c0040a"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "85356363-20dd-494e-9b0b-2dc10877c634",
+                    "leftValue": "={{ $json.ia_active }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        624,
+        1088
+      ],
+      "id": "2e4e1624-90ad-44ec-a2b5-f97176973d44",
+      "name": "IA ligada?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        768,
+        1408
+      ],
+      "id": "ca04b32a-3100-4015-bf1f-71c2d08ebb88",
+      "name": "No Operation, do nothing2",
+      "notes": "TEMPLATE DESENVOLVIDO POR RODRIGO ALVES\nwww.youtube.com/@rodrigoalveslps?sub_confirmation=1\n\nCOMUNIDADE PRODUZIMOS IA WHATSAPP\nhttps://chat.whatsapp.com/DCXhD8UTjPaAXigl6Q5zmk\n\nCURSO MÁQUINA DE AGENTES IA E AUTOMAÇÕES\nhttps://checkout.produzimosia.com/OE11373AF"
+    },
+    {
+      "parameters": {
+        "tableId": "n8n_chat_histories",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $node[\"Gatilho\"].json.body.data.key.remoteJid.split('@')[0] }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ JSON.stringify({ \"type\": \"ai\", \"content\": ($node[\"Loop Over Items\"].json.mensagens || $json.mensagens || $json.text || \"Erro: Texto não encontrado\") }) }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6304,
+        1184
+      ],
+      "id": "ae10ee93-c779-4b93-92a3-f89787e47d15",
+      "name": "Salvar Resposta da Sarah",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "DsTq5kkfhqj2VdXo",
+          "name": "SP3CHAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "audio-chance-cond",
+              "leftValue": "={{ Math.random() }}",
+              "rightValue": 0.2,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f1a2b3c4-d5e6-4789-bcde-f12345678901",
+      "name": "Sortear Áudio",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6080,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/u0Dga8xTuplGDHoYA40p",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "=sk_ecfcec84d0abab090020f44b4e5dd62bae20a1a60e911a2c"
+            },
+            {
+              "name": "Accept",
+              "value": "audio/mpeg"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ text: $json['output.mensagens'], model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "f2a2b3c4-d5e6-4789-bcde-f12345678902",
+      "name": "Gerar Áudio ElevenLabs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6512,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evo.sp3company.shop/message/sendWhatsAppAudio/v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ number: $('Dados Lead').item.json.Telefone, audio: $binary.data.data, encoding: true }) }}",
+        "options": {}
+      },
+      "id": "f3a2b3c4-d5e6-4789-bcde-f12345678903",
+      "name": "Enviar Áudio Evolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6720,
+        800
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lm3lTu0WoowRIHHa",
+          "name": "SP3CHAT - EVOLUTION API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "txt-audio-field",
+              "name": "text",
+              "value": "={{ $('Loop Over Items').item.json['output.mensagens'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f4a2b3c4-d5e6-4789-bcde-f12345678904",
+      "name": "Texto p/ Salvar Áudio",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6912,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Envio de audio \nEnvio de audio ",
+        "height": 540,
+        "width": 640,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6448,
+        576
+      ],
+      "id": "07614378-dafa-4b6c-b814-ca951728eca4",
+      "name": "Sticky Note34"
+    }
+  ],
+  "connections": {
+    "Gatilho": {
+      "main": [
+        [
+          {
+            "node": "Parametros do Fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro de Bloqueio": {
+      "main": [
+        []
+      ]
+    },
+    "Dados Lead": {
+      "main": [
+        [
+          {
+            "node": "Ativar ou desativar ia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Encontrar Cliente": {
+      "main": [
+        [
+          {
+            "node": "Cliente existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cliente existe?": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Criar Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Cliente": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Agente IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente IA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculadora": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente IA": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Salvar Resposta da Sarah",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente IA",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Buffer1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Buffer2": {
+      "main": [
+        [
+          {
+            "node": "Comparando Lista Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Texto1": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Buffer Texto": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Texto2": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Erro": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Buffer Erro": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Audio": {
+      "main": [
+        [
+          {
+            "node": "Converso de Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Buffer Audio": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converso de Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcrever Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever Audio": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Imagem": {
+      "main": [
+        [
+          {
+            "node": "Converso Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converso Imagem": {
+      "main": [
+        [
+          {
+            "node": "Analisar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Buffer Imagem": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem pdf": {
+      "main": [
+        [
+          {
+            "node": "Converso pdf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converso pdf": {
+      "main": [
+        [
+          {
+            "node": "Extrator pdf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrator pdf": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer pdf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Buffer pdf": {
+      "main": [
+        [
+          {
+            "node": "Redis Buffer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comparando Lista Mensagens": {
+      "main": [
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotas de Mensagens": {
+      "main": [
+        [
+          {
+            "node": "Mensagem Texto1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem Texto2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem pdf",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Encontrar Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Sortear Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desativar Agente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parametros do Fluxo": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Bot Desativado?!",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bot Desativado?!": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rotas de Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Claim Due Followups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Due Followups": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Load Followup Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Followup Settings": {
+      "main": [
+        [
+          {
+            "node": "Build Followup Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Followup Text": {
+      "main": [
+        [
+          {
+            "node": "Agente IA1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Mensagem1": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Split Out1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser1",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser1",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [
+          {
+            "node": "Update Followup State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Mensagem1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente IA1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculadora1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente IA1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente IA1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desativar Agente1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente IA1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente IA1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Followup State": {
+      "main": [
+        [
+          {
+            "node": "Fim1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagens do celular": {
+      "main": [
+        []
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Mensagens do celular",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Salvar Mensagem Cliente (human)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ativar ou desativar ia": {
+      "main": [
+        [
+          {
+            "node": "IA ligada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Mensagem Cliente (human)": {
+      "main": [
+        [
+          {
+            "node": "Dados Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA ligada?": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Resposta da Sarah": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sortear Áudio": {
+      "main": [
+        [
+          {
+            "node": "Gerar Áudio ElevenLabs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar Áudio ElevenLabs": {
+      "main": [
+        [
+          {
+            "node": "Enviar Áudio Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Áudio Evolution": {
+      "main": [
+        [
+          {
+            "node": "Texto p/ Salvar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto p/ Salvar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Salvar Resposta da Sarah",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "SP3CHAT",
+  "settings": {
+    "executionOrder": null
+  }
+}
