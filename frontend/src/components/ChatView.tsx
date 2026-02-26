@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { supabase } from '../lib/supabase';
-import type { Lead } from '../lib/supabase';
+import type { Lead, UserProfile } from '../lib/supabase';
 
 interface ChatViewProps {
     initialLeads: Lead[];
+    authUser: UserProfile;
+    openPhone?: string | null;
+    onPhoneOpened?: () => void;
 }
 
 const InfoItem = ({ icon: Icon, label, value }: { icon: any, label: string, value: string }) => (
@@ -18,7 +21,7 @@ const InfoItem = ({ icon: Icon, label, value }: { icon: any, label: string, valu
     </div>
 );
 
-const ChatView = ({ initialLeads }: ChatViewProps) => {
+const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatViewProps) => {
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [messages, setMessages] = useState<any[]>([]);
@@ -29,6 +32,8 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
+    const [observacoesInput, setObservacoesInput] = useState('');
+    const [isSavingObs, setIsSavingObs] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<any>(null);
@@ -39,8 +44,17 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
         setLeads(initialLeads);
     }, [initialLeads]);
 
-    // 2. CARREGAR ÚLTIMA CONVERSA SELECIONADA
+    // 2. CARREGAR ÚLTIMA CONVERSA SELECIONADA (ou openPhone se vier da Base de Leads)
     useEffect(() => {
+        if (openPhone && leads.length > 0) {
+            const lead = leads.find(l => l.telefone === openPhone);
+            if (lead) {
+                setSelectedLead(lead);
+                localStorage.setItem('last_selected_chat', openPhone);
+                onPhoneOpened?.();
+                return;
+            }
+        }
         const savedPhone = localStorage.getItem('last_selected_chat');
         if (savedPhone) {
             const lead = leads.find(l => l.telefone === savedPhone);
@@ -52,14 +66,15 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
         } else if (leads.length > 0 && !selectedLead) {
             setSelectedLead(leads[0]);
         }
-    }, [leads]);
+    }, [leads, openPhone]);
 
-    // Salvar seleção no localStorage
+    // Salvar seleção no localStorage + sincronizar observações
     useEffect(() => {
         if (selectedLead) {
             localStorage.setItem('last_selected_chat', selectedLead.telefone);
+            setObservacoesInput(selectedLead.observacoes || '');
         }
-    }, [selectedLead]);
+    }, [selectedLead?.id]);
 
     // 3. BUSCAR DATAS DAS ÚLTIMAS MENSAGENS PARA ORDENAÇÃO INICIAL
     const fetchLastMessageDates = async () => {
@@ -151,22 +166,45 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
             const formatted = (data || []).map((m: any) => {
                 let type = 'ai';
                 let text = '';
+                let msgStyle: string | null = null;
+                let isImage = false;
+                let sender: string | null = null;
+                let sentByCRM = false;
+                let msgData: any = null;
                 try {
-                    const msgData = typeof m.message === 'string' ? JSON.parse(m.message) : m.message;
+                    msgData = typeof m.message === 'string' ? JSON.parse(m.message) : m.message;
                     type = msgData.type || 'ai';
+                    msgStyle = msgData.msgStyle || null;
+                    isImage = msgData.msgStyle === 'image' || msgData.type === 'image';
+                    sender = msgData.sender || null;
+                    sentByCRM = msgData.sentByCRM || false;
 
                     if (msgData.messages && Array.isArray(msgData.messages)) {
-                        text = msgData.messages.map((item: any) => item.text).join('\n\n');
+                        text = msgData.messages.map((item: any) => item.text || item.content || '').join('\n\n');
                     } else if (msgData.content) {
                         text = msgData.content;
+                    } else if (typeof msgData === 'string') {
+                        text = msgData;
                     } else {
                         text = typeof m.message === 'string' ? m.message : JSON.stringify(m.message);
                     }
-                } catch (e) { text = String(m.message); }
+                } catch (e) {
+                    text = String(m.message);
+                }
+
+                // Detectar URLs de imagem no texto
+                const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
+                if (!isImage && typeof text === 'string' && imageUrlPattern.test(text.trim())) {
+                    isImage = true;
+                }
 
                 return {
                     id: m.id,
                     type,
+                    msgStyle,
+                    isImage,
+                    sender,
+                    sentByCRM,
                     text: typeof text === 'string' ? text : JSON.stringify(text),
                     time: new Date(m.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
@@ -201,6 +239,57 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
             alert('Erro ao atualizar status da IA: ' + error.message);
         } else {
             setSelectedLead({ ...selectedLead, ia_active: newState });
+            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const firstName = authUser.nome.split(' ')[0];
+            await supabase.from('n8n_chat_histories').insert([{
+                session_id: selectedLead.telefone,
+                message: JSON.stringify({
+                    type: 'system',
+                    msgStyle: newState ? 'success' : 'error',
+                    content: newState ? `✅ IA ativada por ${firstName} em ${now}` : `⛔ IA pausada por ${firstName} em ${now}`
+                })
+            }]);
+        }
+    };
+
+    const handleToggleFollowup = async () => {
+        if (!selectedLead) return;
+        const newLocked = !selectedLead.followup_locked;
+
+        const { error } = await supabase
+            .from('sp3chat')
+            .update({ followup_locked: newLocked })
+            .eq('id', selectedLead.id);
+
+        if (error) {
+            alert('Erro ao atualizar follow-up: ' + error.message);
+        } else {
+            setSelectedLead({ ...selectedLead, followup_locked: newLocked });
+            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const firstName = authUser.nome.split(' ')[0];
+            await supabase.from('n8n_chat_histories').insert([{
+                session_id: selectedLead.telefone,
+                message: JSON.stringify({
+                    type: 'system',
+                    msgStyle: newLocked ? 'warning' : 'info',
+                    content: newLocked ? `🔒 Follow-up travado por ${firstName} em ${now}` : `🔓 Follow-up desbloqueado por ${firstName} em ${now}`
+                })
+            }]);
+        }
+    };
+
+    const handleSaveObservacoes = async () => {
+        if (!selectedLead || isSavingObs) return;
+        setIsSavingObs(true);
+        const { error } = await supabase
+            .from('sp3chat')
+            .update({ observacoes: observacoesInput })
+            .eq('id', selectedLead.id);
+        setIsSavingObs(false);
+        if (error) {
+            alert('Erro ao salvar observações: ' + error.message);
+        } else {
+            setSelectedLead({ ...selectedLead, observacoes: observacoesInput });
         }
     };
 
@@ -224,7 +313,7 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
                 .from('n8n_chat_histories')
                 .insert([{
                     session_id: selectedLead.telefone,
-                    message: JSON.stringify({ type: 'ai', content: messageToSend })
+                    message: JSON.stringify({ type: 'ai', content: messageToSend, sender: authUser.nome, sentByCRM: true })
                 }]);
         } catch (err: any) {
             setError(`Erro ao enviar: ${err.message}`);
@@ -382,15 +471,40 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
                         <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: '#efeae2', backgroundBlendMode: 'overlay' }}>
                             {messages.map(msg => (
                                 msg.type === 'system' ? (
-                                    <div key={msg.id} style={{ alignSelf: 'center', margin: '8px 0', padding: '4px 16px', backgroundColor: 'rgba(255, 255, 255, 0.8)', borderRadius: '8px', fontSize: '0.75rem', color: '#667781', fontWeight: '600', boxShadow: '0 1px 1px rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                                    <div key={msg.id} style={{
+                                        alignSelf: 'center',
+                                        margin: '8px 0',
+                                        padding: '6px 18px',
+                                        borderRadius: '10px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '700',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                                        ...(msg.msgStyle === 'error'   ? { backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' } :
+                                            msg.msgStyle === 'success' ? { backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac' } :
+                                            msg.msgStyle === 'warning' ? { backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' } :
+                                            msg.msgStyle === 'info'    ? { backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc' } :
+                                                                         { backgroundColor: 'rgba(255,255,255,0.85)', color: '#667781', border: '1px solid rgba(0,0,0,0.05)' })
+                                    }}>
                                         {msg.text}
                                     </div>
                                 ) : (
                                     <div key={msg.id} style={{ alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end', maxWidth: '85%', position: 'relative', marginBottom: '4px' }}>
-                                        <div style={{ padding: '8px 12px 18px 12px', borderRadius: '8px', fontSize: '0.92rem', backgroundColor: msg.type === 'human' ? 'white' : '#dcf8c6', boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)', borderTopLeftRadius: msg.type === 'human' ? '0px' : '8px', borderTopRightRadius: msg.type === 'human' ? '8px' : '0px', whiteSpace: 'pre-wrap' }}>
-                                            {msg.text}
+                                        <div style={{ position: 'relative', padding: msg.isImage ? '4px 4px 20px 4px' : '8px 12px 18px 12px', borderRadius: '8px', fontSize: '0.92rem', backgroundColor: msg.type === 'human' ? 'white' : '#dcf8c6', boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)', borderTopLeftRadius: msg.type === 'human' ? '0px' : '8px', borderTopRightRadius: msg.type === 'human' ? '8px' : '0px', whiteSpace: 'pre-wrap' }}>
+                                            {msg.isImage ? (
+                                                <img
+                                                    src={msg.text.trim()}
+                                                    alt="imagem"
+                                                    style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
+                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                />
+                                            ) : msg.text}
                                             <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: '#667781' }}>{msg.time}</span>
                                         </div>
+                                        {msg.sentByCRM && msg.sender && (
+                                            <div style={{ fontSize: '0.62rem', color: '#667781', textAlign: 'right', marginTop: '2px', paddingRight: '4px' }}>
+                                                ↩ {msg.sender}
+                                            </div>
+                                        )}
                                     </div>
                                 )
                             ))}
@@ -474,6 +588,78 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
                                 <InfoItem icon={Phone} label="WhatsApp" value={selectedLead.telefone} />
                                 <InfoItem icon={DollarSign} label="Status" value={selectedLead.status || 'Qualificando'} />
                             </div>
+
+                            {/* Etiquetas de Follow-up */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '16px' }}>
+                                {!selectedLead.followup_stage || selectedLead.followup_stage === 0 ? (
+                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#f0fdf4', color: '#15803d', fontWeight: '700', border: '1px solid #86efac' }}>
+                                        ✓ Sem follow-up pendente
+                                    </span>
+                                ) : selectedLead.followup_stage === 1 ? (
+                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '800', border: '1px solid #fca5a5' }}>
+                                        ⏱ 1º Follow-up
+                                    </span>
+                                ) : selectedLead.followup_stage === 2 ? (
+                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fecaca', color: '#991b1b', fontWeight: '800', border: '1px solid #f87171' }}>
+                                        ⏱ 2º Follow-up
+                                    </span>
+                                ) : (
+                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fca5a5', color: '#7f1d1d', fontWeight: '800', border: '1px solid #ef4444' }}>
+                                        🚨 3º Follow-up
+                                    </span>
+                                )}
+                                {selectedLead.followup_locked && (
+                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '700', border: '1px solid #fcd34d' }}>
+                                        🔒 Follow-up travado
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Observações */}
+                        <div>
+                            <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Observações</h4>
+                            <textarea
+                                value={observacoesInput}
+                                onChange={(e) => setObservacoesInput(e.target.value)}
+                                placeholder="Anotações sobre este lead (URLs, detalhes coletados, etc.)..."
+                                rows={5}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    borderRadius: '10px',
+                                    border: '1px solid var(--border-soft)',
+                                    backgroundColor: '#f8fafc',
+                                    fontSize: '0.82rem',
+                                    lineHeight: '1.5',
+                                    fontFamily: 'inherit',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <button
+                                onClick={handleSaveObservacoes}
+                                disabled={isSavingObs}
+                                style={{
+                                    marginTop: '8px',
+                                    width: '100%',
+                                    padding: '8px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor: 'var(--accent)',
+                                    color: 'white',
+                                    fontWeight: '700',
+                                    fontSize: '0.78rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                {isSavingObs ? <Loader2 size={14} className="animate-spin" /> : '💾 Salvar Observações'}
+                            </button>
                         </div>
 
                         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -496,6 +682,27 @@ const ChatView = ({ initialLeads }: ChatViewProps) => {
                             >
                                 {selectedLead.ia_active ? <PowerOff size={18} /> : <Power size={18} />}
                                 {selectedLead.ia_active ? 'Pausar Sarah para este Lead' : 'Ativar Sarah para este Lead'}
+                            </button>
+
+                            <button
+                                onClick={handleToggleFollowup}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    backgroundColor: selectedLead.followup_locked ? '#dcfce7' : '#fef3c7',
+                                    color: selectedLead.followup_locked ? '#15803d' : '#92400e',
+                                    fontWeight: '700',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {selectedLead.followup_locked ? <Unlock size={18} /> : <Lock size={18} />}
+                                {selectedLead.followup_locked ? 'Desbloquear Follow-up' : 'Travar Follow-up'}
                             </button>
 
                             <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: selectedLead.ia_active ? '#f0fdf4' : '#fff7ed', border: '1px solid ' + (selectedLead.ia_active ? '#dcfce7' : '#ffedd5') }}>

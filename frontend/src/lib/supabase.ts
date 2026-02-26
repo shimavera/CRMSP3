@@ -9,6 +9,21 @@ const supabaseAnonKey = 'sb_publishable_BXmr9LLM_NDS94Y05ic8og_kFYcRsVU';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export type UserProfile = {
+  id: string;
+  email: string;
+  nome: string;
+  role: 'master' | 'user';
+  permissions: {
+    dashboard: boolean;
+    chats: boolean;
+    kanban: boolean;
+    leads: boolean;
+    settings: boolean;
+  };
+  created_at?: string;
+};
+
 export type Lead = {
   id: number;
   nome?: string;
@@ -26,4 +41,8 @@ export type Lead = {
   proposal_status?: string;  // sent | accepted | rejected
   closed_reason?: string;
   stage_updated_at?: string;
+  followup_stage?: number;
+  followup_locked?: boolean;
+  last_outbound_at?: string;
+  observacoes?: string;
 };
