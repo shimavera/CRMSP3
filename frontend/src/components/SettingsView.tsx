@@ -1,16 +1,43 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff } from 'lucide-react';
 import { supabase } from "../lib/supabase";
+import type { UserProfile } from '../lib/supabase';
 
 const EVO_URL = 'https://evo.sp3company.shop';
 const EVO_KEY = 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D';
 const INSTANCE_NAME = 'v1';
 
-const SettingsView = () => {
+interface SettingsViewProps {
+    authUser: UserProfile;
+}
+
+const SECTION_LABELS: Record<string, string> = {
+    dashboard: 'Visão Geral',
+    chats: 'Conversas Ativas',
+    kanban: 'Kanban',
+    leads: 'Base de Leads',
+    settings: 'Configurações'
+};
+
+const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'profile'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'profile' | 'usuarios'>('whatsapp');
+
+    // Estados de Usuários
+    const [usersList, setUsersList] = useState<UserProfile[]>([]);
+    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+    const [newUserNome, setNewUserNome] = useState('');
+    const [newUserEmail, setNewUserEmail] = useState('');
+    const [newUserPassword, setNewUserPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [newUserPermissions, setNewUserPermissions] = useState({
+        dashboard: true, chats: true, kanban: true, leads: true, settings: false
+    });
+    const [isCreatingUser, setIsCreatingUser] = useState(false);
+    const [createUserError, setCreateUserError] = useState<string | null>(null);
+    const [createUserSuccess, setCreateUserSuccess] = useState(false);
 
     // Estados do Prompt da IA
     const [aiPrompt, setAiPrompt] = useState<string>('');
@@ -26,7 +53,10 @@ const SettingsView = () => {
         active_days: [1, 2, 3, 4, 5],
         interval_1: 10,
         interval_2: 30,
-        interval_3: 60
+        interval_3: 60,
+        msg_1: 'Oi! Passando para ver se conseguiu ler minha última mensagem? 👀',
+        msg_2: 'Ainda por aí? Se preferir, podemos marcar um papo rápido para eu tirar suas dúvidas! 📲',
+        msg_3: 'Vi que as coisas devem estar corridas! Vou deixar nosso link de agenda aqui para quando você puder. 🤝'
     });
     const [isSavingFollowup, setIsSavingFollowup] = useState(false);
     const [followupSuccess, setFollowupSuccess] = useState(false);
@@ -47,7 +77,10 @@ const SettingsView = () => {
                     end_time: data.end_time || '18:00',
                     interval_1: data.interval_1 || 10,
                     interval_2: data.interval_2 || 30,
-                    interval_3: data.interval_3 || 60
+                    interval_3: data.interval_3 || 60,
+                    msg_1: data.msg_1 || 'Oi! Passando para ver se conseguiu ler minha última mensagem? 👀',
+                    msg_2: data.msg_2 || 'Ainda por aí? Se preferir, podemos marcar um papo rápido para eu tirar suas dúvidas! 📲',
+                    msg_3: data.msg_3 || 'Vi que as coisas devem estar corridas! Vou deixar nosso link de agenda aqui para quando você puder. 🤝'
                 });
             }
         } catch (err) {
@@ -73,9 +106,9 @@ const SettingsView = () => {
             if (error) throw error;
             setFollowupSuccess(true);
             setTimeout(() => setFollowupSuccess(false), 3000);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Erro ao salvar follow-up:', err);
-            alert('Erro ao salvar. Verifique se a tabela sp3_followup_settings existe no banco.');
+            alert(`Erro ao salvar: ${err.message || 'Verifique se a tabela sp3_followup_settings existe e tem as colunas corretas.'}`);
         } finally {
             setIsSavingFollowup(false);
         }
@@ -200,10 +233,68 @@ const SettingsView = () => {
         }
     };
 
+    const fetchUsers = async () => {
+        setIsLoadingUsers(true);
+        const { data } = await supabase.from('sp3_users').select('*').order('created_at', { ascending: true });
+        if (data) setUsersList(data as UserProfile[]);
+        setIsLoadingUsers(false);
+    };
+
+    const handleCreateUser = async () => {
+        if (!newUserNome.trim() || !newUserEmail.trim() || !newUserPassword.trim()) return;
+        setIsCreatingUser(true);
+        setCreateUserError(null);
+
+        // 1. Salvar sessão do master
+        const { data: { session: masterSession } } = await supabase.auth.getSession();
+        if (!masterSession) { setIsCreatingUser(false); return; }
+
+        // 2. Criar o usuário via signUp
+        const { data, error } = await supabase.auth.signUp({ email: newUserEmail.trim(), password: newUserPassword });
+
+        // 3. Restaurar sessão do master imediatamente
+        await supabase.auth.setSession({ access_token: masterSession.access_token, refresh_token: masterSession.refresh_token });
+
+        if (error || !data.user) {
+            setCreateUserError(error?.message || 'Erro ao criar usuário. Verifique se o email já existe.');
+            setIsCreatingUser(false);
+            return;
+        }
+
+        // 4. Inserir perfil
+        const { error: insertError } = await supabase.from('sp3_users').insert([{
+            id: data.user.id,
+            email: newUserEmail.trim(),
+            nome: newUserNome.trim(),
+            role: 'user',
+            permissions: newUserPermissions
+        }]);
+
+        if (insertError) {
+            setCreateUserError(insertError.message);
+        } else {
+            setCreateUserSuccess(true);
+            setNewUserNome('');
+            setNewUserEmail('');
+            setNewUserPassword('');
+            setNewUserPermissions({ dashboard: true, chats: true, kanban: true, leads: true, settings: false });
+            await fetchUsers();
+            setTimeout(() => setCreateUserSuccess(false), 3000);
+        }
+        setIsCreatingUser(false);
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        if (!window.confirm('Remover este usuário do sistema? Ele não conseguirá mais acessar o CRM.')) return;
+        await supabase.from('sp3_users').delete().eq('id', userId);
+        await fetchUsers();
+    };
+
     useEffect(() => {
         checkStatus();
         fetchPromptHistory();
         fetchFollowupConfig();
+        if (authUser.role === 'master') fetchUsers();
     }, []);
 
     return (
@@ -236,6 +327,14 @@ const SettingsView = () => {
                     >
                         <Shield size={18} /> Perfil
                     </button>
+                    {authUser.role === 'master' && (
+                        <button
+                            onClick={() => setActiveSubTab('usuarios')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'usuarios' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'usuarios' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'usuarios' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        >
+                            <Users size={18} /> Usuários
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -498,6 +597,38 @@ const SettingsView = () => {
                             </div>
                         </div>
 
+                        {/* Mensagens */}
+                        <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-soft)', paddingTop: '2rem' }}>
+                            <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginBottom: '1.5rem' }}>Mensagens de Follow-up</h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                {[
+                                    { key: 'msg_1', label: '1ª Mensagem (quando não responde pela 1ª vez)' },
+                                    { key: 'msg_2', label: '2ª Mensagem (quando continua sem responder)' },
+                                    { key: 'msg_3', label: '3ª Mensagem (último follow-up)' }
+                                ].map(({ key, label }) => (
+                                    <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</label>
+                                        <textarea
+                                            value={followupConfig[key] || ''}
+                                            onChange={(e) => setFollowupConfig({ ...followupConfig, [key]: e.target.value })}
+                                            rows={3}
+                                            style={{
+                                                padding: '10px 14px',
+                                                borderRadius: '10px',
+                                                border: '1px solid var(--border-soft)',
+                                                backgroundColor: '#f8fafc',
+                                                fontSize: '0.9rem',
+                                                lineHeight: '1.5',
+                                                fontFamily: 'inherit',
+                                                resize: 'vertical',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '2.5rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
                             {followupSuccess && (
                                 <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Configurações salvas!</span>
@@ -531,11 +662,151 @@ const SettingsView = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome de Exibição</label>
-                                <input type="text" readOnly value="Juan Lourenço" style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
+                                <input type="text" readOnly value={authUser.nome} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cargo</label>
-                                <input type="text" readOnly value="Administrador" style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
+                                <input type="text" readOnly value={authUser.role === 'master' ? 'Master' : 'Operador'} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</label>
+                                <input type="text" readOnly value={authUser.email} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeSubTab === 'usuarios' && authUser.role === 'master' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Lista de usuários */}
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '1.5rem' }}>Usuários do Sistema</h3>
+                            {isLoadingUsers ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {usersList.map(u => (
+                                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: u.role === 'master' ? 'var(--accent)' : '#e2e8f0', color: u.role === 'master' ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.9rem' }}>
+                                                    {u.nome[0].toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>{u.nome}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{u.email} • {u.role === 'master' ? '⭐ Master' : 'Operador'}</div>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                    {Object.entries(u.permissions).filter(([, v]) => v).map(([k]) => (
+                                                        <span key={k} style={{ fontSize: '0.6rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#e0f2fe', color: '#0369a1', fontWeight: '700' }}>
+                                                            {SECTION_LABELS[k] || k}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                                {u.role !== 'master' && (
+                                                    <button
+                                                        onClick={() => handleDeleteUser(u.id)}
+                                                        style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                        title="Remover usuário"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {usersList.length === 0 && (
+                                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1.5rem 0', fontSize: '0.9rem' }}>Nenhum usuário cadastrado ainda.</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Formulário de criação */}
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '1.5rem' }}>Adicionar Novo Usuário</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome</label>
+                                        <input
+                                            type="text"
+                                            value={newUserNome}
+                                            onChange={(e) => setNewUserNome(e.target.value)}
+                                            placeholder="Nome completo"
+                                            style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</label>
+                                        <input
+                                            type="email"
+                                            value={newUserEmail}
+                                            onChange={(e) => setNewUserEmail(e.target.value)}
+                                            placeholder="email@exemplo.com"
+                                            style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Senha inicial</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <input
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={newUserPassword}
+                                            onChange={(e) => setNewUserPassword(e.target.value)}
+                                            placeholder="Mínimo 6 caracteres"
+                                            style={{ width: '100%', padding: '10px 40px 10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex' }}
+                                        >
+                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Permissões de acesso</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                        {(Object.keys(SECTION_LABELS) as Array<keyof typeof newUserPermissions>).map(key => (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => setNewUserPermissions(prev => ({ ...prev, [key]: !prev[key] }))}
+                                                style={{ padding: '6px 14px', borderRadius: '20px', border: '1.5px solid', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', backgroundColor: newUserPermissions[key] ? 'var(--accent)' : 'white', color: newUserPermissions[key] ? 'white' : 'var(--text-secondary)', borderColor: newUserPermissions[key] ? 'var(--accent)' : 'var(--border-soft)' }}
+                                            >
+                                                {SECTION_LABELS[key]}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {createUserError && (
+                                    <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', fontSize: '0.85rem', fontWeight: '600' }}>
+                                        {createUserError}
+                                    </div>
+                                )}
+                                {createUserSuccess && (
+                                    <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', color: '#15803d', fontSize: '0.85rem', fontWeight: '600' }}>
+                                        ✓ Usuário criado com sucesso!
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={handleCreateUser}
+                                        disabled={isCreatingUser || !newUserNome.trim() || !newUserEmail.trim() || newUserPassword.length < 6}
+                                        style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: (isCreatingUser || !newUserNome.trim() || !newUserEmail.trim() || newUserPassword.length < 6) ? '#93c5fd' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                    >
+                                        {isCreatingUser ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                                        {isCreatingUser ? 'Criando...' : 'Criar Usuário'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

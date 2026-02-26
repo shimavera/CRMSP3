@@ -10,13 +10,18 @@ import {
   LogOut,
   Search,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Loader2,
+  Plus,
+  X,
+  Bot
 } from 'lucide-react';
 import ChatView from './components/ChatView';
 import KanbanView from './components/KanbanView';
 import SettingsView from './components/SettingsView';
+import LoginView from './components/LoginView';
 import { supabase } from './lib/supabase';
-import type { Lead } from './lib/supabase';
+import type { Lead, UserProfile } from './lib/supabase';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) => (
   <button
@@ -60,30 +65,95 @@ const StatCard = ({ label, value, icon: Icon, color, trend }: any) => (
   </div>
 );
 
+const MASTER_PERMISSIONS: UserProfile['permissions'] = {
+  dashboard: true, chats: true, kanban: true, leads: true, settings: true
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [openChatWithPhone, setOpenChatWithPhone] = useState<string | null>(null);
+  // ─── ADICIONAR LEAD ─────────────────────────────────────────────────────────
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [newLeadNome, setNewLeadNome] = useState('');
+  const [newLeadTelefone, setNewLeadTelefone] = useState('');
+  const [isAddingLead, setIsAddingLead] = useState(false);
+  const [addLeadError, setAddLeadError] = useState<string | null>(null);
 
+  // ─── AUTENTICAÇÃO ───────────────────────────────────────────────────────────
+  const loadUserProfile = async (userId: string, userEmail: string) => {
+    const { data, error } = await supabase
+      .from('sp3_users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao carregar perfil:', error);
+      setAuthLoading(false);
+      return;
+    }
+
+    if (data) {
+      setAuthUser(data as UserProfile);
+    } else {
+      // Verificar se é o primeiro usuário → auto-criar como master
+      const { count } = await supabase.from('sp3_users').select('*', { count: 'exact', head: true });
+      const isFirstUser = count === 0;
+      const newProfile: Omit<UserProfile, 'created_at'> = {
+        id: userId,
+        email: userEmail,
+        nome: userEmail.split('@')[0],
+        role: isFirstUser ? 'master' : 'user',
+        permissions: isFirstUser ? MASTER_PERMISSIONS : { dashboard: true, chats: true, kanban: true, leads: true, settings: false }
+      };
+      await supabase.from('sp3_users').insert([newProfile]);
+      setAuthUser({ ...newProfile });
+    }
+    setAuthLoading(false);
+  };
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        loadUserProfile(session.user.id, session.user.email || '');
+      } else {
+        setAuthLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        loadUserProfile(session.user.id, session.user.email || '');
+      } else if (event === 'SIGNED_OUT') {
+        setAuthUser(null);
+        setAuthLoading(false);
+        setActiveTab('dashboard');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // ─── DADOS ──────────────────────────────────────────────────────────────────
   const fetchLeads = async () => {
     try {
-      console.log('Buscando leads na tabela sp3chat...');
       const { data, error } = await supabase
         .from('sp3chat')
         .select('*')
         .order('id', { ascending: false });
 
       if (error) {
-        console.error('Erro Supabase:', error);
         setError(error.message);
       } else {
-        console.log('Leads encontrados:', data?.length || 0);
         setLeads(data || []);
         setError(null);
       }
     } catch (e: any) {
-      console.error('Erro de conexão:', e);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -91,17 +161,71 @@ function App() {
   };
 
   useEffect(() => {
+    if (!authUser) return;
     fetchLeads();
+    const interval = setInterval(fetchLeads, 30000);
+    return () => clearInterval(interval);
+  }, [authUser]);
 
-    // Polling a cada 30 segundos para manter os dados atualizados
-    const interval = setInterval(() => {
-      fetchLeads();
-    }, 30000);
+  // ─── GUARD DE TAB POR PERMISSÃO ─────────────────────────────────────────────
+  const setTabSafe = (tab: string) => {
+    if (!authUser) return;
+    const permKey = tab as keyof UserProfile['permissions'];
+    if (authUser.permissions[permKey] === false) return;
+    setActiveTab(tab);
+  };
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
+  // ─── LOADING ────────────────────────────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+            <Activity size={24} color="white" />
+          </div>
+          <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)', margin: '0 auto' }} />
+        </div>
+      </div>
+    );
+  }
+
+  // ─── LOGIN ──────────────────────────────────────────────────────────────────
+  if (!authUser) {
+    return <LoginView />;
+  }
+
+  // ─── APP PRINCIPAL ───────────────────────────────────────────────────────────
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const handleAddLead = async () => {
+    if (!newLeadTelefone.trim()) {
+      setAddLeadError('O telefone é obrigatório.');
+      return;
+    }
+    setIsAddingLead(true);
+    setAddLeadError(null);
+    const { error } = await supabase.from('sp3chat').insert([{
+      nome: newLeadNome.trim() || null,
+      telefone: newLeadTelefone.trim(),
+      ia_active: true
+    }]);
+    if (error) {
+      setAddLeadError(error.message);
+    } else {
+      setNewLeadNome('');
+      setNewLeadTelefone('');
+      setShowAddLead(false);
+      await fetchLeads();
+    }
+    setIsAddingLead(false);
+  };
+
+  const handleOpenChatFromLeads = (phone: string) => {
+    setOpenChatWithPhone(phone);
+    setTabSafe('chats');
+  };
 
   return (
     <div className="dashboard-container">
@@ -116,23 +240,37 @@ function App() {
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <SidebarItem icon={LayoutDashboard} label="Visão Geral" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <SidebarItem icon={MessageSquare} label="Conversas Ativas" active={activeTab === 'chats'} onClick={() => setActiveTab('chats')} />
-          <SidebarItem icon={Kanban} label="Kanban" active={activeTab === 'kanban'} onClick={() => setActiveTab('kanban')} />
-          <SidebarItem icon={Calendar} label="Agenda" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
-          <SidebarItem icon={Users} label="Base de Leads" active={activeTab === 'leads'} onClick={() => setActiveTab('leads')} />
+          {authUser.permissions.dashboard && (
+            <SidebarItem icon={LayoutDashboard} label="Visão Geral" active={activeTab === 'dashboard'} onClick={() => setTabSafe('dashboard')} />
+          )}
+          {authUser.permissions.chats && (
+            <SidebarItem icon={MessageSquare} label="Conversas Ativas" active={activeTab === 'chats'} onClick={() => setTabSafe('chats')} />
+          )}
+          {authUser.permissions.kanban && (
+            <SidebarItem icon={Kanban} label="Kanban" active={activeTab === 'kanban'} onClick={() => setTabSafe('kanban')} />
+          )}
+          {authUser.permissions.leads && (
+            <SidebarItem icon={Users} label="Base de Leads" active={activeTab === 'leads'} onClick={() => setTabSafe('leads')} />
+          )}
         </nav>
 
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
-          <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
-          <SidebarItem icon={LogOut} label="Sair" />
+          {authUser.permissions.settings && (
+            <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => setTabSafe('settings')} />
+          )}
+          {/* Perfil do usuário logado */}
+          <div style={{ padding: '10px 14px', borderRadius: '12px', backgroundColor: 'var(--accent-soft)', marginBottom: '4px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent)', marginBottom: '2px' }}>{authUser.nome}</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{authUser.role === 'master' ? '⭐ Master' : 'Operador'}</div>
+          </div>
+          <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
         </div>
       </aside>
 
       <main className="main-content">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
           <div>
-            <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, Juan Lourenço 👋</h2>
+            <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
               {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
             </p>
@@ -162,7 +300,7 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && authUser.permissions.dashboard && (
           <div className="fade-in">
             <div className="metric-grid">
               <StatCard label="Leads Ativos" value={leads.length} icon={Users} color="#0ea5e9" trend="Online" />
@@ -191,7 +329,9 @@ function App() {
                           <td style={{ padding: '16px 12px', fontWeight: '700' }}>{lead.nome || 'Sem Nome'}</td>
                           <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>{lead.telefone}</td>
                           <td style={{ padding: '16px 12px' }}>
-                            <button onClick={() => setActiveTab('chats')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: '600' }}>Abrir Chat</button>
+                            {authUser.permissions.chats && (
+                              <button onClick={() => setTabSafe('chats')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: '600' }}>Abrir Chat</button>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -203,9 +343,139 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'chats' && <ChatView initialLeads={leads} />}
-        {activeTab === 'kanban' && <KanbanView />}
-        {activeTab === 'settings' && <SettingsView />}
+        {activeTab === 'chats' && authUser.permissions.chats && (
+          <ChatView
+            initialLeads={leads}
+            authUser={authUser}
+            openPhone={openChatWithPhone}
+            onPhoneOpened={() => setOpenChatWithPhone(null)}
+          />
+        )}
+        {activeTab === 'kanban' && authUser.permissions.kanban && <KanbanView />}
+        {activeTab === 'settings' && authUser.permissions.settings && <SettingsView authUser={authUser} />}
+
+        {activeTab === 'leads' && authUser.permissions.leads && (
+          <div className="fade-in">
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Base de Leads</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '2px' }}>{leads.length} leads cadastrados</p>
+              </div>
+              <button
+                onClick={() => { setShowAddLead(true); setAddLeadError(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
+              >
+                <Plus size={16} /> Adicionar Lead
+              </button>
+            </div>
+
+            {/* Formulário de novo lead */}
+            {showAddLead && (
+              <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                  <h4 style={{ fontWeight: '800', fontSize: '1rem' }}>Novo Lead</h4>
+                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                    <X size={18} />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome (opcional)</label>
+                    <input
+                      value={newLeadNome}
+                      onChange={(e) => setNewLeadNome(e.target.value)}
+                      placeholder="Nome do lead"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid var(--border-soft)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Telefone / WhatsApp *</label>
+                    <input
+                      value={newLeadTelefone}
+                      onChange={(e) => setNewLeadTelefone(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddLead()}
+                      placeholder="Ex: 5511999999999"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: addLeadError ? '1.5px solid #fca5a5' : '1.5px solid var(--border-soft)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                {addLeadError && <p style={{ color: '#b91c1c', fontSize: '0.82rem', marginBottom: '10px', fontWeight: '600' }}>{addLeadError}</p>}
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); }} style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleAddLead}
+                    disabled={isAddingLead}
+                    style={{ padding: '8px 18px', borderRadius: '10px', border: 'none', backgroundColor: isAddingLead ? '#93c5fd' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: isAddingLead ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {isAddingLead ? <><Loader2 size={14} className="animate-spin" /> Criando...</> : 'Criar Lead'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tabela de leads */}
+            <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-soft)', backgroundColor: '#f8fafc' }}>
+                      <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: '700' }}>Nome</th>
+                      <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: '700' }}>Telefone</th>
+                      <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: '700' }}>IA</th>
+                      <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: '700' }}>Stage</th>
+                      <th style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: '700' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.length === 0 ? (
+                      <tr><td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum lead cadastrado. Clique em "Adicionar Lead" para começar.</td></tr>
+                    ) : (
+                      leads.map(lead => (
+                        <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-soft)', transition: 'background 0.15s' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <td style={{ padding: '14px 16px', fontWeight: '700' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.85rem', flexShrink: 0 }}>
+                                {(lead.nome || lead.telefone)[0].toUpperCase()}
+                              </div>
+                              {lead.nome || <span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>Sem nome</span>}
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{lead.telefone}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.65rem', padding: '4px 10px', borderRadius: '20px', fontWeight: '700', backgroundColor: lead.ia_active ? '#dcfce7' : '#fee2e2', color: lead.ia_active ? '#15803d' : '#b91c1c' }}>
+                              <Bot size={11} /> {lead.ia_active ? 'Ativa' : 'Pausada'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                            {lead.stage ? (
+                              <span style={{ padding: '3px 10px', borderRadius: '6px', backgroundColor: '#f1f5f9', fontSize: '0.75rem', fontWeight: '600' }}>{lead.stage}</span>
+                            ) : '—'}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            {authUser.permissions.chats && (
+                              <button
+                                onClick={() => handleOpenChatFromLeads(lead.telefone)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}
+                              >
+                                <MessageSquare size={13} /> Abrir Chat
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
