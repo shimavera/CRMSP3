@@ -63,7 +63,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     const fetchFollowupConfig = async () => {
         try {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('sp3_followup_settings')
                 .select('*')
                 .limit(1)
