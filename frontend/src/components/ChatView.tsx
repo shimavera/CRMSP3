@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { supabase } from '../lib/supabase';
 import type { Lead, UserProfile } from '../lib/supabase';
@@ -34,10 +34,19 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [recordingTime, setRecordingTime] = useState(0);
     const [observacoesInput, setObservacoesInput] = useState('');
     const [isSavingObs, setIsSavingObs] = useState(false);
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+    const [mobilePanel, setMobilePanel] = useState<'list' | 'chat'>('list');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<any>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // RESIZE LISTENER
+    useEffect(() => {
+        const handler = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handler);
+        return () => window.removeEventListener('resize', handler);
+    }, []);
 
     // 1. SINCRONIZAR LEADS LOCAIS
     useEffect(() => {
@@ -52,6 +61,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 setSelectedLead(lead);
                 localStorage.setItem('last_selected_chat', openPhone);
                 onPhoneOpened?.();
+                if (isMobile) setMobilePanel('chat');
                 return;
             }
         }
@@ -411,10 +421,15 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const handleSelectLead = (lead: Lead) => {
+        setSelectedLead(lead);
+        if (isMobile) setMobilePanel('chat');
+    };
+
     return (
-        <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '280px 1fr 300px', gap: '1.5rem', height: 'calc(100vh - 180px)' }}>
+        <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr 300px', gap: isMobile ? 0 : '1.5rem', height: isMobile ? 'calc(100dvh - 120px)' : 'calc(100vh - 180px)' }}>
             {/* Sidebar de Conversas */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {(!isMobile || mobilePanel === 'list') && <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-soft)' }}>
                     <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Conversas</h4>
                 </div>
@@ -422,7 +437,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     {sortedLeads.map(lead => (
                         <div
                             key={lead.id}
-                            onClick={() => setSelectedLead(lead)}
+                            onClick={() => handleSelectLead(lead)}
                             style={{
                                 padding: '1rem',
                                 borderBottom: '1px solid var(--border-soft)',
@@ -445,15 +460,20 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         </div>
                     ))}
                 </div>
-            </div>
+            </div>}
 
             {/* Janela de Chat */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#efeae2' }}>
+            {(!isMobile || mobilePanel === 'chat') && <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#efeae2' }}>
                 {selectedLead ? (
                     <>
-                        <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f2f5', zIndex: 10 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f2f5', zIndex: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                {isMobile && (
+                                    <button onClick={() => setMobilePanel('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#667781', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                                        <ArrowLeft size={22} />
+                                    </button>
+                                )}
+                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
                                     {(selectedLead.nome || 'L')[0].toUpperCase()}
                                 </div>
                                 <div>
@@ -574,10 +594,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 ) : (
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#667781' }}>Selecione uma conversa para começar</div>
                 )}
-            </div>
+            </div>}
 
-            {/* Painel lateral */}
-            <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Painel lateral — apenas desktop */}
+            {!isMobile && <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                 {selectedLead && (
                     <>
                         <div>
@@ -721,7 +741,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         </div>
                     </>
                 )}
-            </div>
+            </div>}
         </div>
     );
 };

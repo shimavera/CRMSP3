@@ -14,7 +14,8 @@ import {
   Loader2,
   Plus,
   X,
-  Bot
+  Bot,
+  Menu
 } from 'lucide-react';
 import ChatView from './components/ChatView';
 import KanbanView from './components/KanbanView';
@@ -76,6 +77,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openChatWithPhone, setOpenChatWithPhone] = useState<string | null>(null);
   // ─── ADICIONAR LEAD ─────────────────────────────────────────────────────────
   const [showAddLead, setShowAddLead] = useState(false);
@@ -222,41 +224,47 @@ function App() {
     setIsAddingLead(false);
   };
 
+  const navigate = (tab: string) => {
+    setTabSafe(tab);
+    setSidebarOpen(false);
+  };
+
   const handleOpenChatFromLeads = (phone: string) => {
     setOpenChatWithPhone(phone);
     setTabSafe('chats');
+    setSidebarOpen(false);
   };
 
   return (
     <div className="dashboard-container">
-      <aside className="sidebar">
-        <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem' }}>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '10px', letterSpacing: '-0.02em' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Activity size={20} color="white" />
-            </div>
-            SP3 CRM
-          </h1>
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
+        <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center' }}>
+          <img
+            src="/logo.png"
+            alt="SP3 CRM Logo"
+            style={{ height: '42px', objectFit: 'contain', maxWidth: '100%' }}
+          />
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {authUser.permissions.dashboard && (
-            <SidebarItem icon={LayoutDashboard} label="Visão Geral" active={activeTab === 'dashboard'} onClick={() => setTabSafe('dashboard')} />
+            <SidebarItem icon={LayoutDashboard} label="Visão Geral" active={activeTab === 'dashboard'} onClick={() => navigate('dashboard')} />
           )}
           {authUser.permissions.chats && (
-            <SidebarItem icon={MessageSquare} label="Conversas Ativas" active={activeTab === 'chats'} onClick={() => setTabSafe('chats')} />
+            <SidebarItem icon={MessageSquare} label="Conversas Ativas" active={activeTab === 'chats'} onClick={() => navigate('chats')} />
           )}
           {authUser.permissions.kanban && (
-            <SidebarItem icon={Kanban} label="Kanban" active={activeTab === 'kanban'} onClick={() => setTabSafe('kanban')} />
+            <SidebarItem icon={Kanban} label="Kanban" active={activeTab === 'kanban'} onClick={() => navigate('kanban')} />
           )}
           {authUser.permissions.leads && (
-            <SidebarItem icon={Users} label="Base de Leads" active={activeTab === 'leads'} onClick={() => setTabSafe('leads')} />
+            <SidebarItem icon={Users} label="Base de Leads" active={activeTab === 'leads'} onClick={() => navigate('leads')} />
           )}
         </nav>
 
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
           {authUser.permissions.settings && (
-            <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => setTabSafe('settings')} />
+            <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => navigate('settings')} />
           )}
           {/* Perfil do usuário logado */}
           <div style={{ padding: '10px 14px', borderRadius: '12px', backgroundColor: 'var(--accent-soft)', marginBottom: '4px' }}>
@@ -268,15 +276,24 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
-          <div>
-            <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-              {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
-            </p>
+        <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              className="mobile-only"
+              onClick={() => setSidebarOpen(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '6px', borderRadius: '8px', alignItems: 'center' }}
+            >
+              <Menu size={26} />
+            </button>
+            <div>
+              <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
             <button
               onClick={fetchLeads}
               style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
