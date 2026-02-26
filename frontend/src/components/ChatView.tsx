@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { supabase } from '../lib/supabase';
 import type { Lead, UserProfile } from '../lib/supabase';
@@ -491,40 +491,83 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: '#efeae2', backgroundBlendMode: 'overlay' }}>
                             {messages.map(msg => (
                                 msg.type === 'system' ? (
-                                    <div key={msg.id} style={{
-                                        alignSelf: 'center',
-                                        margin: '8px 0',
-                                        padding: '6px 18px',
-                                        borderRadius: '10px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '700',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
-                                        ...(msg.msgStyle === 'error'   ? { backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' } :
-                                            msg.msgStyle === 'success' ? { backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac' } :
-                                            msg.msgStyle === 'warning' ? { backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' } :
-                                            msg.msgStyle === 'info'    ? { backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc' } :
-                                                                         { backgroundColor: 'rgba(255,255,255,0.85)', color: '#667781', border: '1px solid rgba(0,0,0,0.05)' })
-                                    }}>
-                                        {msg.text}
+                                    // Separador horizontal estilo Kommo
+                                    <div key={msg.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0', alignSelf: 'stretch' }}>
+                                        <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
+                                        <span style={{
+                                            fontSize: '0.68rem', fontWeight: '700', whiteSpace: 'nowrap',
+                                            padding: '3px 12px', borderRadius: '20px',
+                                            ...(msg.msgStyle === 'error'   ? { color: '#b91c1c', backgroundColor: '#fee2e2' } :
+                                                msg.msgStyle === 'success' ? { color: '#15803d', backgroundColor: '#dcfce7' } :
+                                                msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
+                                                msg.msgStyle === 'info'    ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
+                                                                             { color: '#667781', backgroundColor: 'rgba(255,255,255,0.9)' })
+                                        }}>
+                                            {msg.text}
+                                        </span>
+                                        <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
                                     </div>
                                 ) : (
-                                    <div key={msg.id} style={{ alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end', maxWidth: '85%', position: 'relative', marginBottom: '4px' }}>
-                                        <div style={{ position: 'relative', padding: msg.isImage ? '4px 4px 20px 4px' : '8px 12px 18px 12px', borderRadius: '8px', fontSize: '0.92rem', backgroundColor: msg.type === 'human' ? 'white' : '#dcf8c6', boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)', borderTopLeftRadius: msg.type === 'human' ? '0px' : '8px', borderTopRightRadius: msg.type === 'human' ? '8px' : '0px', whiteSpace: 'pre-wrap' }}>
-                                            {msg.isImage ? (
-                                                <img
-                                                    src={msg.text.trim()}
-                                                    alt="imagem"
-                                                    style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
-                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                />
-                                            ) : msg.text}
-                                            <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: '#667781' }}>{msg.time}</span>
+                                    // Mensagem com avatar + nome do remetente
+                                    <div key={msg.id} style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-end',
+                                        gap: '7px',
+                                        alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end',
+                                        maxWidth: '80%',
+                                        flexDirection: msg.type === 'human' ? 'row' : 'row-reverse',
+                                        marginBottom: '4px'
+                                    }}>
+                                        {/* Avatar */}
+                                        <div style={{
+                                            width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontWeight: '700', fontSize: '0.75rem',
+                                            backgroundColor: msg.type === 'human' ? '#e2e8f0' : (msg.sentByCRM ? '#bfdbfe' : '#bbf7d0'),
+                                            color: msg.type === 'human' ? '#475569' : (msg.sentByCRM ? '#1d4ed8' : '#15803d')
+                                        }}>
+                                            {msg.type === 'human'
+                                                ? (selectedLead.nome || 'C')[0].toUpperCase()
+                                                : msg.sentByCRM ? <User size={15} /> : <Bot size={15} />
+                                            }
                                         </div>
-                                        {msg.sentByCRM && msg.sender && (
-                                            <div style={{ fontSize: '0.62rem', color: '#667781', textAlign: 'right', marginTop: '2px', paddingRight: '4px' }}>
-                                                ↩ {msg.sender}
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            {/* Nome do remetente */}
+                                            <div style={{
+                                                fontSize: '0.63rem', fontWeight: '700',
+                                                paddingLeft: msg.type === 'human' ? '4px' : '0',
+                                                paddingRight: msg.type === 'human' ? '0' : '4px',
+                                                textAlign: msg.type === 'human' ? 'left' : 'right',
+                                                color: msg.type === 'human' ? '#667781' : (msg.sentByCRM ? '#1d4ed8' : '#15803d')
+                                            }}>
+                                                {msg.type === 'human'
+                                                    ? (selectedLead.nome || selectedLead.telefone)
+                                                    : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
+                                                }
                                             </div>
-                                        )}
+
+                                            {/* Balão */}
+                                            <div style={{
+                                                position: 'relative',
+                                                padding: msg.isImage ? '4px 4px 20px 4px' : '8px 12px 18px 12px',
+                                                borderRadius: msg.type === 'human' ? '0 8px 8px 8px' : '8px 0 8px 8px',
+                                                fontSize: '0.92rem',
+                                                backgroundColor: msg.type === 'human' ? 'white' : (msg.sentByCRM ? '#dbeafe' : '#dcf8c6'),
+                                                boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
+                                                whiteSpace: 'pre-wrap'
+                                            }}>
+                                                {msg.isImage ? (
+                                                    <img
+                                                        src={msg.text.trim()}
+                                                        alt="imagem"
+                                                        style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
+                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                    />
+                                                ) : msg.text}
+                                                <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: '#667781' }}>{msg.time}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 )
                             ))}
