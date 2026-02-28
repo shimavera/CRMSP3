@@ -182,6 +182,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 let msgStyle: string | null = null;
                 let isImage = false;
                 let isAudio = false;
+                let isVideo = false;
                 let sender: string | null = null;
                 let sentByCRM = false;
                 let msgData: any = null;
@@ -216,7 +217,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     // Detecção de tipo baseada no JSON
                     isImage = msgData.msgStyle === 'image' || msgData.type === 'image' || type === 'image' || !!msgData.image;
                     isAudio = msgData.msgStyle === 'audio' || msgData.type === 'audio' || type === 'audio' || msgData.type === 'ptt' || type === 'ptt' || !!msgData.audio || !!msgData.ptt;
-                    const isVideo = msgData.msgStyle === 'video' || msgData.type === 'video' || !!msgData.video;
+                    isVideo = msgData.msgStyle === 'video' || msgData.type === 'video' || !!msgData.video;
                     if (isVideo) {
                         type = 'video';
                     }
@@ -238,7 +239,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
                 // Detectar URLs de video ou Base64 de video
                 const videoUrlPattern = /^(https?:\/\/.+\.(mp4|webm|mkv|mov)(\?.*)?|data:video\/.+)$/i;
-                let isVideo = type === 'video';
                 if (!isVideo && typeof text === 'string' && (videoUrlPattern.test(text.trim()) || text.trim().startsWith('data:video'))) {
                     isVideo = true;
                 }
@@ -411,7 +411,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 })
             });
 
-            if (!response.ok) throw new Error('Erro ao enviar imagem para Evolution API');
+            if (!response.ok) throw new Error(`Erro ao enviar ${mediaTypeStr} para a Evolution API`);
 
             // No n8n_chat_histories, vamos salvar como uma mensagem do tipo correto
             await supabase
@@ -431,7 +431,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             fetchMessages();
 
         } catch (err: any) {
-            alert('Erro ao enviar imagem: ' + err.message);
+            alert(`Erro ao enviar ${isVideo ? 'vídeo' : 'imagem'}: ` + err.message);
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
