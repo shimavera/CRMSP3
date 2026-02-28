@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X } from 'lucide-react';
 import { supabase } from "../lib/supabase";
-import type { UserProfile } from '../lib/supabase';
+import type { UserProfile, SocialProofVideo } from '../lib/supabase';
 
 const EVO_URL = 'https://evo.sp3company.shop';
 const EVO_KEY = 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D';
@@ -23,7 +23,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'profile' | 'usuarios' | 'dados'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'profile' | 'usuarios' | 'dados'>('whatsapp');
 
     // Estados de Dados
     const [isResettingChats, setIsResettingChats] = useState(false);
@@ -63,6 +63,17 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     });
     const [isSavingFollowup, setIsSavingFollowup] = useState(false);
     const [followupSuccess, setFollowupSuccess] = useState(false);
+
+    // Estados de Vídeos de Prova Social
+    const [videos, setVideos] = useState<SocialProofVideo[]>([]);
+    const [isLoadingVideos, setIsLoadingVideos] = useState(false);
+    const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+    const [showAddVideo, setShowAddVideo] = useState(false);
+    const [newVideoTitulo, setNewVideoTitulo] = useState('');
+    const [newVideoDescricao, setNewVideoDescricao] = useState('');
+    const [newVideoContexto, setNewVideoContexto] = useState('Depoimento');
+    const [newVideoFile, setNewVideoFile] = useState<File | null>(null);
+    const videoFileRef = useRef<HTMLInputElement>(null);
 
     const fetchFollowupConfig = async () => {
         try {
@@ -115,6 +126,81 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         } finally {
             setIsSavingFollowup(false);
         }
+    };
+
+    // Funções de Vídeos de Prova Social
+    const fetchVideos = async () => {
+        setIsLoadingVideos(true);
+        const { data } = await supabase
+            .from('sp3_social_proof_videos')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setVideos(data as SocialProofVideo[]);
+        setIsLoadingVideos(false);
+    };
+
+    const handleUploadVideo = async () => {
+        if (!newVideoFile || !newVideoTitulo.trim() || !newVideoDescricao.trim()) return;
+        setIsUploadingVideo(true);
+
+        try {
+            const ext = newVideoFile.name.split('.').pop() || 'mp4';
+            const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('social-proof-videos')
+                .upload(fileName, newVideoFile, { contentType: newVideoFile.type });
+
+            if (uploadError) throw uploadError;
+
+            const { data: urlData } = supabase.storage
+                .from('social-proof-videos')
+                .getPublicUrl(fileName);
+
+            const { error: insertError } = await supabase
+                .from('sp3_social_proof_videos')
+                .insert([{
+                    titulo: newVideoTitulo.trim(),
+                    descricao: newVideoDescricao.trim(),
+                    contexto: newVideoContexto,
+                    url: urlData.publicUrl,
+                    mimetype: newVideoFile.type
+                }]);
+
+            if (insertError) throw insertError;
+
+            setNewVideoTitulo('');
+            setNewVideoDescricao('');
+            setNewVideoContexto('Depoimento');
+            setNewVideoFile(null);
+            setShowAddVideo(false);
+            if (videoFileRef.current) videoFileRef.current.value = '';
+            await fetchVideos();
+        } catch (err: any) {
+            alert('Erro ao fazer upload: ' + err.message);
+        } finally {
+            setIsUploadingVideo(false);
+        }
+    };
+
+    const handleToggleVideo = async (video: SocialProofVideo) => {
+        const { error } = await supabase
+            .from('sp3_social_proof_videos')
+            .update({ active: !video.active })
+            .eq('id', video.id);
+        if (error) alert('Erro: ' + error.message);
+        else setVideos(prev => prev.map(v => v.id === video.id ? { ...v, active: !v.active } : v));
+    };
+
+    const handleDeleteVideo = async (video: SocialProofVideo) => {
+        if (!window.confirm(`Excluir o vídeo "${video.titulo}"?`)) return;
+        // Extrair nome do arquivo da URL
+        const urlParts = video.url.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        await supabase.storage.from('social-proof-videos').remove([fileName]);
+        const { error } = await supabase.from('sp3_social_proof_videos').delete().eq('id', video.id);
+        if (error) alert('Erro: ' + error.message);
+        else setVideos(prev => prev.filter(v => v.id !== video.id));
     };
 
     const toggleDay = (day: number) => {
@@ -318,6 +404,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         checkStatus();
         fetchPromptHistory();
         fetchFollowupConfig();
+        fetchVideos();
         if (authUser.role === 'master') fetchUsers();
     }, []);
 
@@ -344,6 +431,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'followup' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'followup' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'followup' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
                         <History size={18} /> Follow-up (Auto)
+                    </button>
+                    <button
+                        onClick={() => setActiveSubTab('videos')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'videos' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'videos' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'videos' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                    >
+                        <Video size={18} /> Prova Social
                     </button>
                     <button
                         onClick={() => setActiveSubTab('profile')}
@@ -684,6 +777,157 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             >
                                 {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
                             </button>
+                        </div>
+                    </div>
+                )}
+
+                {activeSubTab === 'videos' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Prova Social</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Gerencie os vídeos de depoimentos que a Sarah pode enviar aos leads.</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowAddVideo(!showAddVideo)}
+                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: showAddVideo ? '#f1f5f9' : 'var(--accent)', color: showAddVideo ? 'var(--text-secondary)' : 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                    {showAddVideo ? <><X size={16} /> Cancelar</> : <><Plus size={16} /> Adicionar Vídeo</>}
+                                </button>
+                            </div>
+
+                            {/* Formulário de Upload */}
+                            {showAddVideo && (
+                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Título</label>
+                                            <input
+                                                type="text"
+                                                value={newVideoTitulo}
+                                                onChange={(e) => setNewVideoTitulo(e.target.value)}
+                                                placeholder="Ex: Depoimento da Dra. Maria"
+                                                style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem' }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Categoria</label>
+                                            <select
+                                                value={newVideoContexto}
+                                                onChange={(e) => setNewVideoContexto(e.target.value)}
+                                                style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem', backgroundColor: 'white' }}
+                                            >
+                                                <option value="Depoimento">Depoimento</option>
+                                                <option value="Resultado">Resultado</option>
+                                                <option value="Antes/Depois">Antes/Depois</option>
+                                                <option value="Institucional">Institucional</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Descrição (a IA usará isso para decidir quando enviar)</label>
+                                        <textarea
+                                            value={newVideoDescricao}
+                                            onChange={(e) => setNewVideoDescricao(e.target.value)}
+                                            placeholder="Descreva o conteúdo do vídeo para a IA entender o contexto. Ex: Depoimento da Dra. Maria da Clínica Estética Bela, falando sobre como o sistema aumentou o agendamento em 40%."
+                                            rows={3}
+                                            style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical' }}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Arquivo de Vídeo</label>
+                                        <div
+                                            onClick={() => videoFileRef.current?.click()}
+                                            style={{ padding: '1.5rem', borderRadius: '12px', border: '2px dashed var(--border-soft)', backgroundColor: 'white', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+                                        >
+                                            {newVideoFile ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                    <Video size={20} style={{ color: 'var(--accent)' }} />
+                                                    <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{newVideoFile.name}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({(newVideoFile.size / 1024 / 1024).toFixed(1)}MB)</span>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                                    <Upload size={24} style={{ color: 'var(--text-muted)' }} />
+                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Clique para selecionar um vídeo</span>
+                                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>MP4, MOV, WebM</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            ref={videoFileRef}
+                                            onChange={(e) => setNewVideoFile(e.target.files?.[0] || null)}
+                                            accept="video/*"
+                                            style={{ display: 'none' }}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                        <button
+                                            onClick={handleUploadVideo}
+                                            disabled={isUploadingVideo || !newVideoTitulo.trim() || !newVideoDescricao.trim() || !newVideoFile}
+                                            style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: (isUploadingVideo || !newVideoTitulo.trim() || !newVideoDescricao.trim() || !newVideoFile) ? '#93c5fd' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                        >
+                                            {isUploadingVideo ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                            {isUploadingVideo ? 'Enviando...' : 'Fazer Upload'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Lista de Vídeos */}
+                            {isLoadingVideos ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
+                            ) : videos.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                                    <Video size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                                    <p style={{ fontSize: '0.9rem' }}>Nenhum vídeo cadastrado ainda.</p>
+                                    <p style={{ fontSize: '0.8rem' }}>Adicione vídeos de depoimentos para a Sarah enviar aos leads.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {videos.map(video => (
+                                        <div key={video.id} style={{ display: 'flex', gap: '16px', padding: '16px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', opacity: video.active ? 1 : 0.5 }}>
+                                            <video
+                                                src={video.url}
+                                                style={{ width: '140px', height: '100px', objectFit: 'cover', borderRadius: '8px', backgroundColor: '#000', flexShrink: 0 }}
+                                            />
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>{video.titulo}</span>
+                                                    <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', backgroundColor: video.active ? '#dcfce7' : '#fee2e2', color: video.active ? '#15803d' : '#b91c1c', fontWeight: '700' }}>
+                                                        {video.active ? 'Ativo' : 'Inativo'}
+                                                    </span>
+                                                </div>
+                                                <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', backgroundColor: '#e0f2fe', color: '#0369a1', fontWeight: '700', width: 'fit-content' }}>
+                                                    {video.contexto}
+                                                </span>
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4', marginTop: '2px' }}>{video.descricao}</p>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                                                <button
+                                                    onClick={() => handleToggleVideo(video)}
+                                                    title={video.active ? 'Desativar' : 'Ativar'}
+                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'white', cursor: 'pointer', color: video.active ? '#f97316' : '#16a34a', display: 'flex', alignItems: 'center' }}
+                                                >
+                                                    {video.active ? <PowerOff size={14} /> : <Power size={14} />}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteVideo(video)}
+                                                    title="Excluir"
+                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
