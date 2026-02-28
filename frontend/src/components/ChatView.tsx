@@ -246,6 +246,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 // Garantir que se o tipo for video, a flag isVideo seja true
                 if (type === 'video') isVideo = true;
 
+                const isAudioSent = msgStyle === 'audio_sent';
+
                 return {
                     id: m.id,
                     type: isVideo ? 'video' : type,
@@ -253,6 +255,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     isImage,
                     isAudio,
                     isVideo,
+                    isAudioSent,
                     sender,
                     sentByCRM,
                     text: typeof text === 'string' ? text : JSON.stringify(text),
@@ -407,14 +410,18 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 body: JSON.stringify({
                     number: selectedLead.telefone,
                     mediatype: mediaTypeStr,
+                    mimetype: file.type,
                     caption: '',
-                    media: base64data,
+                    media: `data:${file.type};base64,${base64data}`,
                     fileName: fileName,
                     delay: 500
                 })
             });
 
-            if (!response.ok) throw new Error(`Erro ao enviar ${mediaTypeStr} para a Evolution API`);
+            if (!response.ok) {
+                const errBody = await response.text().catch(() => '');
+                throw new Error(`Erro ao enviar ${mediaTypeStr} para a Evolution API: ${response.status} ${errBody}`);
+            }
 
             // No n8n_chat_histories, vamos salvar como uma mensagem do tipo correto
             await supabase
@@ -699,6 +706,13 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                             style={{ width: '100%', height: '40px' }}
                                                         />
                                                     </div>
+                                                ) : msg.isAudioSent ? (
+                                                    <>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: '#667781', fontSize: '0.7rem', fontWeight: '600' }}>
+                                                            <Mic size={13} /> Enviado como áudio
+                                                        </div>
+                                                        <div style={{ fontStyle: 'italic', color: '#4a5568' }}>{msg.text}</div>
+                                                    </>
                                                 ) : msg.text}
                                                 <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: '#667781' }}>{msg.time}</span>
                                             </div>
