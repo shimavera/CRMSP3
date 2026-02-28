@@ -18,7 +18,10 @@
       "mcp__n8n__n8n_list_workflows",
       "mcp__n8n__n8n_executions",
       "Bash(grep -l \"lmChatOpenAi\\\\|langchain.*agent\\\\|Sarah\" \"/Users/macbookpro/Desktop/N8N - SP3\"/workflow*.json)",
-      "Bash(sort -t'|' -k3 -r)"
+      "Bash(sort -t'|' -k3 -r)",
+      "mcp__n8n__n8n_test_workflow",
+      "Bash(# Get n8n API credentials from environment or config cat ~/.n8n/config)",
+      "Bash(# Check the MCP config to find n8n API URL and key cat ~/.claude/claude_desktop_config.json)"
     ]
   }
 }
