@@ -173,7 +173,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             setNewVideoDescricao('');
             setNewVideoContexto('Depoimento');
             setNewVideoFile(null);
-            setShowAddVideo(false);
             if (videoFileRef.current) videoFileRef.current.value = '';
             await fetchVideos();
         } catch (err: any) {
