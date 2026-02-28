@@ -23,7 +23,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'profile' | 'usuarios'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'profile' | 'usuarios' | 'dados'>('whatsapp');
+
+    // Estados de Dados
+    const [isResettingChats, setIsResettingChats] = useState(false);
 
     // Estados de Usuários
     const [usersList, setUsersList] = useState<UserProfile[]>([]);
@@ -290,6 +293,27 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         await fetchUsers();
     };
 
+    const handleResetChats = async () => {
+        if (!window.confirm('CUIDADO: Isso irá apagar todo o histórico de conversas do sistema! Deseja realmente continuar?')) return;
+        if (!window.confirm('TEM CERTEZA ABSOLUTA? Esta ação não pode ser desfeita e irá zerar as conversas da IA.')) return;
+
+        setIsResettingChats(true);
+        try {
+            const { error } = await supabase
+                .from('n8n_chat_histories')
+                .delete()
+                .neq('id', 0); // Deleta todos
+
+            if (error) throw error;
+            alert('Histórico de conversas apagado com sucesso! As próximas mensagens iniciarão uma nova conversa do zero.');
+        } catch (err: any) {
+            console.error('Erro ao limpar histórico:', err);
+            alert('Erro ao apagar histórico: ' + err.message);
+        } finally {
+            setIsResettingChats(false);
+        }
+    };
+
     useEffect(() => {
         checkStatus();
         fetchPromptHistory();
@@ -333,6 +357,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'usuarios' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'usuarios' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'usuarios' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                         >
                             <Users size={18} /> Usuários
+                        </button>
+                    )}
+                    {authUser.role === 'master' && (
+                        <button
+                            onClick={() => setActiveSubTab('dados')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'dados' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'dados' ? '#ef4444' : 'var(--text-secondary)', fontWeight: activeSubTab === 'dados' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        >
+                            <Trash2 size={18} /> Gerenciar Dados
                         </button>
                     )}
                 </div>
@@ -807,6 +839,35 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         {isCreatingUser ? 'Criando...' : 'Criar Usuário'}
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeSubTab === 'dados' && authUser.role === 'master' && (
+                    <div className="glass-card" style={{ padding: '2rem' }}>
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem', color: '#ef4444' }}>Zona de Perigo</h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Ações destrutivas para gerenciamento de dados do sistema.</p>
+                        </div>
+
+                        <div style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid #fee2e2', backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#b91c1c' }}>Zerar Histórico de Conversas (IA)</h4>
+                                <p style={{ fontSize: '0.85rem', color: '#7f1d1d', marginTop: '4px' }}>
+                                    Apaga permanentemente <strong>todo o histórico de conversas</strong> do banco de dados (n8n_chat_histories).
+                                    Isso fará com que a IA esqueça todas as conversas anteriores e inicie os atendimentos totalmente do zero. Útil para limpar dados de ambiente de teste.
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                                <button
+                                    onClick={handleResetChats}
+                                    disabled={isResettingChats}
+                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#ef4444', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                    {isResettingChats ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                    {isResettingChats ? 'Apagando...' : 'Apagar Todo o Histórico'}
+                                </button>
                             </div>
                         </div>
                     </div>
