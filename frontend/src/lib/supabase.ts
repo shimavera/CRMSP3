@@ -35,6 +35,13 @@ export type SocialProofVideo = {
   created_at?: string;
 };
 
+export type QuickMessage = {
+  id: string;
+  title: string;
+  content: string;
+  created_at?: string;
+};
+
 export type Lead = {
   id: number;
   nome?: string;

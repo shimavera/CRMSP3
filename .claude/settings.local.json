@@ -21,7 +21,21 @@
       "Bash(sort -t'|' -k3 -r)",
       "mcp__n8n__n8n_test_workflow",
       "Bash(# Get n8n API credentials from environment or config cat ~/.n8n/config)",
-      "Bash(# Check the MCP config to find n8n API URL and key cat ~/.claude/claude_desktop_config.json)"
+      "Bash(# Check the MCP config to find n8n API URL and key cat ~/.claude/claude_desktop_config.json)",
+      "mcp__n8n__n8n_workflow_versions",
+      "Bash(ls -lah \"/Users/macbookpro/Desktop/N8N - SP3\"/*.json)",
+      "mcp__n8n__n8n_create_workflow",
+      "mcp__n8n__n8n_delete_workflow",
+      "Bash(curl -s \"https://ioqjhbhjzuukmssxhvma.supabase.co/storage/v1/bucket\" -H \"apikey: sb_publishable_BXmr9LLM_NDS94Y05ic8og_kFYcRsVU\" -H \"Authorization: Bearer sb_publishable_BXmr9LLM_NDS94Y05ic8og_kFYcRsVU\")",
+      "Bash(curl -s -X POST \"https://ioqjhbhjzuukmssxhvma.supabase.co/storage/v1/bucket\" -H \"apikey: sb_publishable_BXmr9LLM_NDS94Y05ic8og_kFYcRsVU\" -H \"Authorization: Bearer sb_publishable_BXmr9LLM_NDS94Y05ic8og_kFYcRsVU\" -H \"Content-Type: application/json\" -d '{\"\"id\"\": \"\"social-proof-videos\"\", \"\"name\"\": \"\"social-proof-videos\"\", \"\"public\"\": true, \"\"file_size_limit\"\": 104857600}')",
+      "Bash(curl -s \"https://ioqjhbhjzuukmssxhvma.supabase.co/rest/v1/sp3_prompts?order=created_at.desc&limit=1&select=content\" -H \"apikey: sb_publishable_BXmr9LLM_NDS94Y05ic8og_kFYcRsVU\" -H \"Authorization: Bearer sb_publishable_BXmr9LLM_NDS94Y05ic8og_kFYcRsVU\")",
+      "Bash(curl -s -X PATCH \"https://sp3company.app.n8n.cloud/api/v1/workflows/zpZq5CIcYzhCvWLe\" -H \"X-N8N-API-KEY: n8n_api_e6c6ec67dd7fa79da0b74e27da90e78a2ac5cb89db1c1da3db2c97be5f5b14a1b36c10a3eb0a4e40\" -H \"Content-Type: application/json\" -d '{\"\"active\"\": true}')",
+      "Bash(curl -s -X PUT \"https://sp3company.app.n8n.cloud/api/v1/workflows/zpZq5CIcYzhCvWLe/activate\" -H \"X-N8N-API-KEY: n8n_api_e6c6ec67dd7fa79da0b74e27da90e78a2ac5cb89db1c1da3db2c97be5f5b14a1b36c10a3eb0a4e40\" -H \"Content-Type: application/json\")",
+      "mcp__n8n__n8n_update_full_workflow",
+      "Bash(curl -s -X POST \"https://sp3company.app.n8n.cloud/webhook/temp-create-bucket\" -H \"Content-Type: application/json\" -d '{}')",
+      "mcp__n8n__n8n_health_check",
+      "Bash(curl -s -X POST \"https://n8n.sp3company.shop/webhook/temp-create-bucket\" -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s -X POST \"https://n8n.sp3company.shop/webhook/create-bucket-temp\" -H \"Content-Type: application/json\" -d '{}')"
     ]
   }
 }

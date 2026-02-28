@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { supabase } from '../lib/supabase';
-import type { Lead, UserProfile } from '../lib/supabase';
+import type { Lead, UserProfile, QuickMessage } from '../lib/supabase';
 
 interface ChatViewProps {
     initialLeads: Lead[];
@@ -43,6 +43,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputBarRef = useRef<HTMLDivElement>(null);
+
+    // Mensagens Rápidas
+    const [quickMessages, setQuickMessages] = useState<QuickMessage[]>([]);
+    const [showQuickMessagesStore, setShowQuickMessagesStore] = useState(false);
+    const [quickMessageFilter, setQuickMessageFilter] = useState('');
 
     // RESIZE LISTENER
     useEffect(() => {
@@ -110,6 +115,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     useEffect(() => {
         fetchLastMessageDates();
     }, [leads]);
+
+    useEffect(() => {
+        const fetchQuickMessages = async () => {
+            const { data } = await supabase.from('sp3_quick_messages').select('*');
+            if (data) setQuickMessages(data as QuickMessage[]);
+        };
+        fetchQuickMessages();
+    }, []);
 
     // 4. OUVINTE GLOBAL: Realtime para histórico e status de lead
     useEffect(() => {
@@ -781,13 +794,59 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 </div>
                             ) : (
                                 <>
+                                    {showQuickMessagesStore && quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).length > 0 && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: '100%',
+                                            left: isMobile ? '0' : '60px',
+                                            right: isMobile ? '0' : '60px',
+                                            marginBottom: '10px',
+                                            backgroundColor: 'white',
+                                            borderRadius: '12px',
+                                            boxShadow: '0 -4px 15px rgba(0,0,0,0.1)',
+                                            maxHeight: '200px',
+                                            overflowY: 'auto',
+                                            zIndex: 2000,
+                                            border: '1px solid var(--border-soft)'
+                                        }}>
+                                            <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-soft)', backgroundColor: '#f8fafc' }}>
+                                                Mensagens Rápidas
+                                            </div>
+                                            {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
+                                                <div
+                                                    key={msg.id}
+                                                    onClick={() => {
+                                                        const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, msg.content.replace(/{{nome}}/g, selectedLead?.nome || 'Cliente'));
+                                                        setInputValue(newVal);
+                                                        setShowQuickMessagesStore(false);
+                                                    }}
+                                                    style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}
+                                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--accent-soft)')}
+                                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                >
+                                                    <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{msg.content}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '8px', padding: '4px 12px' }}>
                                         <input
                                             type="text"
                                             value={inputValue}
-                                            onChange={(e) => setInputValue(e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setInputValue(val);
+                                                const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
+                                                if (match) {
+                                                    setShowQuickMessagesStore(true);
+                                                    setQuickMessageFilter(match[1]);
+                                                } else {
+                                                    setShowQuickMessagesStore(false);
+                                                }
+                                            }}
                                             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                            placeholder="Envie uma mensagem (Intervenção)..."
+                                            placeholder="Envie uma mensagem (Intervenção)... (Digite / para atalhos)"
                                             disabled={isSending}
                                             style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem' }}
                                         />
