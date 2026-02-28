@@ -24,6 +24,17 @@ export type UserProfile = {
   created_at?: string;
 };
 
+export type SocialProofVideo = {
+  id: number;
+  titulo: string;
+  descricao: string;
+  contexto: string;
+  url: string;
+  mimetype: string;
+  active: boolean;
+  created_at?: string;
+};
+
 export type Lead = {
   id: number;
   nome?: string;
