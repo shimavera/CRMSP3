@@ -4,7 +4,7 @@ import {
     Users, Phone, Calendar, XCircle, CheckCircle2,
     FileText, Handshake, Trophy, Trash2,
     TrendingUp, Clock, MoreHorizontal,
-    Video, AlertCircle, Loader2, ArrowRight
+    Video, AlertCircle, Loader2, ArrowRight, Bell
 } from 'lucide-react';
 
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
@@ -12,6 +12,7 @@ import {
 type Stage =
     | 'Novo Lead'
     | 'Contato Iniciado'
+    | 'Em Follow-up'
     | 'Qualificando'
     | 'Reunião Agendada'
     | 'No Show'
@@ -44,6 +45,7 @@ interface Lead {
 const PIPELINE: { stage: Stage; color: string; bg: string; icon: any; description: string }[] = [
     { stage: 'Novo Lead', color: '#6366f1', bg: '#eef2ff', icon: Users, description: 'Lead recém captado' },
     { stage: 'Contato Iniciado', color: '#0ea5e9', bg: '#f0f9ff', icon: Phone, description: 'Primeiro contato feito' },
+    { stage: 'Em Follow-up', color: '#f97316', bg: '#fff7ed', icon: Bell, description: 'Aguardando retorno' },
     { stage: 'Qualificando', color: '#8b5cf6', bg: '#f5f3ff', icon: TrendingUp, description: 'Coletando informações' },
     { stage: 'Reunião Agendada', color: '#f59e0b', bg: '#fffbeb', icon: Calendar, description: 'Reunião marcada' },
     { stage: 'No Show', color: '#ef4444', bg: '#fef2f2', icon: AlertCircle, description: 'Não compareceu' },

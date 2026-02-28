@@ -216,6 +216,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     // Detecção de tipo baseada no JSON
                     isImage = msgData.msgStyle === 'image' || msgData.type === 'image' || type === 'image' || !!msgData.image;
                     isAudio = msgData.msgStyle === 'audio' || msgData.type === 'audio' || type === 'audio' || msgData.type === 'ptt' || type === 'ptt' || !!msgData.audio || !!msgData.ptt;
+                    const isVideo = msgData.msgStyle === 'video' || msgData.type === 'video' || !!msgData.video;
+                    if (isVideo) {
+                        type = 'video';
+                    }
 
                 } catch (e) {
                     text = String(m.message);
@@ -232,12 +236,20 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     isAudio = true;
                 }
 
+                // Detectar URLs de video ou Base64 de video
+                const videoUrlPattern = /^(https?:\/\/.+\.(mp4|webm|mkv|mov)(\?.*)?|data:video\/.+)$/i;
+                let isVideo = type === 'video';
+                if (!isVideo && typeof text === 'string' && (videoUrlPattern.test(text.trim()) || text.trim().startsWith('data:video'))) {
+                    isVideo = true;
+                }
+
                 return {
                     id: m.id,
-                    type,
+                    type: isVideo ? 'video' : type,
                     msgStyle,
                     isImage,
                     isAudio,
+                    isVideo,
                     sender,
                     sentByCRM,
                     text: typeof text === 'string' ? text : JSON.stringify(text),
@@ -361,9 +373,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const file = e.target.files?.[0];
         if (!file || !selectedLead || isUploading) return;
 
+        const isVideo = file.type.startsWith('video/');
+        const isImage = file.type.startsWith('image/');
+
         // Validar tipo de arquivo
-        if (!file.type.startsWith('image/')) {
-            alert('Por favor, selecione apenas arquivos de imagem.');
+        if (!isImage && !isVideo) {
+            alert('Por favor, selecione apenas arquivos de imagem ou vídeo.');
             return;
         }
 
@@ -381,13 +396,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             });
 
             const fileName = file.name;
+            const mediaTypeStr = isVideo ? 'video' : 'image';
 
             const response = await fetch('https://evo.sp3company.shop/message/sendMedia/v1', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D' },
                 body: JSON.stringify({
                     number: selectedLead.telefone,
-                    mediatype: 'image',
+                    mediatype: mediaTypeStr,
                     caption: '',
                     media: base64data,
                     fileName: fileName,
@@ -397,17 +413,17 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
             if (!response.ok) throw new Error('Erro ao enviar imagem para Evolution API');
 
-            // No n8n_chat_histories, vamos salvar como uma mensagem do tipo de imagem
+            // No n8n_chat_histories, vamos salvar como uma mensagem do tipo correto
             await supabase
                 .from('n8n_chat_histories')
                 .insert([{
                     session_id: selectedLead.telefone,
                     message: JSON.stringify({
-                        type: 'ai',
-                        content: `data:${file.type};base64,${base64data}`, // Save actual image data for local view
+                        type: isVideo ? 'video' : 'ai',
+                        content: `data:${file.type};base64,${base64data}`, // Save actual media data for local view
                         sender: authUser.nome,
                         sentByCRM: true,
-                        msgStyle: 'image'
+                        msgStyle: isVideo ? 'video' : 'image'
                     })
                 }]);
 
@@ -665,6 +681,13 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
                                                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                     />
+                                                ) : msg.isVideo || msg.type === 'video' ? (
+                                                    <video
+                                                        controls
+                                                        src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
+                                                        style={{ maxWidth: '280px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
+                                                        onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                                                    />
                                                 ) : msg.isAudio ? (
                                                     <div style={{ padding: '8px 0', minWidth: '350px', width: '100%', maxWidth: '400px' }}>
                                                         <audio
@@ -724,7 +747,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 type="file"
                                 ref={fileInputRef}
                                 onChange={handleImageUpload}
-                                accept="image/*"
+                                accept="image/*,video/*"
                                 style={{ display: 'none' }}
                             />
 
@@ -785,7 +808,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 <InfoItem icon={Building2} label="Clínica" value={selectedLead.nome || 'Coletando...'} />
                                 <InfoItem icon={MapPin} label="Localização" value={(selectedLead as any).cidade || 'Não informada'} />
                                 <InfoItem icon={Phone} label="WhatsApp" value={selectedLead.telefone} />
-                                <InfoItem icon={DollarSign} label="Status" value={selectedLead.status || 'Qualificando'} />
+                                <InfoItem icon={DollarSign} label="Estágio" value={selectedLead.stage || selectedLead.status || 'Novo Lead'} />
                             </div>
 
                             {/* Etiquetas de Follow-up */}
