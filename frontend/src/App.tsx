@@ -15,7 +15,9 @@ import {
   Plus,
   X,
   Bot,
-  Menu
+  Menu,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import ChatView from './components/ChatView';
 import KanbanView from './components/KanbanView';
@@ -80,12 +82,13 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openChatWithPhone, setOpenChatWithPhone] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
-  // ─── ADICIONAR LEAD ─────────────────────────────────────────────────────────
+  // ─── ADICIONAR / EDITAR LEAD ────────────────────────────────────────────────
   const [showAddLead, setShowAddLead] = useState(false);
   const [newLeadNome, setNewLeadNome] = useState('');
   const [newLeadTelefone, setNewLeadTelefone] = useState('');
   const [isAddingLead, setIsAddingLead] = useState(false);
   const [addLeadError, setAddLeadError] = useState<string | null>(null);
+  const [editingLeadId, setEditingLeadId] = useState<number | null>(null);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -212,27 +215,55 @@ function App() {
     await supabase.auth.signOut();
   };
 
-  const handleAddLead = async () => {
+  const handleSaveLead = async () => {
     if (!newLeadTelefone.trim()) {
       setAddLeadError('O telefone é obrigatório.');
       return;
     }
     setIsAddingLead(true);
     setAddLeadError(null);
-    const { error } = await supabase.from('sp3chat').insert([{
-      nome: newLeadNome.trim() || null,
-      telefone: newLeadTelefone.trim(),
-      ia_active: true
-    }]);
-    if (error) {
-      setAddLeadError(error.message);
+
+    if (editingLeadId) {
+      const { error } = await supabase.from('sp3chat').update({
+        nome: newLeadNome.trim() || null,
+        telefone: newLeadTelefone.trim()
+      }).eq('id', editingLeadId);
+
+      if (error) {
+        setAddLeadError(error.message);
+      } else {
+        setNewLeadNome('');
+        setNewLeadTelefone('');
+        setShowAddLead(false);
+        setEditingLeadId(null);
+        await fetchLeads();
+      }
     } else {
-      setNewLeadNome('');
-      setNewLeadTelefone('');
-      setShowAddLead(false);
-      await fetchLeads();
+      const { error } = await supabase.from('sp3chat').insert([{
+        nome: newLeadNome.trim() || null,
+        telefone: newLeadTelefone.trim(),
+        ia_active: true
+      }]);
+      if (error) {
+        setAddLeadError(error.message);
+      } else {
+        setNewLeadNome('');
+        setNewLeadTelefone('');
+        setShowAddLead(false);
+        await fetchLeads();
+      }
     }
     setIsAddingLead(false);
+  };
+
+  const handleDeleteLead = async (leadId: number) => {
+    if (!window.confirm('Tem certeza que deseja excluir este Lead?')) return;
+    const { error } = await supabase.from('sp3chat').delete().eq('id', leadId);
+    if (error) {
+      alert('Erro ao excluir: ' + error.message);
+    } else {
+      await fetchLeads();
+    }
   };
 
   const navigate = (tab: string) => {
@@ -396,7 +427,7 @@ function App() {
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '2px' }}>{leads.length} leads cadastrados</p>
               </div>
               <button
-                onClick={() => { setShowAddLead(true); setAddLeadError(null); }}
+                onClick={() => { setNewLeadNome(''); setNewLeadTelefone(''); setEditingLeadId(null); setShowAddLead(true); setAddLeadError(null); }}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
               >
                 <Plus size={16} /> Adicionar Lead
@@ -407,8 +438,8 @@ function App() {
             {showAddLead && (
               <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                  <h4 style={{ fontWeight: '800', fontSize: '1rem' }}>Novo Lead</h4>
-                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                  <h4 style={{ fontWeight: '800', fontSize: '1rem' }}>{editingLeadId ? 'Editar Lead' : 'Novo Lead'}</h4>
+                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); setEditingLeadId(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                     <X size={18} />
                   </button>
                 </div>
@@ -427,7 +458,7 @@ function App() {
                     <input
                       value={newLeadTelefone}
                       onChange={(e) => setNewLeadTelefone(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddLead()}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSaveLead()}
                       placeholder="Ex: 5511999999999"
                       style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: addLeadError ? '1.5px solid #fca5a5' : '1.5px solid var(--border-soft)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
                     />
@@ -435,18 +466,19 @@ function App() {
                 </div>
                 {addLeadError && <p style={{ color: '#b91c1c', fontSize: '0.82rem', marginBottom: '10px', fontWeight: '600' }}>{addLeadError}</p>}
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); }} style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
+                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); setEditingLeadId(null); }} style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
                     Cancelar
                   </button>
                   <button
-                    onClick={handleAddLead}
+                    onClick={handleSaveLead}
                     disabled={isAddingLead}
                     style={{ padding: '8px 18px', borderRadius: '10px', border: 'none', backgroundColor: isAddingLead ? '#93c5fd' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: isAddingLead ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
-                    {isAddingLead ? <><Loader2 size={14} className="animate-spin" /> Criando...</> : 'Criar Lead'}
+                    {isAddingLead ? <><Loader2 size={14} className="animate-spin" /> Salvando...</> : (editingLeadId ? 'Salvar Alterações' : 'Criar Lead')}
                   </button>
                 </div>
               </div>
+
             )}
 
             {/* Tabela de leads */}
@@ -491,14 +523,40 @@ function App() {
                             ) : '—'}
                           </td>
                           <td style={{ padding: '14px 16px' }}>
-                            {authUser.permissions.chats && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {authUser.permissions.chats && (
+                                <button
+                                  onClick={() => handleOpenChatFromLeads(lead.telefone)}
+                                  title="Abrir Chat"
+                                  style={{ padding: '6px 10px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', cursor: 'pointer' }}
+                                >
+                                  <MessageSquare size={14} />
+                                </button>
+                              )}
                               <button
-                                onClick={() => handleOpenChatFromLeads(lead.telefone)}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}
+                                onClick={() => {
+                                  setNewLeadNome(lead.nome || '');
+                                  setNewLeadTelefone(lead.telefone);
+                                  setEditingLeadId(lead.id);
+                                  setShowAddLead(true);
+                                  setAddLeadError(null);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                title="Editar Lead"
+                                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-soft)', backgroundColor: 'white', color: 'var(--text-secondary)', cursor: 'pointer' }}
                               >
-                                <MessageSquare size={13} /> Abrir Chat
+                                <Edit2 size={14} />
                               </button>
-                            )}
+                              {authUser.role === 'master' && (
+                                <button
+                                  onClick={() => handleDeleteLead(lead.id)}
+                                  title="Excluir Lead"
+                                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #fee2e2', backgroundColor: 'white', color: '#ef4444', cursor: 'pointer' }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))

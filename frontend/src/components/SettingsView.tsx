@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText } from 'lucide-react';
 import { supabase } from "../lib/supabase";
-import type { UserProfile, SocialProofVideo } from '../lib/supabase';
+import type { UserProfile, SocialProofVideo, QuickMessage } from '../lib/supabase';
 
 const EVO_URL = 'https://evo.sp3company.shop';
 const EVO_KEY = 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D';
@@ -23,7 +23,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'profile' | 'usuarios' | 'dados'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'profile' | 'usuarios' | 'dados'>('whatsapp');
 
     // Estados de Dados
     const [isResettingChats, setIsResettingChats] = useState(false);
@@ -74,6 +74,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [newVideoContexto, setNewVideoContexto] = useState('Depoimento');
     const [newVideoFile, setNewVideoFile] = useState<File | null>(null);
     const videoFileRef = useRef<HTMLInputElement>(null);
+
+    // Estados de Mensagens Rápidas
+    const [quickMessages, setQuickMessages] = useState<QuickMessage[]>([]);
+    const [isLoadingQuickMessages, setIsLoadingQuickMessages] = useState(false);
+    const [showAddQuickMessage, setShowAddQuickMessage] = useState(false);
+    const [newQuickMessageTitle, setNewQuickMessageTitle] = useState('');
+    const [newQuickMessageContent, setNewQuickMessageContent] = useState('');
+    const [isSavingQuickMessage, setIsSavingQuickMessage] = useState(false);
 
     const fetchFollowupConfig = async () => {
         try {
@@ -200,6 +208,49 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         const { error } = await supabase.from('sp3_social_proof_videos').delete().eq('id', video.id);
         if (error) alert('Erro: ' + error.message);
         else setVideos(prev => prev.filter(v => v.id !== video.id));
+    };
+
+    // Funções de Mensagens Rápidas
+    const fetchQuickMessages = async () => {
+        setIsLoadingQuickMessages(true);
+        const { data } = await supabase
+            .from('sp3_quick_messages')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setQuickMessages(data as QuickMessage[]);
+        setIsLoadingQuickMessages(false);
+    };
+
+    const handleSaveQuickMessage = async () => {
+        if (!newQuickMessageTitle.trim() || !newQuickMessageContent.trim()) return;
+        setIsSavingQuickMessage(true);
+
+        try {
+            const { error } = await supabase
+                .from('sp3_quick_messages')
+                .insert([{
+                    title: newQuickMessageTitle.trim(),
+                    content: newQuickMessageContent.trim()
+                }]);
+
+            if (error) throw error;
+
+            setNewQuickMessageTitle('');
+            setNewQuickMessageContent('');
+            setShowAddQuickMessage(false);
+            await fetchQuickMessages();
+        } catch (err: any) {
+            alert('Erro ao salvar mensagem rápida: ' + err.message);
+        } finally {
+            setIsSavingQuickMessage(false);
+        }
+    };
+
+    const handleDeleteQuickMessage = async (msgId: string) => {
+        if (!window.confirm('Excluir esta mensagem rápida?')) return;
+        const { error } = await supabase.from('sp3_quick_messages').delete().eq('id', msgId);
+        if (error) alert('Erro: ' + error.message);
+        else setQuickMessages(prev => prev.filter(m => m.id !== msgId));
     };
 
     const toggleDay = (day: number) => {
@@ -404,6 +455,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         fetchPromptHistory();
         fetchFollowupConfig();
         fetchVideos();
+        fetchQuickMessages();
         if (authUser.role === 'master') fetchUsers();
     }, []);
 
@@ -436,6 +488,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'videos' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'videos' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'videos' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
                         <Video size={18} /> Prova Social
+                    </button>
+                    <button
+                        onClick={() => setActiveSubTab('quickmessages')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'quickmessages' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'quickmessages' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'quickmessages' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                    >
+                        <MessageSquareText size={18} /> Mensagens Rápidas
                     </button>
                     <button
                         onClick={() => setActiveSubTab('profile')}
@@ -917,6 +975,92 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteVideo(video)}
+                                                    title="Excluir"
+                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeSubTab === 'quickmessages' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Mensagens Rápidas</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Cadastre atalhos (/) para enviar mensagens rapidamente no chat.</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowAddQuickMessage(!showAddQuickMessage)}
+                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: showAddQuickMessage ? '#f1f5f9' : 'var(--accent)', color: showAddQuickMessage ? 'var(--text-secondary)' : 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                    {showAddQuickMessage ? <><X size={16} /> Cancelar</> : <><Plus size={16} /> Nova Mensagem</>}
+                                </button>
+                            </div>
+
+                            {/* Formulário de Nova Mensagem Rápida */}
+                            {showAddQuickMessage && (
+                                <div style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Título / Atalho (Ex: boas_vindas)</label>
+                                        <input
+                                            type="text"
+                                            value={newQuickMessageTitle}
+                                            onChange={(e) => setNewQuickMessageTitle(e.target.value)}
+                                            placeholder="Ex: boas_vindas"
+                                            style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Conteúdo da Mensagem</label>
+                                        <textarea
+                                            value={newQuickMessageContent}
+                                            onChange={(e) => setNewQuickMessageContent(e.target.value)}
+                                            placeholder="Olá! Tudo bem? Como posso te ajudar?"
+                                            rows={4}
+                                            style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical' }}
+                                        />
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Dica: Você pode usar variáveis como {'{{nome}}'} se desejar e substituir antes de enviar.</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                        <button
+                                            onClick={handleSaveQuickMessage}
+                                            disabled={isSavingQuickMessage || !newQuickMessageTitle.trim() || !newQuickMessageContent.trim()}
+                                            style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: (isSavingQuickMessage || !newQuickMessageTitle.trim() || !newQuickMessageContent.trim()) ? '#93c5fd' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                        >
+                                            {isSavingQuickMessage ? <Loader2 size={16} className="animate-spin" /> : <MessageSquareText size={16} />}
+                                            {isSavingQuickMessage ? 'Salvando...' : 'Salvar Mensagem'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Lista de Mensagens Rápidas */}
+                            {isLoadingQuickMessages ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
+                            ) : quickMessages.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                                    <MessageSquareText size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                                    <p style={{ fontSize: '0.9rem' }}>Nenhuma mensagem rápida cadastrada.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {quickMessages.map(msg => (
+                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', padding: '16px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--accent)' }}>/{msg.title}</span>
+                                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{msg.content}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteQuickMessage(msg.id)}
                                                     title="Excluir"
                                                     style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
                                                 >
