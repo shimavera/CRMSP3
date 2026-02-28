@@ -243,6 +243,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     isVideo = true;
                 }
 
+                // Garantir que se o tipo for video, a flag isVideo seja true
+                if (type === 'video') isVideo = true;
+
                 return {
                     id: m.id,
                     type: isVideo ? 'video' : type,
