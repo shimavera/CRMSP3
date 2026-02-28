@@ -16,7 +16,9 @@
       "Bash(git add frontend/src/components/ChatView.tsx)",
       "Bash(npx tsc --noEmit)",
       "mcp__n8n__n8n_list_workflows",
-      "mcp__n8n__n8n_executions"
+      "mcp__n8n__n8n_executions",
+      "Bash(grep -l \"lmChatOpenAi\\\\|langchain.*agent\\\\|Sarah\" \"/Users/macbookpro/Desktop/N8N - SP3\"/workflow*.json)",
+      "Bash(sort -t'|' -k3 -r)"
     ]
   }
 }
