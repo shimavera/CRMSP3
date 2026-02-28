@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { supabase } from '../lib/supabase';
 import type { Lead, UserProfile } from '../lib/supabase';
@@ -40,6 +40,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<any>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const inputBarRef = useRef<HTMLDivElement>(null);
 
     // RESIZE LISTENER
     useEffect(() => {
@@ -178,17 +181,23 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 let text = '';
                 let msgStyle: string | null = null;
                 let isImage = false;
+                let isAudio = false;
                 let sender: string | null = null;
                 let sentByCRM = false;
                 let msgData: any = null;
                 try {
                     msgData = typeof m.message === 'string' ? JSON.parse(m.message) : m.message;
+
+                    // Extrair metadados básicos
                     type = msgData.type || 'ai';
-                    msgStyle = msgData.msgStyle || null;
-                    isImage = msgData.msgStyle === 'image' || msgData.type === 'image';
                     sender = msgData.sender || null;
                     sentByCRM = msgData.sentByCRM || false;
+                    msgStyle = msgData.msgStyle || null;
 
+                    // Tentar encontrar uma URL de mídia em campos comuns
+                    const potentialUrl = msgData.url || msgData.mediaUrl || msgData.fileUrl || msgData.audio || msgData.image || msgData.video || msgData.ptt;
+
+                    // Extrair texto/conteúdo
                     if (msgData.messages && Array.isArray(msgData.messages)) {
                         text = msgData.messages.map((item: any) => item.text || item.content || '').join('\n\n');
                     } else if (msgData.content) {
@@ -198,14 +207,29 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     } else {
                         text = typeof m.message === 'string' ? m.message : JSON.stringify(m.message);
                     }
+
+                    // Se o texto for genérico e tivermos uma URL, usamos a URL como texto para o player detectar
+                    if ((!text || text === 'Mensagem de mídia/sistema' || text === 'Media message') && potentialUrl) {
+                        text = potentialUrl;
+                    }
+
+                    // Detecção de tipo baseada no JSON
+                    isImage = msgData.msgStyle === 'image' || msgData.type === 'image' || type === 'image' || !!msgData.image;
+                    isAudio = msgData.msgStyle === 'audio' || msgData.type === 'audio' || type === 'audio' || msgData.type === 'ptt' || type === 'ptt' || !!msgData.audio || !!msgData.ptt;
+
                 } catch (e) {
                     text = String(m.message);
                 }
 
-                // Detectar URLs de imagem no texto
-                const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
+                const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i;
                 if (!isImage && typeof text === 'string' && imageUrlPattern.test(text.trim())) {
                     isImage = true;
+                }
+
+                // Detectar URLs de áudio ou Base64 de áudio
+                const audioUrlPattern = /^(https?:\/\/.+\.(ogg|mp3|wav|m4a|aac)(\?.*)?|data:audio\/.+)$/i;
+                if (!isAudio && typeof text === 'string' && (audioUrlPattern.test(text.trim()) || text.trim().startsWith('data:audio'))) {
+                    isAudio = true;
                 }
 
                 return {
@@ -213,6 +237,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     type,
                     msgStyle,
                     isImage,
+                    isAudio,
                     sender,
                     sentByCRM,
                     text: typeof text === 'string' ? text : JSON.stringify(text),
@@ -332,6 +357,71 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     };
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedLead || isUploading) return;
+
+        // Validar tipo de arquivo
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione apenas arquivos de imagem.');
+            return;
+        }
+
+        setIsUploading(true);
+
+        try {
+            const base64data = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onloadend = () => {
+                    const result = reader.result as string;
+                    resolve(result.split(',')[1]);
+                };
+                reader.onerror = error => reject(error);
+            });
+
+            const fileName = file.name;
+
+            const response = await fetch('https://evo.sp3company.shop/message/sendMedia/v1', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D' },
+                body: JSON.stringify({
+                    number: selectedLead.telefone,
+                    mediatype: 'image',
+                    caption: '',
+                    media: base64data,
+                    fileName: fileName,
+                    delay: 500
+                })
+            });
+
+            if (!response.ok) throw new Error('Erro ao enviar imagem para Evolution API');
+
+            // No n8n_chat_histories, vamos salvar como uma mensagem do tipo de imagem
+            await supabase
+                .from('n8n_chat_histories')
+                .insert([{
+                    session_id: selectedLead.telefone,
+                    message: JSON.stringify({
+                        type: 'ai',
+                        content: `data:${file.type};base64,${base64data}`, // Save actual image data for local view
+                        sender: authUser.nome,
+                        sentByCRM: true,
+                        msgStyle: 'image'
+                    })
+                }]);
+
+            // Forçar atualização local das mensagens
+            fetchMessages();
+
+        } catch (err: any) {
+            alert('Erro ao enviar imagem: ' + err.message);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     // LÓGICA DE ÁUDIO
     const startRecording = async () => {
         try {
@@ -384,30 +474,41 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         setIsSending(true);
 
         try {
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = async () => {
-                const base64data = (reader.result as string).split(',')[1];
+            const resultBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = error => reject(error);
+            });
 
-                const response = await fetch('https://evo.sp3company.shop/message/sendWhatsAppAudio/v1', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'apikey': 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D' },
-                    body: JSON.stringify({
-                        number: selectedLead.telefone,
-                        audio: base64data,
-                        delay: 500
-                    })
-                });
+            const base64data = resultBase64.split(',')[1];
 
-                if (response.ok) {
-                    await supabase
-                        .from('n8n_chat_histories')
-                        .insert([{
-                            session_id: selectedLead.telefone,
-                            message: JSON.stringify({ type: 'ai', content: '🎤 Áudio enviado' })
-                        }]);
-                }
-            };
+            const response = await fetch('https://evo.sp3company.shop/message/sendWhatsAppAudio/v1', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D' },
+                body: JSON.stringify({
+                    number: selectedLead.telefone,
+                    audio: base64data,
+                    delay: 500
+                })
+            });
+
+            if (response.ok) {
+                await supabase
+                    .from('n8n_chat_histories')
+                    .insert([{
+                        session_id: selectedLead.telefone,
+                        message: JSON.stringify({
+                            type: 'ai',
+                            content: resultBase64,
+                            sender: authUser.nome,
+                            sentByCRM: true,
+                            msgStyle: 'audio'
+                        })
+                    }]);
+
+                fetchMessages(); // Atualiza na hora
+            }
         } catch (err) {
             console.error('Erro ao enviar áudio:', err);
         } finally {
@@ -427,7 +528,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     return (
-        <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr 300px', gap: isMobile ? 0 : '1.5rem', height: isMobile ? 'calc(100dvh - 120px)' : 'calc(100vh - 180px)' }}>
+        <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr 300px', gap: isMobile ? 0 : '1.5rem', height: isMobile ? '100%' : 'calc(100vh - 180px)' }}>
             {/* Sidebar de Conversas */}
             {(!isMobile || mobilePanel === 'list') && <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-soft)' }}>
@@ -497,11 +598,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         <span style={{
                                             fontSize: '0.68rem', fontWeight: '700', whiteSpace: 'nowrap',
                                             padding: '3px 12px', borderRadius: '20px',
-                                            ...(msg.msgStyle === 'error'   ? { color: '#b91c1c', backgroundColor: '#fee2e2' } :
+                                            ...(msg.msgStyle === 'error' ? { color: '#b91c1c', backgroundColor: '#fee2e2' } :
                                                 msg.msgStyle === 'success' ? { color: '#15803d', backgroundColor: '#dcfce7' } :
-                                                msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
-                                                msg.msgStyle === 'info'    ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
-                                                                             { color: '#667781', backgroundColor: 'rgba(255,255,255,0.9)' })
+                                                    msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
+                                                        msg.msgStyle === 'info' ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
+                                                            { color: '#667781', backgroundColor: 'rgba(255,255,255,0.9)' })
                                         }}>
                                             {msg.text}
                                         </span>
@@ -564,6 +665,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
                                                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                     />
+                                                ) : msg.isAudio ? (
+                                                    <div style={{ padding: '8px 0', minWidth: '350px', width: '100%', maxWidth: '400px' }}>
+                                                        <audio
+                                                            controls
+                                                            src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
+                                                            style={{ width: '100%', height: '40px' }}
+                                                        />
+                                                    </div>
                                                 ) : msg.text}
                                                 <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: '#667781' }}>{msg.time}</span>
                                             </div>
@@ -573,17 +682,28 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             ))}
                         </div>
 
-                        <div style={{ padding: '0.75rem 1rem', display: 'flex', gap: '8px', backgroundColor: '#f0f2f5', alignItems: 'center', position: 'relative' }}>
-                            {showEmojiPicker && (
-                                <div style={{ position: 'absolute', bottom: '100%', left: '1rem', zIndex: 1000, boxShadow: '0 -4px 12px rgba(0,0,0,0.1)' }}>
-                                    <EmojiPicker
-                                        theme={Theme.LIGHT}
-                                        onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
-                                        width={320}
-                                        height={400}
-                                    />
-                                </div>
-                            )}
+                        <div ref={inputBarRef} style={{ padding: '0.75rem 1rem', display: 'flex', gap: '8px', backgroundColor: '#f0f2f5', alignItems: 'center', position: 'relative' }}>
+                            {showEmojiPicker && (() => {
+                                const rect = inputBarRef.current?.getBoundingClientRect();
+                                const pickerBottom = rect ? window.innerHeight - rect.top : 60;
+                                return (
+                                    <div style={{
+                                        position: 'fixed',
+                                        bottom: pickerBottom,
+                                        left: isMobile ? 0 : (rect?.left ?? 0),
+                                        width: isMobile ? '100vw' : undefined,
+                                        zIndex: 1000,
+                                        boxShadow: '0 -4px 12px rgba(0,0,0,0.15)'
+                                    }}>
+                                        <EmojiPicker
+                                            theme={Theme.LIGHT}
+                                            onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
+                                            width={isMobile ? window.innerWidth : 320}
+                                            height={isMobile ? 300 : 400}
+                                        />
+                                    </div>
+                                );
+                            })()}
 
                             <button
                                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -591,6 +711,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             >
                                 <Smile size={24} />
                             </button>
+
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading || isSending}
+                                style={{ background: 'none', border: 'none', color: '#54656f', cursor: 'pointer', padding: '4px' }}
+                            >
+                                {isUploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
+                            </button>
+
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleImageUpload}
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                            />
 
                             {isRecording ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'white', borderRadius: '8px', padding: '8px 16px' }}>
