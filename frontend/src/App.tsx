@@ -79,12 +79,19 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openChatWithPhone, setOpenChatWithPhone] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   // ─── ADICIONAR LEAD ─────────────────────────────────────────────────────────
   const [showAddLead, setShowAddLead] = useState(false);
   const [newLeadNome, setNewLeadNome] = useState('');
   const [newLeadTelefone, setNewLeadTelefone] = useState('');
   const [isAddingLead, setIsAddingLead] = useState(false);
   const [addLeadError, setAddLeadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   // ─── AUTENTICAÇÃO ───────────────────────────────────────────────────────────
   const loadUserProfile = async (userId: string, userEmail: string) => {
@@ -180,10 +187,14 @@ function App() {
   // ─── LOADING ────────────────────────────────────────────────────────────────
   if (authLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #001A4D, #003399)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-            <Activity size={24} color="white" />
+          <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+            <img
+              src="/favicon.png"
+              alt="SP3 Symbol"
+              style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '14px', boxShadow: '0 10px 25px rgba(27, 94, 240, 0.2)' }}
+            />
           </div>
           <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)', margin: '0 auto' }} />
         </div>
@@ -239,12 +250,15 @@ function App() {
     <div className="dashboard-container">
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
-        <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center' }}>
+        <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <img
-            src="/logo.png"
-            alt="SP3 CRM Logo"
-            style={{ height: '42px', objectFit: 'contain', maxWidth: '100%' }}
+            src="/favicon.png"
+            alt="SP3 Symbol"
+            style={{ height: '34px', width: '34px', objectFit: 'contain', borderRadius: '8px' }}
           />
+          <span style={{ fontSize: '1.85rem', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+            SP3
+          </span>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -275,37 +289,39 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content">
-        <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button
-              className="mobile-only"
-              onClick={() => setSidebarOpen(true)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '6px', borderRadius: '8px', alignItems: 'center' }}
-            >
-              <Menu size={26} />
-            </button>
-            <div>
-              <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
-              </p>
+      <main className="main-content" style={isMobile && activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : undefined}>
+        {!(isMobile && activeTab === 'chats') && (
+          <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                className="mobile-only"
+                onClick={() => setSidebarOpen(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '6px', borderRadius: '8px', alignItems: 'center' }}
+              >
+                <Menu size={26} />
+              </button>
+              <div>
+                <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                  {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={fetchLeads}
-              style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
-            >
-              Atualizar
-            </button>
-            <div className="search-bar">
-              <Search size={18} color="var(--text-muted)" />
-              <input type="text" placeholder="Buscar..." />
+            <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={fetchLeads}
+                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+              >
+                Atualizar
+              </button>
+              <div className="search-bar">
+                <Search size={18} color="var(--text-muted)" />
+                <input type="text" placeholder="Buscar..." />
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         {error && (
           <div style={{ padding: '1rem', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '12px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>

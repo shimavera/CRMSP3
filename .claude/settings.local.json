@@ -6,7 +6,17 @@
       "mcp__n8n__n8n_update_partial_workflow",
       "Bash(python3:*)",
       "mcp__n8n__n8n_validate_workflow",
-      "mcp__n8n__get_node"
+      "mcp__n8n__get_node",
+      "mcp__n8n__n8n_autofix_workflow",
+      "Bash(npm run build)",
+      "Bash(git add frontend/src/components/ChatView.tsx frontend/src/components/SettingsView.tsx)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(git add frontend/src/index.css frontend/src/App.tsx frontend/src/components/ChatView.tsx)",
+      "Bash(git add frontend/src/components/ChatView.tsx)",
+      "Bash(npx tsc --noEmit)",
+      "mcp__n8n__n8n_list_workflows",
+      "mcp__n8n__n8n_executions"
     ]
   }
 }

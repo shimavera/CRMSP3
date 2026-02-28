@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Activity, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 const LoginView = () => {
     const [email, setEmail] = useState('');
@@ -27,7 +27,7 @@ const LoginView = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0fdf4 100%)',
+            background: 'linear-gradient(135deg, #001A4D 0%, #003399 50%, #0052CC 100%)',
             padding: '2rem'
         }}>
             <div style={{
@@ -41,18 +41,17 @@ const LoginView = () => {
             }}>
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                    <div style={{
-                        width: '56px', height: '56px', borderRadius: '16px',
-                        background: 'var(--accent)', display: 'inline-flex',
-                        alignItems: 'center', justifyContent: 'center',
-                        marginBottom: '1rem', boxShadow: '0 8px 24px rgba(14,165,233,0.3)'
-                    }}>
-                        <Activity size={28} color="white" />
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '14px', marginBottom: '1rem' }}>
+                        <img
+                            src="/favicon.png"
+                            alt="SP3 Symbol"
+                            style={{ height: '52px', width: '52px', objectFit: 'contain', borderRadius: '12px' }}
+                        />
+                        <span style={{ fontSize: '3.25rem', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                            SP3
+                        </span>
                     </div>
-                    <h1 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>
-                        SP3 CRM
-                    </h1>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '500' }}>
                         Faça login para acessar o painel
                     </p>
                 </div>
