@@ -41,6 +41,24 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<any>(null);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [tempName, setTempName] = useState('');
+
+    const handleSaveName = async () => {
+        if (!selectedLead) return;
+        try {
+            const { error } = await supabase
+                .from('sp3chat')
+                .update({ nome: tempName })
+                .eq('id', selectedLead.id);
+            if (error) throw error;
+            setSelectedLead({ ...selectedLead, nome: tempName });
+        } catch (e: any) {
+            alert('Erro ao renomear: ' + e.message);
+        } finally {
+            setIsEditingName(false);
+        }
+    };
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,11 +67,13 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [newTaskDate, setNewTaskDate] = useState('');
 
-    const CUSTOM_FIELDS_CONFIG = [
+    const CUSTOM_FIELDS_CONFIG: Array<{ key: string, label: string, type: string, placeholder?: string, options?: string[] }> = [
         { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
         { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
         { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' },
-        { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' }
+        { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' },
+        { key: 'email', label: 'E-mail', type: 'email', placeholder: 'email@exemplo.com' },
+        { key: 'proposta_valor', label: 'Valor da Proposta / Forecast', type: 'number', placeholder: 'Ex: 1500' }
     ];
 
     const handleUpdateCustomField = async (key: string, value: string) => {
@@ -808,7 +828,24 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     {(selectedLead.nome || 'L')[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <h4 style={{ fontWeight: '700', fontSize: '0.95rem', color: '#111b21' }}>{selectedLead.nome || selectedLead.telefone}</h4>
+                                    {isEditingName ? (
+                                        <input
+                                            autoFocus
+                                            value={tempName}
+                                            onChange={e => setTempName(e.target.value)}
+                                            onBlur={handleSaveName}
+                                            onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: '#111b21', border: '1px solid var(--accent)', borderRadius: '4px', padding: '2px 6px', outline: 'none' }}
+                                        />
+                                    ) : (
+                                        <h4
+                                            onDoubleClick={() => { setTempName(selectedLead.nome || ''); setIsEditingName(true); }}
+                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: '#111b21', cursor: 'text' }}
+                                            title="Clique duplo para editar nome"
+                                        >
+                                            {selectedLead.nome || selectedLead.telefone}
+                                        </h4>
+                                    )}
                                     <span style={{ fontSize: '0.75rem', color: '#667781' }}>{selectedLead.telefone}</span>
                                 </div>
                             </div>

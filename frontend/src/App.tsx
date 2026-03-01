@@ -56,6 +56,7 @@ function App() {
   const [authUser, setAuthUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [openChatWithPhone, setOpenChatWithPhone] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   // ─── ADICIONAR / EDITAR LEAD ────────────────────────────────────────────────
@@ -124,13 +125,22 @@ function App() {
   }, []);
 
   // ─── DADOS ──────────────────────────────────────────────────────────────────
+  const isSuperAdmin = authUser?.company_name === 'SP3 Company - Master';
+
   const fetchLeads = async () => {
+    if (!authUser) return;
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('sp3chat')
         .select('*')
-        .eq('company_id', authUser?.company_id)
         .order('id', { ascending: false });
+
+      // Super Admin vê leads de TODAS as empresas (RLS já permite via is_master_admin())
+      if (!isSuperAdmin) {
+        query = query.eq('company_id', authUser.company_id);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         setError(error.message);
@@ -252,9 +262,9 @@ function App() {
   };
 
   return (
-    <div className="dashboard-container">
+    <div className={`dashboard-container ${!desktopSidebarOpen && !isMobile ? 'desktop-sidebar-closed' : ''}`}>
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
-      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
+      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''} ${!desktopSidebarOpen && !isMobile ? ' desktop-sidebar-closed' : ''}`}>
         <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: '12px' }}>
             <img
@@ -300,6 +310,13 @@ function App() {
         {!(isMobile && activeTab === 'chats') && (
           <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                className="desktop-menu-toggle"
+                onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '6px', borderRadius: '8px', alignItems: 'center', display: 'none' }}
+              >
+                <Menu size={26} />
+              </button>
               <button
                 className="mobile-only"
                 onClick={() => setSidebarOpen(true)}
