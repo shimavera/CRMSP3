@@ -215,8 +215,49 @@ function App() {
   useEffect(() => {
     if (!authUser) return;
     fetchLeads();
-    const interval = setInterval(fetchLeads, 30000);
-    return () => clearInterval(interval);
+
+    // Realtime: novos leads aparecem instantaneamente
+    const channel = supabase
+      .channel('app-leads-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'sp3chat',
+        filter: `company_id=eq.${authUser.company_id}`
+      }, (payload) => {
+        const newLead = payload.new as Lead;
+        setLeads(prev => {
+          if (prev.some(l => l.id === newLead.id)) return prev;
+          return [newLead, ...prev];
+        });
+        setLastSync(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sp3chat',
+        filter: `company_id=eq.${authUser.company_id}`
+      }, (payload) => {
+        const updated = payload.new as Lead;
+        setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'sp3chat',
+        filter: `company_id=eq.${authUser.company_id}`
+      }, (payload) => {
+        const deleted = payload.old as any;
+        setLeads(prev => prev.filter(l => l.id !== deleted.id));
+      })
+      .subscribe();
+
+    // Polling como fallback (10s)
+    const interval = setInterval(fetchLeads, 10000);
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [authUser]);
 
   // ─── GUARD DE TAB POR PERMISSÃO ─────────────────────────────────────────────

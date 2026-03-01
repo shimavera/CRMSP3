@@ -137,6 +137,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const [isSarahThinking, setIsSarahThinking] = useState(false);
 
+    // Ref para usar dentro do Realtime sem recriar o subscription
+    const selectedLeadRef = useRef<Lead | null>(null);
+    useEffect(() => { selectedLeadRef.current = selectedLead; }, [selectedLead]);
+
     // Instância WhatsApp ativa
     const [evoInstance, setEvoInstance] = useState<{ evo_api_url: string; evo_api_key: string; instance_name: string } | null>(null);
 
@@ -263,7 +267,68 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         fetchQuickMessages();
     }, []);
 
+    // Helper: parsear uma mensagem do DB para o formato de exibição
+    const parseMessage = (m: any) => {
+        let type = 'ai';
+        let text = '';
+        let msgStyle: string | null = null;
+        let isImage = false;
+        let isAudio = false;
+        let isVideo = false;
+        let sender: string | null = null;
+        let sentByCRM = false;
+        let msgData: any = null;
+        try {
+            msgData = typeof m.message === 'string' ? JSON.parse(m.message) : m.message;
+            type = msgData.type || 'ai';
+            sender = msgData.sender || null;
+            sentByCRM = msgData.sentByCRM || false;
+            msgStyle = msgData.msgStyle || null;
+            const potentialUrl = msgData.url || msgData.mediaUrl || msgData.fileUrl || msgData.audio || msgData.image || msgData.video || msgData.ptt;
+            if (msgData.messages && Array.isArray(msgData.messages)) {
+                text = msgData.messages.map((item: any) => item.text || item.content || '').join('\n\n');
+            } else if (msgData.content) {
+                text = msgData.content;
+            } else if (typeof msgData === 'string') {
+                text = msgData;
+            } else {
+                text = typeof m.message === 'string' ? m.message : JSON.stringify(m.message);
+            }
+            if ((!text || text === 'Mensagem de mídia/sistema' || text === 'Media message') && potentialUrl) {
+                text = potentialUrl;
+            }
+            isImage = msgData.msgStyle === 'image' || msgData.type === 'image' || type === 'image' || !!msgData.image;
+            isAudio = msgData.msgStyle === 'audio' || msgData.type === 'audio' || type === 'audio' || msgData.type === 'ptt' || type === 'ptt' || !!msgData.audio || !!msgData.ptt;
+            isVideo = msgData.msgStyle === 'video' || msgData.type === 'video' || !!msgData.video;
+            if (isVideo) type = 'video';
+        } catch (e) {
+            text = String(m.message);
+        }
+        const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i;
+        if (!isImage && typeof text === 'string' && imageUrlPattern.test(text.trim())) isImage = true;
+        const audioUrlPattern = /^(https?:\/\/.+\.(ogg|mp3|wav|m4a|aac)(\?.*)?|data:audio\/.+)$/i;
+        if (!isAudio && typeof text === 'string' && (audioUrlPattern.test(text.trim()) || text.trim().startsWith('data:audio'))) isAudio = true;
+        const videoUrlPattern = /^(https?:\/\/.+\.(mp4|webm|mkv|mov)(\?.*)?|data:video\/.+)$/i;
+        if (!isVideo && typeof text === 'string' && (videoUrlPattern.test(text.trim()) || text.trim().startsWith('data:video'))) isVideo = true;
+        if (type === 'video') isVideo = true;
+        const isAudioSent = msgStyle === 'audio_sent';
+        return {
+            id: m.id,
+            type: isVideo ? 'video' : type,
+            msgStyle,
+            isImage,
+            isAudio,
+            isVideo,
+            isAudioSent,
+            sender,
+            sentByCRM,
+            text: typeof text === 'string' ? text : JSON.stringify(text),
+            time: new Date(m.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+    };
+
     // 4. OUVINTE GLOBAL: Realtime para histórico e status de lead
+    // Roda UMA VEZ (sem dependência de selectedLead) — usa ref
     useEffect(() => {
         const chatChannel = supabase
             .channel('global-chat-updates')
@@ -285,15 +350,16 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     isHuman = parsed.type === 'human' && !parsed.sentByCRM;
                 } catch (e) { }
 
+                const currentLead = selectedLeadRef.current;
+
                 if (isHuman) {
-                    if (!selectedLead || selectedLead.telefone !== newMsg.session_id) {
+                    if (!currentLead || currentLead.telefone !== newMsg.session_id) {
                         setUnreadCounts(prev => ({
                             ...prev,
                             [newMsg.session_id]: (prev[newMsg.session_id] || 0) + 1
                         }));
                     }
                 } else {
-                    // Se foi o CRM / IA respondendo, remove do badge
                     setUnreadCounts(prev => {
                         if (prev[newMsg.session_id]) {
                             const copy = { ...prev };
@@ -304,8 +370,13 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     });
                 }
 
-                if (selectedLead && newMsg.session_id === selectedLead.telefone) {
-                    fetchMessages();
+                // Append direto se é a conversa aberta (sem refetch)
+                if (currentLead && newMsg.session_id === currentLead.telefone) {
+                    const parsed = parseMessage(newMsg);
+                    setMessages(prev => {
+                        if (prev.some(m => m.id === parsed.id)) return prev;
+                        return [...prev, parsed];
+                    });
                 }
             })
             .subscribe();
@@ -314,15 +385,27 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const leadChannel = supabase
             .channel('lead-updates')
             .on('postgres_changes', {
-                event: 'UPDATE',
+                event: '*',
                 schema: 'public',
                 table: 'sp3chat',
                 filter: `company_id=eq.${authUser.company_id}`
             }, (payload) => {
-                const updatedLead = payload.new as Lead;
-                setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-                if (selectedLead?.id === updatedLead.id) {
-                    setSelectedLead(updatedLead);
+                if (payload.eventType === 'INSERT') {
+                    const newLead = payload.new as Lead;
+                    setLeads(prev => {
+                        if (prev.some(l => l.id === newLead.id)) return prev;
+                        return [newLead, ...prev];
+                    });
+                } else if (payload.eventType === 'UPDATE') {
+                    const updatedLead = payload.new as Lead;
+                    setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+                    const currentLead = selectedLeadRef.current;
+                    if (currentLead?.id === updatedLead.id) {
+                        setSelectedLead(updatedLead);
+                    }
+                } else if (payload.eventType === 'DELETE') {
+                    const deleted = payload.old as any;
+                    setLeads(prev => prev.filter(l => l.id !== deleted.id));
                 }
             })
             .subscribe();
@@ -331,7 +414,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             supabase.removeChannel(chatChannel);
             supabase.removeChannel(leadChannel);
         };
-    }, [selectedLead]);
+    }, []);
 
     // ORDENAÇÃO DINÂMICA
     const sortedLeads = useMemo(() => {
@@ -356,93 +439,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             setMessages([]);
         } else {
             setError(null);
-            const formatted = (data || []).map((m: any) => {
-                let type = 'ai';
-                let text = '';
-                let msgStyle: string | null = null;
-                let isImage = false;
-                let isAudio = false;
-                let isVideo = false;
-                let sender: string | null = null;
-                let sentByCRM = false;
-                let msgData: any = null;
-                try {
-                    msgData = typeof m.message === 'string' ? JSON.parse(m.message) : m.message;
-
-                    // Extrair metadados básicos
-                    type = msgData.type || 'ai';
-                    sender = msgData.sender || null;
-                    sentByCRM = msgData.sentByCRM || false;
-                    msgStyle = msgData.msgStyle || null;
-
-                    // Tentar encontrar uma URL de mídia em campos comuns
-                    const potentialUrl = msgData.url || msgData.mediaUrl || msgData.fileUrl || msgData.audio || msgData.image || msgData.video || msgData.ptt;
-
-                    // Extrair texto/conteúdo
-                    if (msgData.messages && Array.isArray(msgData.messages)) {
-                        text = msgData.messages.map((item: any) => item.text || item.content || '').join('\n\n');
-                    } else if (msgData.content) {
-                        text = msgData.content;
-                    } else if (typeof msgData === 'string') {
-                        text = msgData;
-                    } else {
-                        text = typeof m.message === 'string' ? m.message : JSON.stringify(m.message);
-                    }
-
-                    // Se o texto for genérico e tivermos uma URL, usamos a URL como texto para o player detectar
-                    if ((!text || text === 'Mensagem de mídia/sistema' || text === 'Media message') && potentialUrl) {
-                        text = potentialUrl;
-                    }
-
-                    // Detecção de tipo baseada no JSON
-                    isImage = msgData.msgStyle === 'image' || msgData.type === 'image' || type === 'image' || !!msgData.image;
-                    isAudio = msgData.msgStyle === 'audio' || msgData.type === 'audio' || type === 'audio' || msgData.type === 'ptt' || type === 'ptt' || !!msgData.audio || !!msgData.ptt;
-                    isVideo = msgData.msgStyle === 'video' || msgData.type === 'video' || !!msgData.video;
-                    if (isVideo) {
-                        type = 'video';
-                    }
-
-                } catch (e) {
-                    text = String(m.message);
-                }
-
-                const imageUrlPattern = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i;
-                if (!isImage && typeof text === 'string' && imageUrlPattern.test(text.trim())) {
-                    isImage = true;
-                }
-
-                // Detectar URLs de áudio ou Base64 de áudio
-                const audioUrlPattern = /^(https?:\/\/.+\.(ogg|mp3|wav|m4a|aac)(\?.*)?|data:audio\/.+)$/i;
-                if (!isAudio && typeof text === 'string' && (audioUrlPattern.test(text.trim()) || text.trim().startsWith('data:audio'))) {
-                    isAudio = true;
-                }
-
-                // Detectar URLs de video ou Base64 de video
-                const videoUrlPattern = /^(https?:\/\/.+\.(mp4|webm|mkv|mov)(\?.*)?|data:video\/.+)$/i;
-                if (!isVideo && typeof text === 'string' && (videoUrlPattern.test(text.trim()) || text.trim().startsWith('data:video'))) {
-                    isVideo = true;
-                }
-
-                // Garantir que se o tipo for video, a flag isVideo seja true
-                if (type === 'video') isVideo = true;
-
-                const isAudioSent = msgStyle === 'audio_sent';
-
-                return {
-                    id: m.id,
-                    type: isVideo ? 'video' : type,
-                    msgStyle,
-                    isImage,
-                    isAudio,
-                    isVideo,
-                    isAudioSent,
-                    sender,
-                    sentByCRM,
-                    text: typeof text === 'string' ? text : JSON.stringify(text),
-                    time: new Date(m.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                };
-            });
-            setMessages(formatted);
+            setMessages((data || []).map(parseMessage));
         }
     };
 
