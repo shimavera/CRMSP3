@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   Users,
-  CheckCircle2,
-  Calendar,
   MessageSquare,
   LayoutDashboard,
   Kanban,
   Settings,
   LogOut,
   Search,
-  Activity,
   AlertCircle,
   Loader2,
   Plus,
@@ -23,6 +20,7 @@ import ChatView from './components/ChatView';
 import KanbanView from './components/KanbanView';
 import SettingsView from './components/SettingsView';
 import LoginView from './components/LoginView';
+import DashboardView from './components/DashboardView';
 import { supabase } from './lib/supabase';
 import type { Lead, UserProfile } from './lib/supabase';
 
@@ -51,27 +49,9 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
   </button>
 );
 
-const StatCard = ({ label, value, icon: Icon, color, trend }: any) => (
-  <div className="glass-card stat-card fade-in">
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-      <div className="stat-icon" style={{ backgroundColor: `${color}12`, color: color }}>
-        <Icon size={22} />
-      </div>
-      {trend && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '20px', backgroundColor: trend.startsWith('+') ? '#ecfdf5' : '#fff1f2', color: trend.startsWith('+') ? '#059669' : '#e11d48', fontWeight: '700' }}>
-          {trend}
-        </div>
-      )}
-    </div>
-    <span className="stat-label">{label}</span>
-    <span className="stat-value">{value}</span>
-  </div>
-);
-
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -160,8 +140,6 @@ function App() {
       }
     } catch (e: any) {
       setError(e.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -363,46 +341,7 @@ function App() {
         )}
 
         {activeTab === 'dashboard' && authUser.permissions.dashboard && (
-          <div className="fade-in">
-            <div className="metric-grid">
-              <StatCard label="Leads Ativos" value={leads.length} icon={Users} color="#0ea5e9" trend="Online" />
-              <StatCard label="Qualificados" value="0" icon={CheckCircle2} color="#10b981" />
-              <StatCard label="Agendamentos" value="0" icon={Calendar} color="#6366f1" />
-              <StatCard label="Status DB" value={loading ? '...' : 'OK'} icon={Activity} color="#f59e0b" />
-            </div>
-
-            <div className="glass-card" style={{ padding: '1.75rem' }}>
-              <h3 style={{ fontWeight: '800', marginBottom: '2rem' }}>Leads na Tabela 'sp3chat'</h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-soft)' }}>
-                      <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Nome</th>
-                      <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Telefone</th>
-                      <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.length === 0 ? (
-                      <tr><td colSpan={3} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum lead apareceu ainda. Mande um 'Olá' no WhatsApp!</td></tr>
-                    ) : (
-                      leads.map(lead => (
-                        <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                          <td style={{ padding: '16px 12px', fontWeight: '700' }}>{lead.nome || 'Sem Nome'}</td>
-                          <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>{lead.telefone}</td>
-                          <td style={{ padding: '16px 12px' }}>
-                            {authUser.permissions.chats && (
-                              <button onClick={() => setTabSafe('chats')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: '600' }}>Abrir Chat</button>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <DashboardView leads={leads} />
         )}
 
         {activeTab === 'chats' && authUser.permissions.chats && (

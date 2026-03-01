@@ -52,7 +52,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const CUSTOM_FIELDS_CONFIG = [
         { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
         { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
-        { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' }
+        { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' },
+        { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' }
     ];
 
     const handleUpdateCustomField = async (key: string, value: string) => {
