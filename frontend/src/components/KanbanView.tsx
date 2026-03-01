@@ -4,8 +4,11 @@ import {
     Users, Phone, Calendar, XCircle, CheckCircle2,
     FileText, Handshake, Trophy, Trash2,
     TrendingUp, Clock, MoreHorizontal,
-    Video, AlertCircle, Loader2, ArrowRight, Bell, Filter
+    Video, AlertCircle, Loader2, ArrowRight, Bell, Filter,
+    CheckSquare, Square
 } from 'lucide-react';
+import { format, isPast, isToday } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
 
@@ -38,11 +41,13 @@ interface Lead {
     stage_updated_at?: string;
     followup_stage?: number;
     last_interaction_at?: string;
+    tasks?: { id: string; title: string; due_date: string; completed: boolean }[];
+    custom_fields?: Record<string, string>;
 }
 
 // ─── CONFIG DAS COLUNAS ───────────────────────────────────────────────────────
 
-const PIPELINE: { stage: Stage; color: string; bg: string; icon: any; description: string }[] = [
+const DEFAULT_PIPELINE: { stage: Stage; color: string; bg: string; icon: any; description: string }[] = [
     { stage: 'Novo Lead', color: '#6366f1', bg: '#eef2ff', icon: Users, description: 'Lead recém captado' },
     { stage: 'Contato Iniciado', color: '#0ea5e9', bg: '#f0f9ff', icon: Phone, description: 'Primeiro contato feito' },
     { stage: 'Em Follow-up', color: '#f97316', bg: '#fff7ed', icon: Bell, description: 'Aguardando retorno' },
@@ -56,31 +61,46 @@ const PIPELINE: { stage: Stage; color: string; bg: string; icon: any; descriptio
     { stage: 'Perdido', color: '#64748b', bg: '#f8fafc', icon: XCircle, description: 'Oportunidade perdida' },
 ];
 
+const FUNIS_DISPONIVEIS = [
+    { id: 'vendas', nome: 'Pré-consulta / Venda', etapas: DEFAULT_PIPELINE },
+    {
+        id: 'pos_venda', nome: 'Pós-venda / Fidelização', etapas: [
+            { stage: 'Novo Lead', color: '#6366f1', bg: '#eef2ff', icon: Users, description: 'Paciente para retorno' },
+            { stage: 'Contato Iniciado', color: '#0ea5e9', bg: '#f0f9ff', icon: Phone, description: 'Pesquisa NPS enviada' },
+            { stage: 'Agendou Retorno', color: '#10b981', bg: '#f0fdf4', icon: Calendar, description: 'Retorno marcado' },
+            { stage: 'Fechado', color: '#059669', bg: '#ecfdf5', icon: Trophy, description: 'Elogio recebido' },
+            { stage: 'Perdido', color: '#ef4444', bg: '#fef2f2', icon: XCircle, description: 'Reclamação/Insatisfeito' }
+        ]
+    }
+];
+
+// ─── CAMPOS PERSONALIZADOS DEMOMAÇÃO ──────────────────────────────────────────
+const CUSTOM_FIELDS_CONFIG = [
+    { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
+    { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
+    { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' }
+];
+
 // ─── COMPONENTE CARD ──────────────────────────────────────────────────────────
 
-const LeadCard = ({
-    lead,
-    stageColor,
-    onMove,
-    onDelete,
-    onClick,
-    isDragging,
-    onDragStart,
-    onDragEnd
-}: {
+const LeadCard = (props: {
     lead: Lead;
     stageColor: string;
-    onMove: (leadId: number, newStage: Stage) => void;
+    onMove: (leadId: number, newStage: Stage | string) => void;
     onDelete: (leadId: number) => void;
     onClick: (lead: Lead) => void;
     isDragging: boolean;
     onDragStart: () => void;
     onDragEnd: () => void;
+    currentPipeline?: any[];
 }) => {
+    const { lead, stageColor, onMove, onDelete, onClick, isDragging, onDragStart, onDragEnd, currentPipeline } = props;
     const [showMenu, setShowMenu] = useState(false);
     const daysInStage = lead.stage_updated_at
         ? Math.floor((Date.now() - new Date(lead.stage_updated_at).getTime()) / 86400000)
         : 0;
+
+    const pendingTasks = lead.tasks?.filter(t => !t.completed).length || 0;
 
     return (
         <div
@@ -163,6 +183,11 @@ const LeadCard = ({
                         🤖 IA ativa
                     </span>
                 )}
+                {pendingTasks > 0 && (
+                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckSquare size={10} /> {pendingTasks} Tarefa{pendingTasks > 1 ? 's' : ''}
+                    </span>
+                )}
             </div>
 
             {/* Tempo no estágio */}
@@ -185,7 +210,7 @@ const LeadCard = ({
                     }}
                 >
                     <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>Mover para</div>
-                    {PIPELINE.filter(p => p.stage !== lead.stage).map(p => (
+                    {(currentPipeline || []).filter((p: any) => p.stage !== lead.stage).map((p: any) => (
                         <button
                             key={p.stage}
                             onClick={() => { onMove(lead.id, p.stage); setShowMenu(false); }}
@@ -224,9 +249,18 @@ const LeadCard = ({
 
 // ─── MODAL DE DETALHES ────────────────────────────────────────────────────────
 
-const LeadDetailModal = ({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => void; onUpdate: (updated: Lead) => void }) => {
-    const [form, setForm] = useState({ ...lead });
+const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: Lead; onClose: () => void; onUpdate: (updated: Lead) => void; currentPipeline: any[] }) => {
+    const [form, setForm] = useState({
+        ...lead,
+        tasks: lead.tasks || [],
+        custom_fields: lead.custom_fields || {}
+    });
     const [saving, setSaving] = useState(false);
+    const [activeTab, setActiveTab] = useState<'details' | 'tasks' | 'custom'>('details');
+
+    // Nova Tarefa
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [newTaskDate, setNewTaskDate] = useState('');
 
     const handleSave = async () => {
         setSaving(true);
@@ -239,7 +273,9 @@ const LeadDetailModal = ({ lead, onClose, onUpdate }: { lead: Lead; onClose: () 
                 meeting_status: form.meeting_status,
                 proposal_status: form.proposal_status,
                 closed_reason: form.closed_reason,
-                stage_updated_at: new Date().toISOString(),
+                stage_updated_at: form.stage !== lead.stage ? new Date().toISOString() : lead.stage_updated_at,
+                tasks: form.tasks,
+                custom_fields: form.custom_fields
             })
             .eq('id', lead.id);
 
@@ -250,7 +286,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate }: { lead: Lead; onClose: () 
     return (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
             <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '2rem', width: '480px', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <div>
                         <h3 style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b' }}>{lead.nome || 'Lead s/ nome'}</h3>
                         <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{lead.telefone}</span>
@@ -258,57 +294,164 @@ const LeadDetailModal = ({ lead, onClose, onUpdate }: { lead: Lead; onClose: () 
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8' }}>×</button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div>
-                        <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Estágio</label>
-                        <select value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Stage }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
-                            {PIPELINE.map(p => <option key={p.stage} value={p.stage}>{p.stage}</option>)}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>📅 Data da Reunião</label>
-                        <input type="datetime-local" value={form.meeting_datetime ? form.meeting_datetime.slice(0, 16) : ''} onChange={e => setForm(f => ({ ...f, meeting_datetime: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
-                    </div>
-
-                    <div>
-                        <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>🔗 Link da Reunião</label>
-                        <input type="url" value={form.meeting_link || ''} onChange={e => setForm(f => ({ ...f, meeting_link: e.target.value }))} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
-                    </div>
-
-                    <div>
-                        <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Status da Reunião</label>
-                        <select value={form.meeting_status || ''} onChange={e => setForm(f => ({ ...f, meeting_status: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
-                            <option value="">-- Nenhum --</option>
-                            <option value="scheduled">Agendada</option>
-                            <option value="completed">Realizada</option>
-                            <option value="no_show">No Show</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Status da Proposta</label>
-                        <select value={form.proposal_status || ''} onChange={e => setForm(f => ({ ...f, proposal_status: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
-                            <option value="">-- Nenhum --</option>
-                            <option value="sent">Enviada</option>
-                            <option value="accepted">Aceita</option>
-                            <option value="rejected">Rejeitada</option>
-                        </select>
-                    </div>
-
-                    {(form.stage === 'Perdido') && (
-                        <div>
-                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Motivo da Perda</label>
-                            <textarea value={form.closed_reason || ''} onChange={e => setForm(f => ({ ...f, closed_reason: e.target.value }))} rows={3} placeholder="Ex: Preço alto, sem urgência..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box' }} />
-                        </div>
-                    )}
-
-                    {form.meeting_link && (
-                        <a href={form.meeting_link} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#f0fdf4', borderRadius: '10px', color: '#059669', fontWeight: '700', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid #dcfce7' }}>
-                            <Video size={16} /> Entrar na Reunião
-                        </a>
-                    )}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                    <button onClick={() => setActiveTab('details')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'details' ? '2px solid #6366f1' : '2px solid transparent', color: activeTab === 'details' ? '#6366f1' : '#64748b', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}>Detalhes</button>
+                    <button onClick={() => setActiveTab('custom')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'custom' ? '2px solid #6366f1' : '2px solid transparent', color: activeTab === 'custom' ? '#6366f1' : '#64748b', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}>Campos Extra</button>
+                    <button onClick={() => setActiveTab('tasks')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'tasks' ? '2px solid #6366f1' : '2px solid transparent', color: activeTab === 'tasks' ? '#6366f1' : '#64748b', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        Tarefas {form.tasks.filter(t => !t.completed).length > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.6rem', marginLeft: '4px' }}>{form.tasks.filter(t => !t.completed).length}</span>}
+                    </button>
                 </div>
+
+                {activeTab === 'details' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Estágio</label>
+                            <select value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Stage }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
+                                {currentPipeline.map(p => <option key={p.stage} value={p.stage}>{p.stage}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>📅 Data da Reunião</label>
+                            <input type="datetime-local" value={form.meeting_datetime ? form.meeting_datetime.slice(0, 16) : ''} onChange={e => setForm(f => ({ ...f, meeting_datetime: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>🔗 Link da Reunião</label>
+                            <input type="url" value={form.meeting_link || ''} onChange={e => setForm(f => ({ ...f, meeting_link: e.target.value }))} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Status da Reunião</label>
+                            <select value={form.meeting_status || ''} onChange={e => setForm(f => ({ ...f, meeting_status: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
+                                <option value="">-- Nenhum --</option>
+                                <option value="scheduled">Agendada</option>
+                                <option value="completed">Realizada</option>
+                                <option value="no_show">No Show</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Status da Proposta</label>
+                            <select value={form.proposal_status || ''} onChange={e => setForm(f => ({ ...f, proposal_status: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
+                                <option value="">-- Nenhum --</option>
+                                <option value="sent">Enviada</option>
+                                <option value="accepted">Aceita</option>
+                                <option value="rejected">Rejeitada</option>
+                            </select>
+                        </div>
+
+                        {(form.stage === 'Perdido') && (
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Motivo da Perda</label>
+                                <textarea value={form.closed_reason || ''} onChange={e => setForm(f => ({ ...f, closed_reason: e.target.value }))} rows={3} placeholder="Ex: Preço alto, sem urgência..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box' }} />
+                            </div>
+                        )}
+
+                        {form.meeting_link && (
+                            <a href={form.meeting_link} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#f0fdf4', borderRadius: '10px', color: '#059669', fontWeight: '700', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid #dcfce7' }}>
+                                <Video size={16} /> Entrar na Reunião
+                            </a>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'custom' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {CUSTOM_FIELDS_CONFIG.map(field => (
+                            <div key={field.key}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>{field.label}</label>
+                                {field.type === 'select' ? (
+                                    <select
+                                        value={form.custom_fields[field.key] || ''}
+                                        onChange={e => setForm(f => ({ ...f, custom_fields: { ...f.custom_fields, [field.key]: e.target.value } }))}
+                                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', backgroundColor: 'white' }}
+                                    >
+                                        <option value="">-- Selecione --</option>
+                                        {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                ) : (
+                                    <input
+                                        type={field.type}
+                                        placeholder={field.placeholder}
+                                        value={form.custom_fields[field.key] || ''}
+                                        onChange={e => setForm(f => ({ ...f, custom_fields: { ...f.custom_fields, [field.key]: e.target.value } }))}
+                                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                                    />
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {activeTab === 'tasks' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Nova Tarefa */}
+                        <div style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: '#1e293b' }}>Criar Lembrete</h4>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <input type="text" placeholder="Ex: Ligar para confirmar..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }} />
+                                <input type="datetime-local" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)} style={{ width: '200px', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }} />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                                <button
+                                    disabled={!newTaskTitle || !newTaskDate}
+                                    onClick={() => {
+                                        setForm(f => ({
+                                            ...f,
+                                            tasks: [...f.tasks, { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false }]
+                                        }));
+                                        setNewTaskTitle('');
+                                        setNewTaskDate('');
+                                    }}
+                                    style={{ padding: '6px 16px', borderRadius: '8px', backgroundColor: '#6366f1', color: 'white', border: 'none', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1 }}
+                                >
+                                    Adicionar
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Lista de Tarefas */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {form.tasks.length === 0 ? (
+                                <p style={{ fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center', padding: '1rem 0' }}>Nenhum lembrete para este lead.</p>
+                            ) : (
+                                form.tasks.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()).map(task => {
+                                    const isOverdue = !task.completed && isPast(new Date(task.due_date));
+                                    const isDueToday = !task.completed && isToday(new Date(task.due_date));
+
+                                    return (
+                                        <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', borderRadius: '10px', backgroundColor: task.completed ? '#f8fafc' : 'white', border: `1px solid ${task.completed ? '#e2e8f0' : (isOverdue ? '#fca5a5' : '#e2e8f0')}`, opacity: task.completed ? 0.7 : 1 }}>
+                                            <button
+                                                onClick={() => setForm(f => ({ ...f, tasks: f.tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t) }))}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: task.completed ? '#10b981' : '#94a3b8', display: 'flex', alignItems: 'center' }}
+                                            >
+                                                {task.completed ? <CheckSquare size={20} /> : <Square size={20} />}
+                                            </button>
+                                            <div style={{ flex: 1 }}>
+                                                <p style={{ fontSize: '0.9rem', fontWeight: '600', color: task.completed ? '#94a3b8' : '#1e293b', textDecoration: task.completed ? 'line-through' : 'none', marginBottom: '4px' }}>{task.title}</p>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: task.completed ? '#94a3b8' : (isOverdue ? '#ef4444' : (isDueToday ? '#f59e0b' : '#64748b')), fontWeight: (!task.completed && (isOverdue || isDueToday)) ? '700' : '500' }}>
+                                                    <Clock size={12} />
+                                                    {format(new Date(task.due_date), "dd/MMM 'às' HH:mm", { locale: ptBR })}
+                                                    {isOverdue && ' (Atrasada)'}
+                                                    {isDueToday && ' (Hoje)'}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setForm(f => ({ ...f, tasks: f.tasks.filter(t => t.id !== task.id) }))}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px', opacity: 0.5 }}
+                                                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 <button onClick={handleSave} disabled={saving} style={{ marginTop: '1.5rem', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}>
                     {saving ? 'Salvando...' : 'Salvar Alterações'}
@@ -358,8 +501,12 @@ const KanbanView = () => {
     const [loading, setLoading] = useState(true);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [draggingId, setDraggingId] = useState<number | null>(null);
-    const [dragOverStage, setDragOverStage] = useState<Stage | null>(null);
+    const [dragOverStage, setDragOverStage] = useState<Stage | string | null>(null);
     const [showMetrics, setShowMetrics] = useState(true);
+
+    // Funil State
+    const [activePipelineId, setActivePipelineId] = useState('vendas');
+    const currentPipeline = useMemo(() => FUNIS_DISPONIVEIS.find(f => f.id === activePipelineId)?.etapas || DEFAULT_PIPELINE, [activePipelineId]);
 
     // Filter states
     const [dateFilterMode, setDateFilterMode] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
@@ -400,10 +547,10 @@ const KanbanView = () => {
         return () => { supabase.removeChannel(channel); };
     }, []);
 
-    const moveCard = async (leadId: number, newStage: Stage) => {
-        // Atualizar localmente (otimista)
+    const moveCard = async (leadId: number, newStage: Stage | string) => {
+        // Atualizar localmente (otimista) - cast to any or define generalized Stage type
         setLeads(prev => prev.map(l =>
-            l.id === leadId ? { ...l, stage: newStage, stage_updated_at: new Date().toISOString() } : l
+            l.id === leadId ? { ...l, stage: newStage as any, stage_updated_at: new Date().toISOString() } : l
         ));
 
         // Determinar campos extras baseado no novo estágio
@@ -423,7 +570,7 @@ const KanbanView = () => {
     };
 
     // ── Drag and Drop ────────────────────────────────────────────────────────
-    const handleDrop = (stage: Stage) => {
+    const handleDrop = (stage: Stage | string) => {
         if (draggingId !== null && dragOverStage !== null) {
             moveCard(draggingId, stage);
         }
@@ -472,11 +619,23 @@ const KanbanView = () => {
             {/* Header da Pipeline */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div>
-                    <h2 style={{ fontWeight: '900', fontSize: '1.6rem', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
-                        Pipeline <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Comercial</span>
+                    <h2 style={{ fontWeight: '900', fontSize: '1.6rem', color: 'var(--text-primary)', letterSpacing: '-0.03em', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        Pipeline
+                        <select
+                            value={activePipelineId}
+                            onChange={e => setActivePipelineId(e.target.value)}
+                            style={{
+                                background: 'transparent', border: 'none', fontSize: '1.6rem', fontWeight: '900',
+                                color: 'var(--accent)', outline: 'none', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none'
+                            }}
+                        >
+                            {FUNIS_DISPONIVEIS.map(f => (
+                                <option key={f.id} value={f.id} style={{ fontSize: '1rem', color: 'black' }}>{f.nome}</option>
+                            ))}
+                        </select>
                     </h2>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: '500' }}>
-                        {filteredLeads.length} leads filtrados · Realtime ativo
+                        {filteredLeads.filter(l => currentPipeline.some(cp => cp.stage === (l.stage || 'Novo Lead'))).length} leads neste funil · Realtime ativo
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', position: 'relative' }}>
@@ -538,11 +697,11 @@ const KanbanView = () => {
             </div>
 
             {/* Métricas */}
-            {showMetrics && <MetricsBar leads={filteredLeads} />}
+            {showMetrics && <MetricsBar leads={filteredLeads.filter(l => currentPipeline.some(cp => cp.stage === (l.stage || 'Novo Lead')))} />}
 
             {/* Board */}
             <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', flex: 1, paddingBottom: '1rem' }}>
-                {PIPELINE.map(col => {
+                {currentPipeline.map(col => {
                     const colLeads = filteredLeads.filter(l => (l.stage || 'Novo Lead') === col.stage);
                     const isOver = dragOverStage === col.stage;
 
@@ -599,6 +758,7 @@ const KanbanView = () => {
                                             isDragging={draggingId === lead.id}
                                             onDragStart={() => setDraggingId(lead.id)}
                                             onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
+                                            currentPipeline={currentPipeline}
                                         />
                                     ))
                                 )}
@@ -613,6 +773,7 @@ const KanbanView = () => {
                 <LeadDetailModal
                     lead={selectedLead}
                     onClose={() => setSelectedLead(null)}
+                    currentPipeline={currentPipeline}
                     onUpdate={(updated) => {
                         setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
                         setSelectedLead(null);
