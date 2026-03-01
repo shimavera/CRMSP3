@@ -771,6 +771,36 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
+    const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
+
+    const handleDeleteClient = async (empresa: any) => {
+        const confirmText = `EXCLUIR PERMANENTEMENTE a empresa "${empresa.name}"?\n\nIsso vai remover:\n- Todos os leads e histórico de conversas\n- Todos os usuários da empresa\n- Configurações, prompts, vídeos e mensagens rápidas\n- Instâncias WhatsApp\n\nEssa ação NÃO pode ser desfeita!`;
+        if (!window.confirm(confirmText)) return;
+
+        // Segunda confirmação
+        const confirmName = window.prompt(`Para confirmar, digite o nome da empresa: "${empresa.name}"`);
+        if (confirmName !== empresa.name) {
+            alert('Nome não confere. Exclusão cancelada.');
+            return;
+        }
+
+        setDeletingClientId(empresa.id);
+        try {
+            const { data, error } = await supabase.rpc('delete_tenant', {
+                p_company_id: empresa.id
+            });
+            if (error) {
+                alert('Erro ao excluir: ' + error.message);
+            } else {
+                alert(`Empresa "${empresa.name}" excluída com sucesso! ${data?.deleted_users || 0} usuário(s) removido(s).`);
+                await fetchSaasClients();
+            }
+        } catch (e: any) {
+            alert('Erro: ' + e.message);
+        }
+        setDeletingClientId(null);
+    };
+
     const handleDeleteUser = async (userId: string) => {
         if (!window.confirm('Remover este usuário do sistema? Ele não conseguirá mais acessar o CRM.')) return;
         await supabase.from('sp3_users').delete().eq('id', userId);
@@ -1914,6 +1944,16 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                             >
                                                                 {togglingClientId === empresa.id ? <Loader2 size={14} className="animate-spin" /> : empresa.active ? <><PowerOff size={14} /> Desativar</> : <><Power size={14} /> Ativar</>}
                                                             </button>
+                                                            {empresa.name !== 'SP3 Company - Master' && (
+                                                                <button
+                                                                    onClick={() => handleDeleteClient(empresa)}
+                                                                    title="Excluir empresa permanentemente"
+                                                                    disabled={deletingClientId === empresa.id}
+                                                                    style={{ padding: '6px', borderRadius: '8px', border: 'none', background: '#fee2e2', color: '#b91c1c', cursor: deletingClientId === empresa.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center' }}
+                                                                >
+                                                                    {deletingClientId === empresa.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
