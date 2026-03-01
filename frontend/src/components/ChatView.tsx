@@ -312,6 +312,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         if (!isVideo && typeof text === 'string' && (videoUrlPattern.test(text.trim()) || text.trim().startsWith('data:video'))) isVideo = true;
         if (type === 'video') isVideo = true;
         const isAudioSent = msgStyle === 'audio_sent';
+        const isFollowup = msgData?.isFollowup || false;
+        const followupStep = msgData?.followupStep || null;
         return {
             id: m.id,
             type: isVideo ? 'video' : type,
@@ -320,6 +322,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             isAudio,
             isVideo,
             isAudioSent,
+            isFollowup,
+            followupStep,
             sender,
             sentByCRM,
             text: typeof text === 'string' ? text : JSON.stringify(text),
@@ -903,7 +907,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                 msg.msgStyle === 'success' ? { color: '#15803d', backgroundColor: '#dcfce7' } :
                                                     msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
                                                         msg.msgStyle === 'info' ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
-                                                            { color: '#667781', backgroundColor: 'rgba(255,255,255,0.9)' })
+                                                            msg.msgStyle === 'followup' ? { color: '#7c3aed', backgroundColor: '#ede9fe', border: '1px solid #c4b5fd' } :
+                                                                { color: '#667781', backgroundColor: 'rgba(255,255,255,0.9)' })
                                         }}>
                                             {msg.text}
                                         </span>
@@ -947,6 +952,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                     ? (selectedLead.nome || selectedLead.telefone)
                                                     : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
                                                 }
+                                                {msg.isFollowup && (
+                                                    <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: '#7c3aed', backgroundColor: '#ede9fe', padding: '1px 6px', borderRadius: '8px' }}>
+                                                        Follow-up {msg.followupStep}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Balão */}
