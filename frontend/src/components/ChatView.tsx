@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
+import { format, isPast, isToday } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import type { Lead, UserProfile, QuickMessage } from '../lib/supabase';
 
@@ -44,6 +46,54 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputBarRef = useRef<HTMLDivElement>(null);
 
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [newTaskDate, setNewTaskDate] = useState('');
+
+    const CUSTOM_FIELDS_CONFIG = [
+        { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
+        { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
+        { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' }
+    ];
+
+    const handleUpdateCustomField = async (key: string, value: string) => {
+        if (!selectedLead) return;
+        const newCustomFields = { ...(selectedLead.custom_fields || {}), [key]: value };
+        const updatedLead = { ...selectedLead, custom_fields: newCustomFields };
+        setSelectedLead(updatedLead);
+        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
+    };
+
+    const handleAddTask = async () => {
+        if (!selectedLead || !newTaskTitle || !newTaskDate) return;
+        const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
+        const newTasks = [...(selectedLead.tasks || []), newTask];
+        const updatedLead = { ...selectedLead, tasks: newTasks };
+        setSelectedLead(updatedLead);
+        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        setNewTaskTitle('');
+        setNewTaskDate('');
+        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
+    };
+
+    const handleToggleTask = async (taskId: string) => {
+        if (!selectedLead) return;
+        const newTasks = (selectedLead.tasks || []).map((t: any) => t.id === taskId ? { ...t, completed: !t.completed } : t);
+        const updatedLead = { ...selectedLead, tasks: newTasks };
+        setSelectedLead(updatedLead);
+        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
+    };
+
+    const handleDeleteTask = async (taskId: string) => {
+        if (!selectedLead) return;
+        const newTasks = (selectedLead.tasks || []).filter((t: any) => t.id !== taskId);
+        const updatedLead = { ...selectedLead, tasks: newTasks };
+        setSelectedLead(updatedLead);
+        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
+    };
+
     // Instância WhatsApp ativa
     const [evoInstance, setEvoInstance] = useState<{ evo_api_url: string; evo_api_key: string; instance_name: string } | null>(null);
 
@@ -51,6 +101,18 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [quickMessages, setQuickMessages] = useState<QuickMessage[]>([]);
     const [showQuickMessagesStore, setShowQuickMessagesStore] = useState(false);
     const [quickMessageFilter, setQuickMessageFilter] = useState('');
+
+    // Notificações de não lidas com persistência
+    const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>(() => {
+        try {
+            const saved = localStorage.getItem('sp3_unread_counts_' + authUser.company_id);
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) { return {}; }
+    });
+
+    useEffect(() => {
+        localStorage.setItem('sp3_unread_counts_' + authUser.company_id, JSON.stringify(unreadCounts));
+    }, [unreadCounts, authUser.company_id]);
 
     // RESIZE LISTENER
     useEffect(() => {
@@ -109,11 +171,21 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     }, [leads, openPhone]);
 
-    // Salvar seleção no localStorage + sincronizar observações
+    // Salvar seleção no localStorage + sincronizar observações e zerar contador
     useEffect(() => {
         if (selectedLead) {
             localStorage.setItem('last_selected_chat', selectedLead.telefone);
             setObservacoesInput(selectedLead.observacoes || '');
+
+            // Zerar contador ao abrir
+            setUnreadCounts(prev => {
+                if (prev[selectedLead.telefone]) {
+                    const copy = { ...prev };
+                    delete copy[selectedLead.telefone];
+                    return copy;
+                }
+                return prev;
+            });
         }
     }, [selectedLead?.id]);
 
@@ -163,6 +235,31 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     ...prev,
                     [newMsg.session_id]: newMsg.created_at || new Date().toISOString()
                 }));
+
+                let isHuman = false;
+                try {
+                    const parsed = typeof newMsg.message === 'string' ? JSON.parse(newMsg.message) : newMsg.message;
+                    isHuman = parsed.type === 'human' && !parsed.sentByCRM;
+                } catch (e) { }
+
+                if (isHuman) {
+                    if (!selectedLead || selectedLead.telefone !== newMsg.session_id) {
+                        setUnreadCounts(prev => ({
+                            ...prev,
+                            [newMsg.session_id]: (prev[newMsg.session_id] || 0) + 1
+                        }));
+                    }
+                } else {
+                    // Se foi o CRM / IA respondendo, remove do badge
+                    setUnreadCounts(prev => {
+                        if (prev[newMsg.session_id]) {
+                            const copy = { ...prev };
+                            delete copy[newMsg.session_id];
+                            return copy;
+                        }
+                        return prev;
+                    });
+                }
 
                 if (selectedLead && newMsg.session_id === selectedLead.telefone) {
                     fetchMessages();
@@ -634,7 +731,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             <div style={{ overflow: 'hidden', flex: 1 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.nome || 'Lead s/ nome'}</div>
-                                    {!lead.ia_active && <PowerOff size={14} color="var(--error)" />}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        {unreadCounts[lead.telefone] > 0 && (
+                                            <div style={{ backgroundColor: '#10b981', color: 'white', fontSize: '0.62rem', fontWeight: 'bold', padding: '2px 5px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '16px' }}>
+                                                {unreadCounts[lead.telefone]}
+                                            </div>
+                                        )}
+                                        {!lead.ia_active && <PowerOff size={14} color="var(--error)" />}
+                                    </div>
                                 </div>
                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{lead.telefone}</div>
                             </div>
@@ -776,6 +880,21 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             ))}
                         </div>
 
+                        {(() => {
+                            if (!selectedLead) return null;
+                            const pendingTasks = (selectedLead.tasks || []).filter((t: any) => {
+                                if (t.completed) return false;
+                                const targetDate = new Date(t.due_date);
+                                return isPast(targetDate) || isToday(targetDate);
+                            });
+                            if (pendingTasks.length === 0) return null;
+                            return (
+                                <div className="animate-pulse" style={{ backgroundColor: '#fef2f2', borderTop: '2px solid #fecaca', color: '#b91c1c', padding: '10px 16px', fontSize: '0.85rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
+                                    <AlertCircle size={18} /> ATENÇÃO: Lead com {pendingTasks.length} {pendingTasks.length === 1 ? 'tarefa vencendo ou em atraso' : 'tarefas vencendo ou em atraso'}!
+                                </div>
+                            );
+                        })()}
+
                         <div ref={inputBarRef} style={{ padding: '0.75rem 1rem', display: 'flex', gap: '8px', backgroundColor: '#f0f2f5', alignItems: 'center', position: 'relative' }}>
                             {showEmojiPicker && (() => {
                                 const rect = inputBarRef.current?.getBoundingClientRect();
@@ -916,7 +1035,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             </div>}
 
             {/* Painel lateral — apenas desktop */}
-            {!isMobile && <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {!isMobile && <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', overflowY: 'auto' }}>
                 {selectedLead && (
                     <>
                         <div>
@@ -999,6 +1118,93 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             >
                                 {isSavingObs ? <Loader2 size={14} className="animate-spin" /> : '💾 Salvar Observações'}
                             </button>
+                        </div>
+
+                        {/* Campos Extra */}
+                        <div>
+                            <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Campos Extra</h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {CUSTOM_FIELDS_CONFIG.map(field => (
+                                    <div key={field.key}>
+                                        <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '2px' }}>{field.label}</label>
+                                        {field.type === 'select' ? (
+                                            <select
+                                                value={(selectedLead.custom_fields || {})[field.key] || ''}
+                                                onChange={e => handleUpdateCustomField(field.key, e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', backgroundColor: 'white' }}
+                                            >
+                                                <option value="">-- Selecione --</option>
+                                                {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                type={field.type}
+                                                placeholder={field.placeholder}
+                                                value={(selectedLead.custom_fields || {})[field.key] || ''}
+                                                onChange={e => handleUpdateCustomField(field.key, e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Tarefas */}
+                        <div>
+                            <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Lembretes & Tarefas</h4>
+
+                            {/* Nova Tarefa */}
+                            <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                                <input type="text" placeholder="Ex: Ligar para confirmar..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
+                                <input type="datetime-local" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
+                                <button
+                                    disabled={!newTaskTitle || !newTaskDate}
+                                    onClick={handleAddTask}
+                                    style={{ padding: '6px', borderRadius: '6px', backgroundColor: '#6366f1', color: 'white', border: 'none', fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer', opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1, marginTop: '2px' }}
+                                >
+                                    Adicionar
+                                </button>
+                            </div>
+
+                            {/* Lista de Tarefas */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {(!selectedLead.tasks || selectedLead.tasks.length === 0) ? (
+                                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center' }}>Nenhum lembrete.</p>
+                                ) : (
+                                    [...selectedLead.tasks].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()).map(task => {
+                                        const isOverdue = !task.completed && isPast(new Date(task.due_date));
+                                        const isDueToday = !task.completed && isToday(new Date(task.due_date));
+
+                                        return (
+                                            <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px', borderRadius: '8px', backgroundColor: task.completed ? '#f8fafc' : 'white', border: `1px solid ${task.completed ? '#e2e8f0' : (isOverdue ? '#fca5a5' : '#e2e8f0')}`, opacity: task.completed ? 0.7 : 1 }}>
+                                                <button
+                                                    onClick={() => handleToggleTask(task.id)}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: task.completed ? '#10b981' : '#94a3b8', display: 'flex', alignItems: 'center' }}
+                                                >
+                                                    {task.completed ? <CheckSquare size={16} /> : <Square size={16} />}
+                                                </button>
+                                                <div style={{ flex: 1 }}>
+                                                    <p style={{ fontSize: '0.8rem', fontWeight: '600', color: task.completed ? '#94a3b8' : '#1e293b', textDecoration: task.completed ? 'line-through' : 'none', marginBottom: '2px', lineHeight: '1.2' }}>{task.title}</p>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: task.completed ? '#94a3b8' : (isOverdue ? '#ef4444' : (isDueToday ? '#f59e0b' : '#64748b')), fontWeight: (!task.completed && (isOverdue || isDueToday)) ? '700' : '500' }}>
+                                                        <Clock size={10} />
+                                                        {format(new Date(task.due_date), "dd/MMM 'às' HH:mm", { locale: ptBR })}
+                                                        {isOverdue && ' (Atrasada)'}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteTask(task.id)}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px', opacity: 0.5 }}
+                                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
 
                         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
