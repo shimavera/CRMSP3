@@ -141,20 +141,14 @@ function App() {
   }, []);
 
   // ─── DADOS ──────────────────────────────────────────────────────────────────
-  const isSuperAdmin = authUser?.company_name === 'SP3 Company - Master';
-
   const fetchLeads = async () => {
     if (!authUser) return;
     try {
       let query = supabase
         .from('sp3chat')
         .select('*')
+        .eq('company_id', authUser.company_id)
         .order('id', { ascending: false });
-
-      // Super Admin vê leads de TODAS as empresas (RLS já permite via is_master_admin())
-      if (!isSuperAdmin) {
-        query = query.eq('company_id', authUser.company_id);
-      }
 
       const { data, error } = await query;
 

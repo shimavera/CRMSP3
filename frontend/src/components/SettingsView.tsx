@@ -147,9 +147,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [newClientEmail, setNewClientEmail] = useState('');
     const [newClientPassword, setNewClientPassword] = useState('');
     const [newClientEvo, setNewClientEvo] = useState('');
-    const [newClientEvoKey, setNewClientEvoKey] = useState(() => {
-        try { return localStorage.getItem('sp3_evo_global_key') || ''; } catch { return ''; }
-    });
+    const [newClientEvoKey, setNewClientEvoKey] = useState('');
     const [showCreateClient, setShowCreateClient] = useState(false);
     const [isCreatingClient, setIsCreatingClient] = useState(false);
     const [createClientError, setCreateClientError] = useState<string | null>(null);
@@ -965,8 +963,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         // Configurar webhook e settings da instância
                         await configureInstanceWebhookAndSettings(evoUrl, newClientEvo.trim(), instanceToken);
 
-                        // Salvar chave global no localStorage para pré-preencher na próxima vez
-                        try { localStorage.setItem('sp3_evo_global_key', evoGlobalKey); } catch { }
+                        // Salvar chave global no banco para pré-preencher sempre
+                        supabase.rpc('save_evo_global_key', { p_key: evoGlobalKey }).catch(() => {});
                     }
                 } else {
                     const errBody = await evoRes.text();
@@ -986,7 +984,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setNewClientEmail('');
         setNewClientPassword('');
         setNewClientEvo('');
-        setNewClientEvoKey('');
+        // Não limpar a chave global — manter para a próxima criação
         setShowCreateClient(false);
         await fetchSaasClients();
         setTimeout(() => setCreateClientSuccess(false), 3000);
@@ -1103,6 +1101,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             fetchQuickMessages();
         } else if (activeSubTab === 'clientes') {
             fetchSaasClients();
+            // Buscar chave global Evolution do banco
+            supabase.rpc('get_evo_global_key').then(({ data }) => {
+                if (data) setNewClientEvoKey(data);
+            });
         }
     }, [activeSubTab]);
 
