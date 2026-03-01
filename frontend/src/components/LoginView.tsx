@@ -41,13 +41,15 @@ const LoginView = () => {
             }}>
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '14px', marginBottom: '1rem' }}>
-                        <img
-                            src="/favicon.png"
-                            alt="SP3 Symbol"
-                            style={{ height: '52px', width: '52px', objectFit: 'contain', borderRadius: '12px' }}
-                        />
-                        <span style={{ fontSize: '3.25rem', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                    <div className="logo-container" style={{ marginBottom: '1rem' }}>
+                        <div className="logo-icon-wrapper">
+                            <img
+                                src="/favicon.png"
+                                alt="SP3 Symbol"
+                                style={{ height: '52px', width: '52px', objectFit: 'contain', borderRadius: '12px' }}
+                            />
+                        </div>
+                        <span className="logo-text" style={{ fontSize: '3.25rem', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.04em', lineHeight: 1 }}>
                             SP3
                         </span>
                     </div>
