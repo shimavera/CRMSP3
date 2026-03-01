@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Users,
   MessageSquare,
@@ -67,6 +67,24 @@ function App() {
   const [addLeadError, setAddLeadError] = useState<string | null>(null);
   const [editingLeadId, setEditingLeadId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastSync, setLastSync] = useState<string>('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Atalhos de teclado
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (e.key === 'Escape') {
+        setDialog(null);
+        setShowAddLead(false);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, []);
 
   const filteredLeads = leads.filter(l =>
   (l.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -186,6 +204,7 @@ function App() {
         setError(error.message);
       } else {
         setLeads(data || []);
+        setLastSync(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
         setError(null);
       }
     } catch (e: any) {
@@ -345,7 +364,7 @@ function App() {
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
 
           <div style={{ textAlign: 'center', marginTop: '1rem', opacity: 0.5, fontSize: '0.65rem', fontWeight: 'bold' }}>
-            V12 - 01/03 - 18:32
+            V13 - 01/03 - 19:10
           </div>
         </div>
       </aside>
@@ -370,7 +389,15 @@ function App() {
                 <Menu size={26} />
               </button>
               <div>
-                <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
+                  {lastSync && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bbf7d0', animation: 'fadeIn 0.5s ease-out' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', animation: 'pulsing 2s infinite' }} />
+                      <span style={{ fontSize: '0.6rem', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>Sincronizado {lastSync}</span>
+                    </div>
+                  )}
+                </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
                   {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
                 </p>
@@ -393,8 +420,9 @@ function App() {
               <div className="search-bar">
                 <Search size={18} color="var(--text-muted)" />
                 <input
+                  ref={searchInputRef}
                   type="text"
-                  placeholder="Buscar Lead..."
+                  placeholder="Buscar Lead (pressione /)..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -414,7 +442,10 @@ function App() {
         )}
 
         {activeTab === 'dashboard' && authUser.permissions.dashboard && (
-          <DashboardView leads={leads} />
+          <DashboardView
+            leads={leads}
+            onOpenChat={(phone: string) => handleOpenChatFromLeads(phone)}
+          />
         )}
 
         {activeTab === 'chats' && authUser.permissions.chats && (

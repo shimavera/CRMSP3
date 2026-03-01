@@ -154,7 +154,7 @@ const LoginView = () => {
                     Acesso restrito a usuários autorizados
                 </p>
                 <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.65rem', color: '#cbd5e1', fontWeight: '600' }}>
-                    V12 - 01/03 - 18:32
+                    V13 - 01/03 - 19:10
                 </p>
             </div>
         </div>
