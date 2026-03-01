@@ -65,6 +65,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const { data } = await supabase
                 .from('sp3_instances')
                 .select('evo_api_url, evo_api_key, instance_name')
+                .eq('company_id', authUser.company_id)
                 .eq('is_active', true)
                 .maybeSingle();
 
@@ -121,6 +122,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { data, error } = await supabase
             .from('n8n_chat_histories')
             .select('session_id, created_at')
+            .eq('company_id', authUser.company_id)
             .order('created_at', { ascending: false });
 
         if (!error && data) {
@@ -140,7 +142,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     useEffect(() => {
         const fetchQuickMessages = async () => {
-            const { data } = await supabase.from('sp3_quick_messages').select('*');
+            const { data } = await supabase.from('sp3_quick_messages').select('*').eq('company_id', authUser.company_id);
             if (data) setQuickMessages(data as QuickMessage[]);
         };
         fetchQuickMessages();
@@ -153,7 +155,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
-                table: 'n8n_chat_histories'
+                table: 'n8n_chat_histories',
+                filter: `company_id=eq.${authUser.company_id}`
             }, (payload) => {
                 const newMsg = payload.new as any;
                 setLastMessagesDates(prev => ({
@@ -173,7 +176,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
-                table: 'sp3chat'
+                table: 'sp3chat',
+                filter: `company_id=eq.${authUser.company_id}`
             }, (payload) => {
                 const updatedLead = payload.new as Lead;
                 setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
@@ -203,6 +207,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { data, error } = await supabase
             .from('n8n_chat_histories')
             .select('*')
+            .eq('company_id', authUser.company_id)
             .eq('session_id', selectedLead.telefone)
             .order('id', { ascending: true });
 
@@ -407,6 +412,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     session_id: selectedLead.telefone,
                     message: JSON.stringify({ type: 'ai', content: messageToSend, sender: authUser.nome, sentByCRM: true })
                 }]);
+
+            fetchMessages();
         } catch (err: any) {
             setError(`Erro ao enviar: ${err.message}`);
         } finally {
