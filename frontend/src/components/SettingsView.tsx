@@ -593,23 +593,48 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     const startConnectionPolling = () => {
         stopConnectionPolling();
+        let qrRefreshCount = 0;
         pollingRef.current = setInterval(async () => {
             if (!activeInstance) return;
+            qrRefreshCount++;
             try {
-                const response = await fetch(
-                    `${activeInstance.evo_api_url}/instance/connectionState/${activeInstance.instance_name}`,
-                    { headers: { 'apikey': activeInstance.evo_api_key } }
-                );
-                if (response.ok) {
-                    const data = await response.json();
-                    const state = data?.instance?.state ?? data?.state ?? null;
-                    if (state === 'open') {
-                        setStatus('connected');
-                        setQrCode(null);
-                        stopConnectionPolling();
-                        await supabase.from('sp3_instances')
-                            .update({ connection_status: 'connected' })
-                            .eq('id', activeInstance.id);
+                // A cada 8 ciclos (~24s), buscar novo QR code (eles expiram em ~30s)
+                if (qrRefreshCount % 8 === 0) {
+                    const qrRes = await fetch(
+                        `${activeInstance.evo_api_url}/instance/connect/${activeInstance.instance_name}`,
+                        { headers: { 'apikey': activeInstance.evo_api_key } }
+                    );
+                    if (qrRes.ok) {
+                        const qrData = await qrRes.json();
+                        if (qrData.base64) {
+                            setQrCode(qrData.base64);
+                        } else if (qrData.instance?.state === 'open') {
+                            setStatus('connected');
+                            setQrCode(null);
+                            stopConnectionPolling();
+                            await supabase.from('sp3_instances')
+                                .update({ connection_status: 'connected' })
+                                .eq('id', activeInstance.id);
+                            return;
+                        }
+                    }
+                } else {
+                    // Ciclos normais: só verificar status
+                    const response = await fetch(
+                        `${activeInstance.evo_api_url}/instance/connectionState/${activeInstance.instance_name}`,
+                        { headers: { 'apikey': activeInstance.evo_api_key } }
+                    );
+                    if (response.ok) {
+                        const data = await response.json();
+                        const state = data?.instance?.state ?? data?.state ?? null;
+                        if (state === 'open') {
+                            setStatus('connected');
+                            setQrCode(null);
+                            stopConnectionPolling();
+                            await supabase.from('sp3_instances')
+                                .update({ connection_status: 'connected' })
+                                .eq('id', activeInstance.id);
+                        }
                     }
                 }
             } catch (err) {
@@ -1154,12 +1179,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                             {/* QR Code */}
                             {qrCode && status === 'disconnected' && (
-                                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem', borderRadius: '16px', background: '#f8fafc', border: '1px dashed var(--border-soft)' }}>
-                                    <p style={{ fontWeight: '700', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Escaneie o QR Code com o WhatsApp</p>
-                                    <img src={qrCode} alt="QR Code WhatsApp" style={{ width: '200px', height: '200px', borderRadius: '12px' }} />
+                                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2rem', borderRadius: '16px', background: '#ffffff', border: '2px solid var(--border-soft)' }}>
+                                    <p style={{ fontWeight: '700', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Escaneie o QR Code com o WhatsApp</p>
+                                    <div style={{ padding: '16px', background: '#ffffff', borderRadius: '12px' }}>
+                                        <img src={qrCode} alt="QR Code WhatsApp" style={{ width: '300px', height: '300px', imageRendering: 'pixelated' }} />
+                                    </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                                             Aguardando conexão... O código expira em 60 segundos
                                         </p>
                                     </div>
