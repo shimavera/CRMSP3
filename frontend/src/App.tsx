@@ -365,15 +365,15 @@ function App() {
     <div className={`dashboard-container ${!desktopSidebarOpen && !isMobile ? 'desktop-sidebar-closed' : ''}`}>
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''} ${!desktopSidebarOpen && !isMobile ? ' desktop-sidebar-closed' : ''}`}>
-        <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: '12px' }}>
+        <div className="logo-container" style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem' }}>
+          <div className="logo-icon-wrapper" style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: '12px' }}>
             <img
               src="/favicon.png"
               alt="SP3 Symbol"
               style={{ height: '34px', width: '34px', objectFit: 'contain', borderRadius: '8px' }}
             />
           </div>
-          <span style={{ fontSize: '1.85rem', fontWeight: '900', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.04em', lineHeight: 1 }}>
+          <span className="logo-text" style={{ fontSize: '1.85rem', fontWeight: '900', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.04em', lineHeight: 1 }}>
             SP3
           </span>
         </div>
