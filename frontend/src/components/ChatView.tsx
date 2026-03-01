@@ -71,11 +71,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             if (data) {
                 setEvoInstance(data);
             } else {
-                setEvoInstance({
-                    evo_api_url: 'https://evo.sp3company.shop',
-                    evo_api_key: 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D',
-                    instance_name: 'v1'
-                });
+                console.warn('Nenhuma instância WhatsApp ativa encontrada. Configure uma instância em Configurações > WhatsApp.');
+                setEvoInstance(null);
             }
         };
         loadInstance();

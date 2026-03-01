@@ -68,10 +68,6 @@ const StatCard = ({ label, value, icon: Icon, color, trend }: any) => (
   </div>
 );
 
-const MASTER_PERMISSIONS: UserProfile['permissions'] = {
-  dashboard: true, chats: true, kanban: true, leads: true, settings: true
-};
-
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -97,7 +93,7 @@ function App() {
   }, []);
 
   // ─── AUTENTICAÇÃO ───────────────────────────────────────────────────────────
-  const loadUserProfile = async (userId: string, userEmail: string) => {
+  const loadUserProfile = async (userId: string, _userEmail: string) => {
     const { data, error } = await supabase
       .from('sp3_users')
       .select('*')
@@ -113,19 +109,10 @@ function App() {
     if (data) {
       setAuthUser(data as UserProfile);
     } else {
-      // Verificar se é o primeiro usuário → auto-criar como master
-      const { count } = await supabase.from('sp3_users').select('*', { count: 'exact', head: true });
-      const isFirstUser = count === 0;
-      const newProfile: Omit<UserProfile, 'created_at'> = {
-        id: userId,
-        email: userEmail,
-        company_id: undefined, // Será associado depois no DB
-        nome: userEmail.split('@')[0],
-        role: isFirstUser ? 'master' : 'user',
-        permissions: isFirstUser ? MASTER_PERMISSIONS : { dashboard: true, chats: true, kanban: true, leads: true, settings: false }
-      };
-      await supabase.from('sp3_users').insert([newProfile]);
-      setAuthUser({ ...newProfile });
+      // Usuário não cadastrado — não auto-criar (apenas masters podem cadastrar usuários)
+      console.warn('Usuário não encontrado na tabela sp3_users. Acesso negado.');
+      await supabase.auth.signOut();
+      setAuthUser(null);
     }
     setAuthLoading(false);
   };
