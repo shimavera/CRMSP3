@@ -62,6 +62,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         start_time: '08:00',
         end_time: '18:00',
         active_days: [1, 2, 3, 4, 5],
+        out_of_hours_message: 'Oi! No momento estamos fora do nosso horário de atendimento. Deixe sua mensagem que retornaremos assim que possível!',
         interval_1: 10,
         interval_2: 30,
         interval_3: 60,
@@ -122,6 +123,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     active_days: data.active_days || [1, 2, 3, 4, 5],
                     start_time: data.start_time || '08:00',
                     end_time: data.end_time || '18:00',
+                    out_of_hours_message: data.out_of_hours_message || 'Oi! No momento estamos fora do nosso horário de atendimento. Deixe sua mensagem que retornaremos assim que possível!',
                     interval_1: data.interval_1 || 10,
                     interval_2: data.interval_2 || 30,
                     interval_3: data.interval_3 || 60,
@@ -1195,65 +1197,98 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 )}
 
                 {activeSubTab === 'followup' && (
-                    <div className="glass-card" style={{ padding: '2rem' }}>
-                        <div style={{ marginBottom: '2rem' }}>
-                            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Configurações de Follow-up</h3>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Defina quando e como o sistema deve cobrar seus leads automaticamente.</p>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                            {/* Horários */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Horário de Disparo</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Início</label>
-                                        <input
-                                            type="time"
-                                            value={followupConfig.start_time}
-                                            onChange={(e) => setFollowupConfig({ ...followupConfig, start_time: e.target.value })}
-                                            style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fim</label>
-                                        <input
-                                            type="time"
-                                            value={followupConfig.end_time}
-                                            onChange={(e) => setFollowupConfig({ ...followupConfig, end_time: e.target.value })}
-                                            style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
-                                        />
-                                    </div>
-                                </div>
-
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginTop: '1rem' }}>Dias Ativos</h4>
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, i) => {
-                                        const isActive = followupConfig.active_days.includes(i);
-                                        return (
-                                            <button
-                                                key={day}
-                                                onClick={() => toggleDay(i)}
-                                                style={{
-                                                    padding: '8px 12px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid',
-                                                    borderColor: isActive ? 'var(--accent)' : 'var(--border-soft)',
-                                                    backgroundColor: isActive ? 'var(--accent-soft)' : 'white',
-                                                    color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: '700',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                {day}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* SEÇÃO 1: Horário de Atendimento */}
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <div style={{ marginBottom: '2rem' }}>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Horário de Atendimento</h3>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Configure os dias e horários que sua empresa atende. Fora desse horário, o sistema enviará uma mensagem automática.</p>
                             </div>
 
-                            {/* Intervalos */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                {/* Horários */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Horário</h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Início</label>
+                                            <input
+                                                type="time"
+                                                value={followupConfig.start_time}
+                                                onChange={(e) => setFollowupConfig({ ...followupConfig, start_time: e.target.value })}
+                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fim</label>
+                                            <input
+                                                type="time"
+                                                value={followupConfig.end_time}
+                                                onChange={(e) => setFollowupConfig({ ...followupConfig, end_time: e.target.value })}
+                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginTop: '1rem' }}>Dias de Atendimento</h4>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, i) => {
+                                            const isActive = followupConfig.active_days.includes(i);
+                                            return (
+                                                <button
+                                                    key={day}
+                                                    onClick={() => toggleDay(i)}
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid',
+                                                        borderColor: isActive ? 'var(--accent)' : 'var(--border-soft)',
+                                                        backgroundColor: isActive ? 'var(--accent-soft)' : 'white',
+                                                        color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: '700',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    {day}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Mensagem Fora de Horário */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Mensagem Fora de Horário</h4>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '-0.5rem' }}>Enviada automaticamente quando um cliente manda mensagem fora do horário de atendimento.</p>
+                                    <textarea
+                                        value={followupConfig.out_of_hours_message || ''}
+                                        onChange={(e) => setFollowupConfig({ ...followupConfig, out_of_hours_message: e.target.value })}
+                                        rows={5}
+                                        placeholder="Ex: Oi! Estamos fora do horário de atendimento..."
+                                        style={{
+                                            padding: '10px 14px',
+                                            borderRadius: '10px',
+                                            border: '1px solid var(--border-soft)',
+                                            backgroundColor: '#f8fafc',
+                                            fontSize: '0.9rem',
+                                            lineHeight: '1.5',
+                                            fontFamily: 'inherit',
+                                            resize: 'vertical',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SEÇÃO 2: Follow-up Automático */}
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <div style={{ marginBottom: '2rem' }}>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Follow-up Automático</h3>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Configure as mensagens automáticas de cobrança quando o lead não responde.</p>
+                            </div>
+
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Intervalos (em minutos)</h4>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1286,11 +1321,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Mensagens */}
-                        <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-soft)', paddingTop: '2rem' }}>
-                            <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginBottom: '1.5rem' }}>Mensagens de Follow-up</h4>
+                            {/* Mensagens */}
+                            <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-soft)', paddingTop: '2rem' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginBottom: '1.5rem' }}>Mensagens de Follow-up</h4>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                 {[
                                     { key: 'msg_1', label: '1ª Mensagem (quando não responde pela 1ª vez)' },
@@ -1320,29 +1354,30 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '2.5rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
-                            {followupSuccess && (
-                                <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Configurações salvas!</span>
-                            )}
-                            <button
-                                onClick={handleSaveFollowup}
-                                disabled={isSavingFollowup}
-                                style={{
-                                    padding: '12px 24px',
-                                    borderRadius: '12px',
-                                    border: 'none',
-                                    background: 'var(--accent)',
-                                    color: 'white',
-                                    fontWeight: '700',
-                                    fontSize: '0.9rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px'
-                                }}
-                            >
-                                {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
-                            </button>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '2.5rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
+                                {followupSuccess && (
+                                    <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Configurações salvas!</span>
+                                )}
+                                <button
+                                    onClick={handleSaveFollowup}
+                                    disabled={isSavingFollowup}
+                                    style={{
+                                        padding: '12px 24px',
+                                        borderRadius: '12px',
+                                        border: 'none',
+                                        background: 'var(--accent)',
+                                        color: 'white',
+                                        fontWeight: '700',
+                                        fontSize: '0.9rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
