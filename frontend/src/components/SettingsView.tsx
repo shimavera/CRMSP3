@@ -1,11 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText } from 'lucide-react';
 import { supabase } from "../lib/supabase";
-import type { UserProfile, SocialProofVideo, QuickMessage } from '../lib/supabase';
-
-const EVO_URL = 'https://evo.sp3company.shop';
-const EVO_KEY = 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D';
-const INSTANCE_NAME = 'v1';
+import type { UserProfile, SocialProofVideo, QuickMessage, Instance } from '../lib/supabase';
 
 interface SettingsViewProps {
     authUser: UserProfile;
@@ -24,6 +20,17 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'profile' | 'usuarios' | 'dados'>('whatsapp');
+
+    // Estados de Instâncias WhatsApp
+    const [instances, setInstances] = useState<Instance[]>([]);
+    const [activeInstance, setActiveInstance] = useState<Instance | null>(null);
+    const [showCreateInstance, setShowCreateInstance] = useState(false);
+    const [newInstanceName, setNewInstanceName] = useState('');
+    const [newInstanceDisplayName, setNewInstanceDisplayName] = useState('');
+    const [isCreatingInstance, setIsCreatingInstance] = useState(false);
+    const [createInstanceError, setCreateInstanceError] = useState<string | null>(null);
+    const [evoError, setEvoError] = useState<string | null>(null);
+    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Estados de Dados
     const [isResettingChats, setIsResettingChats] = useState(false);
@@ -312,15 +319,47 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
-    const checkStatus = async () => {
-        setStatus('loading');
+    // === Funções de Instâncias WhatsApp ===
+
+    const fetchInstances = async () => {
         try {
-            const response = await fetch(`${EVO_URL}/instance/connectionStatus/${INSTANCE_NAME}`, {
-                headers: { 'apikey': EVO_KEY }
-            });
+            const { data, error } = await supabase
+                .from('sp3_instances')
+                .select('*')
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+            const list = (data || []) as Instance[];
+            setInstances(list);
+
+            const active = list.find(i => i.is_active) || null;
+            setActiveInstance(active);
+
+            if (active) {
+                await checkInstanceStatus(active);
+            } else {
+                setStatus('disconnected');
+            }
+        } catch (err: any) {
+            console.error('Erro ao carregar instancias:', err);
+            setStatus('disconnected');
+        }
+    };
+
+    const checkInstanceStatus = async (instance: Instance) => {
+        setStatus('loading');
+        setEvoError(null);
+        try {
+            const response = await fetch(
+                `${instance.evo_api_url}/instance/connectionStatus/${instance.instance_name}`,
+                { headers: { 'apikey': instance.evo_api_key } }
+            );
 
             if (!response.ok) {
                 setStatus('disconnected');
+                await supabase.from('sp3_instances')
+                    .update({ connection_status: 'disconnected' })
+                    .eq('id', instance.id);
                 return;
             }
 
@@ -330,45 +369,228 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             if (state === 'open') {
                 setStatus('connected');
                 setQrCode(null);
+                await supabase.from('sp3_instances')
+                    .update({ connection_status: 'connected' })
+                    .eq('id', instance.id);
             } else {
                 setStatus('disconnected');
+                await supabase.from('sp3_instances')
+                    .update({ connection_status: 'disconnected' })
+                    .eq('id', instance.id);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Erro ao buscar status:', err);
             setStatus('disconnected');
+            setEvoError(err.message);
+        }
+    };
+
+    const ensureInstanceExists = async (instance: Instance): Promise<boolean> => {
+        try {
+            const checkRes = await fetch(
+                `${instance.evo_api_url}/instance/connectionStatus/${instance.instance_name}`,
+                { headers: { 'apikey': instance.evo_api_key } }
+            );
+
+            if (checkRes.ok) return true;
+
+            if (checkRes.status === 404 || checkRes.status === 400) {
+                const createRes = await fetch(
+                    `${instance.evo_api_url}/instance/create`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': instance.evo_api_key
+                        },
+                        body: JSON.stringify({
+                            instanceName: instance.instance_name,
+                            qrcode: true,
+                            integration: 'WHATSAPP-BAILEYS'
+                        })
+                    }
+                );
+
+                if (!createRes.ok) {
+                    const errBody = await createRes.text();
+                    throw new Error(`Falha ao criar instancia: ${createRes.status} ${errBody}`);
+                }
+                return true;
+            }
+
+            return false;
+        } catch (err: any) {
+            console.error('Erro ao verificar/criar instancia:', err);
+            setEvoError(err.message);
+            return false;
         }
     };
 
     const getQrCode = async () => {
+        if (!activeInstance) return;
         setIsRefreshing(true);
+        setEvoError(null);
+        setQrCode(null);
+
         try {
-            const response = await fetch(`${EVO_URL}/instance/connect/${INSTANCE_NAME}`, {
-                headers: { 'apikey': EVO_KEY }
-            });
+            const exists = await ensureInstanceExists(activeInstance);
+            if (!exists) {
+                throw new Error('Nao foi possivel criar/verificar a instancia na Evolution API.');
+            }
+
+            const response = await fetch(
+                `${activeInstance.evo_api_url}/instance/connect/${activeInstance.instance_name}`,
+                { headers: { 'apikey': activeInstance.evo_api_key } }
+            );
+
+            if (!response.ok) {
+                const errBody = await response.text();
+                throw new Error(`Erro ao gerar QR Code: ${response.status} ${errBody}`);
+            }
+
             const data = await response.json();
 
             if (data.base64) {
                 setQrCode(data.base64);
                 setStatus('disconnected');
+                startConnectionPolling();
+            } else if (data.instance?.state === 'open') {
+                setStatus('connected');
+                await supabase.from('sp3_instances')
+                    .update({ connection_status: 'connected' })
+                    .eq('id', activeInstance.id);
+            } else {
+                throw new Error('QR Code nao retornado pela API. Tente novamente.');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Erro ao buscar QR Code:', err);
+            setEvoError(err.message);
         } finally {
             setIsRefreshing(false);
         }
     };
 
+    const startConnectionPolling = () => {
+        stopConnectionPolling();
+        pollingRef.current = setInterval(async () => {
+            if (!activeInstance) return;
+            try {
+                const response = await fetch(
+                    `${activeInstance.evo_api_url}/instance/connectionStatus/${activeInstance.instance_name}`,
+                    { headers: { 'apikey': activeInstance.evo_api_key } }
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    const state = data?.instance?.state ?? data?.state ?? null;
+                    if (state === 'open') {
+                        setStatus('connected');
+                        setQrCode(null);
+                        stopConnectionPolling();
+                        await supabase.from('sp3_instances')
+                            .update({ connection_status: 'connected' })
+                            .eq('id', activeInstance.id);
+                    }
+                }
+            } catch (err) {
+                console.error('Polling error:', err);
+            }
+        }, 3000);
+    };
+
+    const stopConnectionPolling = () => {
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+        }
+    };
+
     const handleLogout = async () => {
+        if (!activeInstance) return;
         if (!window.confirm('Deseja realmente desconectar o WhatsApp?')) return;
 
         try {
-            await fetch(`${EVO_URL}/instance/logout/${INSTANCE_NAME}`, {
-                method: 'DELETE',
-                headers: { 'apikey': EVO_KEY }
-            });
-            checkStatus();
-        } catch (err) {
+            await fetch(
+                `${activeInstance.evo_api_url}/instance/logout/${activeInstance.instance_name}`,
+                {
+                    method: 'DELETE',
+                    headers: { 'apikey': activeInstance.evo_api_key }
+                }
+            );
+            await supabase.from('sp3_instances')
+                .update({ connection_status: 'disconnected' })
+                .eq('id', activeInstance.id);
+            setStatus('disconnected');
+            setQrCode(null);
+        } catch (err: any) {
             console.error('Erro ao deslogar:', err);
+            setEvoError(err.message);
+        }
+    };
+
+    const handleCreateInstance = async () => {
+        if (!newInstanceName.trim() || !newInstanceDisplayName.trim()) return;
+        setIsCreatingInstance(true);
+        setCreateInstanceError(null);
+
+        const sanitizedName = newInstanceName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+        if (sanitizedName !== newInstanceName.trim().toLowerCase()) {
+            setCreateInstanceError('O nome da instancia deve conter apenas letras minusculas, numeros e hifens.');
+            setIsCreatingInstance(false);
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('sp3_instances')
+                .insert([{
+                    instance_name: sanitizedName,
+                    display_name: newInstanceDisplayName.trim(),
+                    created_by: authUser.id
+                }]);
+
+            if (error) throw error;
+
+            setNewInstanceName('');
+            setNewInstanceDisplayName('');
+            setShowCreateInstance(false);
+            await fetchInstances();
+        } catch (err: any) {
+            setCreateInstanceError(err.message?.includes('unique')
+                ? 'Ja existe uma instancia com esse nome.'
+                : err.message);
+        } finally {
+            setIsCreatingInstance(false);
+        }
+    };
+
+    const handleSetActiveInstance = async (instance: Instance) => {
+        try {
+            await supabase.from('sp3_instances')
+                .update({ is_active: false })
+                .neq('id', instance.id);
+
+            await supabase.from('sp3_instances')
+                .update({ is_active: true })
+                .eq('id', instance.id);
+
+            await fetchInstances();
+        } catch (err: any) {
+            console.error('Erro ao ativar instancia:', err);
+        }
+    };
+
+    const handleDeleteInstance = async (instance: Instance) => {
+        if (instance.is_active) {
+            alert('Nao e possivel excluir a instancia ativa. Ative outra instancia primeiro.');
+            return;
+        }
+        if (!window.confirm(`Excluir a instancia "${instance.display_name}"?`)) return;
+
+        try {
+            await supabase.from('sp3_instances').delete().eq('id', instance.id);
+            await fetchInstances();
+        } catch (err: any) {
+            console.error('Erro ao excluir instancia:', err);
         }
     };
 
@@ -451,12 +673,13 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     useEffect(() => {
-        checkStatus();
+        fetchInstances();
         fetchPromptHistory();
         fetchFollowupConfig();
         fetchVideos();
         fetchQuickMessages();
         if (authUser.role === 'master') fetchUsers();
+        return () => stopConnectionPolling();
     }, []);
 
     return (
@@ -523,63 +746,206 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             {/* Conteúdo Principal */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 {activeSubTab === 'whatsapp' && (
-                    <div className="glass-card" style={{ padding: '2rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                            <div>
-                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Conexão WhatsApp</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Gerencie a instância da Evolution API conectada ao seu WhatsApp.</p>
-                            </div>
-                            <button
-                                onClick={checkStatus}
-                                style={{ padding: '8px', borderRadius: '50%', border: '1px solid var(--border-soft)', background: 'white', cursor: 'pointer', color: 'var(--text-secondary)' }}
-                            >
-                                <RefreshCw size={18} className={status === 'loading' ? 'animate-spin' : ''} />
-                            </button>
-                        </div>
-
-                        <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: status === 'connected' ? '#ecfdf5' : '#fff1f2', color: status === 'connected' ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {status === 'connected' ? <CheckCircle size={28} /> : <XCircle size={28} />}
-                                </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Card 1: Conexão WhatsApp */}
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                                 <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontWeight: '800', fontSize: '1rem' }}>Sessão: {INSTANCE_NAME}</span>
-                                        <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: status === 'connected' ? '#dcfce7' : '#fee2e2', color: status === 'connected' ? '#15803d' : '#b91c1c', fontWeight: '700', textTransform: 'uppercase' }}>
-                                            {status === 'connected' ? 'Conectado' : status === 'loading' ? 'Verificando...' : 'Desconectado'}
-                                        </span>
-                                    </div>
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                        {status === 'connected' ? 'Seu WhatsApp está pronto para enviar e receber mensagens.' : 'Conecte seu WhatsApp para habilitar as automações.'}
-                                    </p>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Conexão WhatsApp</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Gerencie a instância da Evolution API conectada ao seu WhatsApp.</p>
                                 </div>
+                                <button
+                                    onClick={() => activeInstance && checkInstanceStatus(activeInstance)}
+                                    style={{ padding: '8px', borderRadius: '50%', border: '1px solid var(--border-soft)', background: 'white', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                                >
+                                    <RefreshCw size={18} className={status === 'loading' ? 'animate-spin' : ''} />
+                                </button>
                             </div>
 
-                            {status === 'connected' ? (
-                                <button
-                                    onClick={handleLogout}
-                                    style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
-                                >
-                                    Desconectar
-                                </button>
+                            {/* Seletor de Instância */}
+                            {instances.length > 1 && (
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                                        Instância Ativa
+                                    </label>
+                                    <select
+                                        value={activeInstance?.id || ''}
+                                        onChange={(e) => {
+                                            const inst = instances.find(i => i.id === e.target.value);
+                                            if (inst) handleSetActiveInstance(inst);
+                                        }}
+                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'white', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer' }}
+                                    >
+                                        {instances.map(inst => (
+                                            <option key={inst.id} value={inst.id}>
+                                                {inst.display_name} ({inst.instance_name})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Status Card */}
+                            {activeInstance ? (
+                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: status === 'connected' ? '#ecfdf5' : '#fff1f2', color: status === 'connected' ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {status === 'connected' ? <CheckCircle size={28} /> : <XCircle size={28} />}
+                                        </div>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ fontWeight: '800', fontSize: '1rem' }}>Sessão: {activeInstance.instance_name}</span>
+                                                <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: status === 'connected' ? '#dcfce7' : '#fee2e2', color: status === 'connected' ? '#15803d' : '#b91c1c', fontWeight: '700', textTransform: 'uppercase' }}>
+                                                    {status === 'connected' ? 'Conectado' : status === 'loading' ? 'Verificando...' : 'Desconectado'}
+                                                </span>
+                                            </div>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                                {status === 'connected' ? 'Seu WhatsApp está pronto para enviar e receber mensagens.' : 'Conecte seu WhatsApp para habilitar as automações.'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {status === 'connected' ? (
+                                        <button
+                                            onClick={handleLogout}
+                                            style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
+                                        >
+                                            Desconectar
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={getQrCode}
+                                            disabled={isRefreshing}
+                                            style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                        >
+                                            {isRefreshing ? <Loader2 size={18} className="animate-spin" /> : <QrCode size={18} />}
+                                            Gerar QR Code
+                                        </button>
+                                    )}
+                                </div>
                             ) : (
-                                <button
-                                    onClick={getQrCode}
-                                    disabled={isRefreshing}
-                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                                >
-                                    {isRefreshing ? <Loader2 size={18} className="animate-spin" /> : <QrCode size={18} />}
-                                    Gerar QR Code
-                                </button>
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                                    <Smartphone size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                                    <p style={{ fontWeight: '600' }}>Nenhuma instância configurada.</p>
+                                    <p style={{ fontSize: '0.85rem' }}>Crie uma instância abaixo para começar.</p>
+                                </div>
+                            )}
+
+                            {/* Erro */}
+                            {evoError && (
+                                <div style={{ marginTop: '1rem', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', fontSize: '0.85rem' }}>
+                                    <strong>Erro:</strong> {evoError}
+                                </div>
+                            )}
+
+                            {/* QR Code */}
+                            {qrCode && status === 'disconnected' && (
+                                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem', borderRadius: '16px', background: '#f8fafc', border: '1px dashed var(--border-soft)' }}>
+                                    <p style={{ fontWeight: '700', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Escaneie o QR Code com o WhatsApp</p>
+                                    <img src={qrCode} alt="QR Code WhatsApp" style={{ width: '200px', height: '200px', borderRadius: '12px' }} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            Aguardando conexão... O código expira em 60 segundos
+                                        </p>
+                                    </div>
+                                </div>
                             )}
                         </div>
 
-                        {/* QR Code */}
-                        {qrCode && status === 'disconnected' && (
-                            <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem', borderRadius: '16px', background: '#f8fafc', border: '1px dashed var(--border-soft)' }}>
-                                <p style={{ fontWeight: '700', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Escaneie o QR Code com o WhatsApp</p>
-                                <img src={qrCode} alt="QR Code WhatsApp" style={{ width: '200px', height: '200px', borderRadius: '12px' }} />
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>O código expira em 60 segundos</p>
+                        {/* Card 2: Gerenciamento de Instâncias (Master Only) */}
+                        {authUser.role === 'master' && (
+                            <div className="glass-card" style={{ padding: '2rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                    <div>
+                                        <h3 style={{ fontSize: '1.1rem', fontWeight: '800' }}>Instâncias</h3>
+                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                            {instances.length} instância(s) configurada(s)
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowCreateInstance(!showCreateInstance)}
+                                        style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: showCreateInstance ? '#f1f5f9' : 'var(--accent)', color: showCreateInstance ? 'var(--text-secondary)' : 'white', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    >
+                                        {showCreateInstance ? <><X size={16} /> Cancelar</> : <><Plus size={16} /> Nova Instância</>}
+                                    </button>
+                                </div>
+
+                                {/* Formulário Nova Instância */}
+                                {showCreateInstance && (
+                                    <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', marginBottom: '1.5rem' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                            <div>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome de Exibição</label>
+                                                <input
+                                                    value={newInstanceDisplayName}
+                                                    onChange={(e) => setNewInstanceDisplayName(e.target.value)}
+                                                    placeholder="Ex: WhatsApp Vendas"
+                                                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontSize: '0.9rem' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome Técnico (slug)</label>
+                                                <input
+                                                    value={newInstanceName}
+                                                    onChange={(e) => setNewInstanceName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                    placeholder="Ex: vendas-01"
+                                                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontSize: '0.9rem', fontFamily: 'monospace' }}
+                                                />
+                                            </div>
+                                        </div>
+                                        {createInstanceError && (
+                                            <div style={{ marginBottom: '1rem', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', fontSize: '0.85rem' }}>
+                                                {createInstanceError}
+                                            </div>
+                                        )}
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                            <button
+                                                onClick={handleCreateInstance}
+                                                disabled={isCreatingInstance || !newInstanceName.trim() || !newInstanceDisplayName.trim()}
+                                                style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', opacity: isCreatingInstance ? 0.6 : 1 }}
+                                            >
+                                                {isCreatingInstance ? 'Criando...' : 'Criar Instância'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Lista de Instâncias */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {instances.map(inst => (
+                                        <div key={inst.id} style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: inst.is_active ? '#f0f9ff' : '#f8fafc', border: `1px solid ${inst.is_active ? '#bae6fd' : 'var(--border-soft)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: inst.connection_status === 'connected' ? '#10b981' : '#ef4444' }} />
+                                                <div>
+                                                    <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>{inst.display_name}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace', marginLeft: '8px' }}>{inst.instance_name}</span>
+                                                </div>
+                                                {inst.is_active && (
+                                                    <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: '#dbeafe', color: '#1d4ed8', fontWeight: '700', textTransform: 'uppercase' }}>Ativa</span>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {!inst.is_active && (
+                                                    <button
+                                                        onClick={() => handleSetActiveInstance(inst)}
+                                                        style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'white', color: 'var(--text-secondary)', fontWeight: '600', fontSize: '0.75rem', cursor: 'pointer' }}
+                                                    >
+                                                        Ativar
+                                                    </button>
+                                                )}
+                                                {!inst.is_active && (
+                                                    <button
+                                                        onClick={() => handleDeleteInstance(inst)}
+                                                        style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', cursor: 'pointer' }}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>

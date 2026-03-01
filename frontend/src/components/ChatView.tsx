@@ -44,6 +44,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputBarRef = useRef<HTMLDivElement>(null);
 
+    // Instância WhatsApp ativa
+    const [evoInstance, setEvoInstance] = useState<{ evo_api_url: string; evo_api_key: string; instance_name: string } | null>(null);
+
     // Mensagens Rápidas
     const [quickMessages, setQuickMessages] = useState<QuickMessage[]>([]);
     const [showQuickMessagesStore, setShowQuickMessagesStore] = useState(false);
@@ -54,6 +57,28 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const handler = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handler);
         return () => window.removeEventListener('resize', handler);
+    }, []);
+
+    // Carregar instância ativa da Evolution API
+    useEffect(() => {
+        const loadInstance = async () => {
+            const { data } = await supabase
+                .from('sp3_instances')
+                .select('evo_api_url, evo_api_key, instance_name')
+                .eq('is_active', true)
+                .maybeSingle();
+
+            if (data) {
+                setEvoInstance(data);
+            } else {
+                setEvoInstance({
+                    evo_api_url: 'https://evo.sp3company.shop',
+                    evo_api_key: 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D',
+                    instance_name: 'v1'
+                });
+            }
+        };
+        loadInstance();
     }, []);
 
     // 1. SINCRONIZAR LEADS LOCAIS
@@ -367,9 +392,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         setShowEmojiPicker(false);
 
         try {
-            const response = await fetch('https://evo.sp3company.shop/message/sendText/v1', {
+            if (!evoInstance) { setError('Instância WhatsApp não configurada.'); setIsSending(false); return; }
+            const response = await fetch(`${evoInstance.evo_api_url}/message/sendText/${evoInstance.instance_name}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D' },
+                headers: { 'Content-Type': 'application/json', 'apikey': evoInstance.evo_api_key },
                 body: JSON.stringify({ number: selectedLead.telefone, text: messageToSend, delay: 500 })
             });
 
@@ -417,9 +443,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const fileName = file.name;
             const mediaTypeStr = isVideo ? 'video' : 'image';
 
-            const response = await fetch('https://evo.sp3company.shop/message/sendMedia/v1', {
+            if (!evoInstance) { alert('Instância WhatsApp não configurada.'); setIsUploading(false); return; }
+            const response = await fetch(`${evoInstance.evo_api_url}/message/sendMedia/${evoInstance.instance_name}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D' },
+                headers: { 'Content-Type': 'application/json', 'apikey': evoInstance.evo_api_key },
                 body: JSON.stringify({
                     number: selectedLead.telefone,
                     mediatype: mediaTypeStr,
@@ -522,9 +549,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
             const base64data = resultBase64.split(',')[1];
 
-            const response = await fetch('https://evo.sp3company.shop/message/sendWhatsAppAudio/v1', {
+            if (!evoInstance) { alert('Instância WhatsApp não configurada.'); return; }
+            const response = await fetch(`${evoInstance.evo_api_url}/message/sendWhatsAppAudio/${evoInstance.instance_name}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D' },
+                headers: { 'Content-Type': 'application/json', 'apikey': evoInstance.evo_api_key },
                 body: JSON.stringify({
                     number: selectedLead.telefone,
                     audio: base64data,
