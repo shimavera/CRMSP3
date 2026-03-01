@@ -881,6 +881,15 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: selectedLead.ia_active ? '#dcfce7' : '#fee2e2', color: selectedLead.ia_active ? '#15803d' : '#b91c1c', fontSize: '0.7rem', fontWeight: '800' }}>
                                     <Bot size={14} /> {selectedLead.ia_active ? 'IA ATIVA' : 'IA PAUSADA'}
                                 </div>
+                                {selectedLead.followup_locked ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', fontWeight: '800' }}>
+                                        <Lock size={14} /> FOLLOW-UP TRAVADO
+                                    </div>
+                                ) : selectedLead.followup_stage && selectedLead.followup_stage > 0 ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', fontWeight: '800' }}>
+                                        <Clock size={14} /> F.UP: {selectedLead.followup_stage}ª ETAPA
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
 
