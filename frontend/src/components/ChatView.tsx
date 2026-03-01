@@ -43,6 +43,19 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const timerRef = useRef<any>(null);
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState('');
+    const [dialog, setDialog] = useState<{
+        type: 'alert' | 'confirm' | 'prompt';
+        title: string;
+        message: string;
+        placeholder?: string;
+        onConfirm: (val?: string) => void;
+        onCancel: () => void;
+    } | null>(null);
+
+    const showAlert = (message: string) => new Promise<void>((resolve) => {
+        setDialog({ type: 'alert', title: 'Aviso', message, onConfirm: () => { setDialog(null); resolve(); }, onCancel: () => { setDialog(null); resolve(); } });
+    });
+
 
     const handleSaveName = async () => {
         if (!selectedLead) return;
@@ -54,7 +67,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             if (error) throw error;
             setSelectedLead({ ...selectedLead, nome: tempName });
         } catch (e: any) {
-            alert('Erro ao renomear: ' + e.message);
+            await showAlert('Erro ao renomear: ' + e.message);
         } finally {
             setIsEditingName(false);
         }
@@ -447,7 +460,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             .eq('id', selectedLead.id);
 
         if (error) {
-            alert('Erro ao atualizar status da IA: ' + error.message);
+            await showAlert('Erro ao atualizar status da IA: ' + error.message);
         } else {
             setSelectedLead({ ...selectedLead, ia_active: newState });
             const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -474,7 +487,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             .eq('id', selectedLead.id);
 
         if (error) {
-            alert('Erro ao atualizar follow-up: ' + error.message);
+            await showAlert('Erro ao atualizar follow-up: ' + error.message);
         } else {
             setSelectedLead({ ...selectedLead, followup_locked: newLocked });
             const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -500,7 +513,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             .eq('id', selectedLead.id);
         setIsSavingObs(false);
         if (error) {
-            alert('Erro ao salvar observações: ' + error.message);
+            await showAlert('Erro ao salvar observações: ' + error.message);
         } else {
             setSelectedLead({ ...selectedLead, observacoes: observacoesInput });
         }
@@ -548,7 +561,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
         // Validar tipo de arquivo
         if (!isImage && !isVideo) {
-            alert('Por favor, selecione apenas arquivos de imagem ou vídeo.');
+            await showAlert('Por favor, selecione apenas arquivos de imagem ou vídeo.');
             return;
         }
 
@@ -568,7 +581,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const fileName = file.name;
             const mediaTypeStr = isVideo ? 'video' : 'image';
 
-            if (!evoInstance) { alert('Instância WhatsApp não configurada.'); setIsUploading(false); return; }
+            if (!evoInstance) { await showAlert('Instância WhatsApp não configurada.'); setIsUploading(false); return; }
             const response = await fetch(`${evoInstance.evo_api_url}/message/sendMedia/${evoInstance.instance_name}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': evoInstance.evo_api_key },
@@ -607,7 +620,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             fetchMessages();
 
         } catch (err: any) {
-            alert(`Erro ao enviar ${isVideo ? 'vídeo' : 'imagem'}: ` + err.message);
+            await showAlert(`Erro ao enviar ${isVideo ? 'vídeo' : 'imagem'}: ` + err.message);
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -683,7 +696,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             setRecordingTime(0);
             timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
         } catch (err) {
-            alert('Erro ao acessar microfone: ' + err);
+            await showAlert('Erro ao acessar microfone: ' + err);
         }
     };
 
@@ -720,7 +733,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
             const base64data = resultBase64.split(',')[1];
 
-            if (!evoInstance) { alert('Instância WhatsApp não configurada.'); return; }
+            if (!evoInstance) { await showAlert('Instância WhatsApp não configurada.'); return; }
             const response = await fetch(`${evoInstance.evo_api_url}/message/sendWhatsAppAudio/${evoInstance.instance_name}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': evoInstance.evo_api_key },
@@ -1348,8 +1361,35 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     </>
                 )}
             </div>}
+
+            {dialog && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
+                        <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            {dialog.type !== 'alert' && (
+                                <button 
+                                    onClick={dialog.onCancel}
+                                    style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => dialog.onConfirm()}
+                                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
 
 export default ChatView;
