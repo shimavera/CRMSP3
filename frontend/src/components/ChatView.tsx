@@ -621,18 +621,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 cursor: 'pointer',
                                 backgroundColor: selectedLead?.id === lead.id ? 'var(--accent-soft)' : 'transparent',
                                 display: 'flex',
-                                alignItems: 'center', gap: '12px'
+                                alignItems: 'center', gap: '12px',
+                                transition: 'all 0.2s ease',
+                                borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : '3px solid transparent'
                             }}
+                            onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.015)' }}
+                            onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'transparent' }}
                         >
-                            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: selectedLead?.id === lead.id ? 'var(--accent)' : '#f1f5f9', color: selectedLead?.id === lead.id ? 'white' : 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: selectedLead?.id === lead.id ? 'var(--accent)' : 'var(--bg-primary)', color: selectedLead?.id === lead.id ? 'white' : 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '1.1rem', boxShadow: selectedLead?.id === lead.id ? 'var(--shadow-md)' : 'none' }}>
                                 {(lead.nome || 'L')[0].toUpperCase()}
                             </div>
                             <div style={{ overflow: 'hidden', flex: 1 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ fontWeight: '700', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.nome || 'Lead s/ nome'}</div>
-                                    {!lead.ia_active && <PowerOff size={12} color="#ef4444" />}
+                                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.nome || 'Lead s/ nome'}</div>
+                                    {!lead.ia_active && <PowerOff size={14} color="var(--error)" />}
                                 </div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{lead.telefone}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{lead.telefone}</div>
                             </div>
                         </div>
                     ))}
@@ -665,7 +669,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             </div>
                         </div>
 
-                        <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: '#efeae2', backgroundBlendMode: 'overlay' }}>
+                        <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: '#f4f7fa', backgroundBlendMode: 'overlay' }}>
                             {messages.map(msg => (
                                 msg.type === 'system' ? (
                                     // Separador horizontal estilo Kommo
