@@ -123,6 +123,11 @@ const LeadCard = ({
 
             {/* Tags */}
             <div style={{ display: 'flex', gap: '4px', marginTop: '10px', flexWrap: 'wrap' }}>
+                {lead.created_at && (
+                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: '600' }}>
+                        📥 Entrou em {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                    </span>
+                )}
                 {lead.followup_stage === 1 && (
                     <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '800' }}>
                         ⏱ 1º Follow-up (10m)
