@@ -333,6 +333,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             const firstName = authUser.nome.split(' ')[0];
             await supabase.from('n8n_chat_histories').insert([{
+                company_id: authUser.company_id,
                 session_id: selectedLead.telefone,
                 message: JSON.stringify({
                     type: 'system',
@@ -359,6 +360,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             const firstName = authUser.nome.split(' ')[0];
             await supabase.from('n8n_chat_histories').insert([{
+                company_id: authUser.company_id,
                 session_id: selectedLead.telefone,
                 message: JSON.stringify({
                     type: 'system',
@@ -404,6 +406,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             await supabase
                 .from('n8n_chat_histories')
                 .insert([{
+                    company_id: authUser.company_id,
                     session_id: selectedLead.telefone,
                     message: JSON.stringify({ type: 'ai', content: messageToSend, sender: authUser.nome, sentByCRM: true })
                 }]);
@@ -467,6 +470,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             await supabase
                 .from('n8n_chat_histories')
                 .insert([{
+                    company_id: authUser.company_id,
                     session_id: selectedLead.telefone,
                     message: JSON.stringify({
                         type: isVideo ? 'video' : 'ai',
@@ -564,6 +568,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 await supabase
                     .from('n8n_chat_histories')
                     .insert([{
+                        company_id: authUser.company_id,
                         session_id: selectedLead.telefone,
                         message: JSON.stringify({
                             type: 'ai',

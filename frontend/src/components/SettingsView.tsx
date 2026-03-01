@@ -121,16 +121,23 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsSavingFollowup(true);
         setFollowupSuccess(false);
         try {
-            // Tenta dar update no ID 1 ou inserir se não houver
-            const { error } = await supabase
-                .from('sp3_followup_settings')
-                .upsert([
-                    {
-                        id: followupConfig.id || 1,
-                        ...followupConfig,
-                        updated_at: new Date()
-                    }
-                ]);
+            let error;
+            if (followupConfig.id) {
+                const { error: updateError } = await supabase.from('sp3_followup_settings').update({
+                    ...followupConfig,
+                    updated_at: new Date()
+                }).eq('id', followupConfig.id);
+                error = updateError;
+            } else {
+                const configToInsert = { ...followupConfig };
+                delete configToInsert.id;
+                const { error: insertError } = await supabase.from('sp3_followup_settings').insert([{
+                    company_id: authUser.company_id,
+                    ...configToInsert,
+                    updated_at: new Date()
+                }]);
+                error = insertError;
+            }
 
             if (error) throw error;
             setFollowupSuccess(true);
@@ -175,6 +182,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             const { error: insertError } = await supabase
                 .from('sp3_social_proof_videos')
                 .insert([{
+                    company_id: authUser.company_id,
                     titulo: newVideoTitulo.trim(),
                     descricao: newVideoDescricao.trim(),
                     contexto: newVideoContexto,
@@ -236,6 +244,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             const { error } = await supabase
                 .from('sp3_quick_messages')
                 .insert([{
+                    company_id: authUser.company_id,
                     title: newQuickMessageTitle.trim(),
                     content: newQuickMessageContent.trim()
                 }]);
@@ -299,7 +308,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         try {
             const { error } = await supabase
                 .from('sp3_prompts')
-                .insert([{ content: aiPrompt }]);
+                .insert([{ company_id: authUser.company_id, content: aiPrompt }]);
 
             if (error) throw error;
             setSaveSuccess(true);
@@ -542,6 +551,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             const { error } = await supabase
                 .from('sp3_instances')
                 .insert([{
+                    company_id: authUser.company_id,
                     instance_name: sanitizedName,
                     display_name: newInstanceDisplayName.trim(),
                     created_by: authUser.id
@@ -624,6 +634,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         // 4. Inserir perfil
         const { error: insertError } = await supabase.from('sp3_users').insert([{
             id: data.user.id,
+            company_id: authUser.company_id,
             email: newUserEmail.trim(),
             nome: newUserNome.trim(),
             role: 'user',
