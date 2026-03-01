@@ -1,105 +1,84 @@
 import React, { useMemo, useState } from 'react';
 import {
-    Users, Activity, CheckCircle2, TrendingUp, Filter, BarChart3, PieChart as PieChartIcon
+    Users, Activity, CheckCircle2, TrendingUp, BarChart3,
+    DollarSign, X, ArrowLeft
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, LineChart, Line, Legend
+    LineChart, Line
 } from 'recharts';
-import { format, subDays, isAfter, parseISO, startOfDay } from 'date-fns';
+import { format, subDays, isAfter, parseISO } from 'date-fns';
 import type { Lead } from '../lib/supabase';
 
 interface DashboardViewProps {
     leads: Lead[];
 }
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
+// const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
 
 const DashboardView: React.FC<DashboardViewProps> = ({ leads }) => {
     const [dateRange, setDateRange] = useState<'7' | '30' | 'all'>('30');
+    const [selectedMetric, setSelectedMetric] = useState<{ title: string, leads: Lead[] } | null>(null);
 
     // Filtrar leads baseado no range selecionado
     const filteredLeads = useMemo(() => {
         if (dateRange === 'all') return leads;
-
         const days = parseInt(dateRange);
         const cutoffDate = subDays(new Date(), days);
-
         return leads.filter(lead => {
             const leadDate = lead.created_at ? parseISO(lead.created_at) : new Date();
             return isAfter(leadDate, cutoffDate);
         });
     }, [leads, dateRange]);
 
-    // Calcular métricas generais
+    // Calcular métricas
     const metrics = useMemo(() => {
-        const total = filteredLeads.length;
-        const comIA = filteredLeads.filter(l => l.ia_active).length;
-        const comReuniao = filteredLeads.filter(l => l.meeting_datetime).length;
-        const ganhos = filteredLeads.filter(l => l.stage === 'Ganho' || l.stage === 'Fidelização').length;
+        const total = filteredLeads;
+        const comIA = filteredLeads.filter(l => l.ia_active);
+        const comReuniao = filteredLeads.filter(l => l.meeting_datetime);
+        const ganhos = filteredLeads.filter(l => l.stage === 'Ganho' || l.stage === 'Fidelização');
 
-        const conversao = total > 0 ? ((ganhos / total) * 100).toFixed(1) : '0';
+        const totalForecast = filteredLeads.reduce((acc, l) => acc + parseFloat((l.custom_fields as any)?.proposta_valor || '0'), 0);
 
-        return { total, comIA, comReuniao, ganhos, conversao };
+        const conversao = total.length > 0 ? ((ganhos.length / total.length) * 100).toFixed(1) : '0';
+
+        return {
+            total, comIA, comReuniao, ganhos, conversao, totalForecast
+        };
     }, [filteredLeads]);
 
-    // Dados para gráfico de Leads por Estágio
-    const stageData = useMemo(() => {
+    // Dados para gráfico de Forecast por Estágio
+    const forecastByStage = useMemo(() => {
         const stages: Record<string, number> = {};
-
         filteredLeads.forEach(lead => {
             const stage = lead.stage || lead.status || 'Novo Lead';
-            stages[stage] = (stages[stage] || 0) + 1;
+            const val = parseFloat((lead.custom_fields as any)?.proposta_valor || '0');
+            if (!isNaN(val)) stages[stage] = (stages[stage] || 0) + val;
         });
-
-        // Ordenar os estágios por contagem descrescente
         return Object.entries(stages)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [filteredLeads]);
 
-    // Dados para gráfico de linha do tempo (Últimos dias)
+    // Dados para gráfico de Volume Diário
     const timelineData = useMemo(() => {
-        if (dateRange === 'all') return []; // Não mostramos gráfico diário para 'all' pois ficaria bagunçado
-
+        if (dateRange === 'all') return [];
         const days = parseInt(dateRange);
         const data: Record<string, number> = {};
-
-        // Inicializar todos os dias do range com 0
         for (let i = days - 1; i >= 0; i--) {
-            const date = subDays(new Date(), i);
-            const dateStr = format(date, 'dd/MM');
-            data[dateStr] = 0;
+            data[format(subDays(new Date(), i), 'dd/MM')] = 0;
         }
-
         filteredLeads.forEach(lead => {
             if (!lead.created_at) return;
             const dt = parseISO(lead.created_at);
-            // Mostrar apenas leads do range
-            if (isAfter(dt, subDays(startOfDay(new Date()), days))) {
-                const dateStr = format(dt, 'dd/MM');
-                if (data[dateStr] !== undefined) {
-                    data[dateStr]++;
-                }
-            }
+            const ds = format(dt, 'dd/MM');
+            if (data[ds] !== undefined) data[ds]++;
         });
-
         return Object.entries(data).map(([date, count]) => ({ date, count }));
     }, [filteredLeads, dateRange]);
 
-    // Dados Inteligência vs Manual
-    const iaData = useMemo(() => {
-        const ativados = filteredLeads.filter(l => l.ia_active).length;
-        const desativados = filteredLeads.length - ativados;
-
-        return [
-            { name: 'Sarah (IA)', value: ativados },
-            { name: 'Humano', value: desativados }
-        ];
-    }, [filteredLeads]);
-
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
             {/* Header / Filtros */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
@@ -107,180 +86,166 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads }) => {
                         <BarChart3 size={24} color="var(--accent)" />
                         Dashboard de Performance
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
-                        Acompanhe métricas, funil e conversão dos seus leads.
-                    </p>
                 </div>
-
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: 'var(--bg-card)', padding: '6px', borderRadius: '12px', boxShadow: 'var(--shadow-sm)' }}>
-                    <Filter size={16} color="var(--text-muted)" style={{ margin: '0 8px' }} />
-                    <select
-                        value={dateRange}
-                        onChange={e => setDateRange(e.target.value as any)}
-                        style={{ border: 'none', backgroundColor: 'transparent', outline: 'none', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', cursor: 'pointer' }}
-                    >
-                        <option value="7">Últimos 7 dias</option>
-                        <option value="30">Últimos 30 dias</option>
-                        <option value="all">Todo o período</option>
-                    </select>
+                <div style={{ display: 'flex', gap: '8px', background: 'white', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    {(['7', '30', 'all'] as const).map(range => (
+                        <button
+                            key={range}
+                            onClick={() => setDateRange(range)}
+                            style={{
+                                padding: '6px 16px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: dateRange === range ? 'var(--accent)' : 'transparent',
+                                color: dateRange === range ? 'white' : '#64748b',
+                                fontSize: '0.85rem',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {range === 'all' ? 'Tudo' : `${range} dias`}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* Grid de Métricas Top */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            {/* Grid de Métricas */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
                 <MetricCard
                     title="Total de Leads"
-                    value={metrics.total}
-                    icon={<Users size={20} color="#0ea5e9" />}
-                    bgColor="#e0f2fe"
-                    textColor="#0369a1"
+                    value={metrics.total.length}
+                    icon={<Users size={20} />}
+                    color="#6366f1"
+                    onClick={() => setSelectedMetric({ title: 'Total de Leads', leads: metrics.total })}
                 />
                 <MetricCard
-                    title="Taxa de Conversão"
-                    value={`${metrics.conversao}%`}
-                    icon={<TrendingUp size={20} color="#10b981" />}
-                    bgColor="#d1fae5"
-                    textColor="#047857"
+                    title="Forecast (Propostas)"
+                    value={metrics.totalForecast.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    icon={<DollarSign size={20} />}
+                    color="#10b981"
+                    onClick={() => setSelectedMetric({ title: 'Forecast (Proposta)', leads: filteredLeads.filter(l => parseFloat((l.custom_fields as any)?.proposta_valor || '0') > 0) })}
                 />
                 <MetricCard
                     title="Agendamentos"
-                    value={metrics.comReuniao}
-                    icon={<Activity size={20} color="#f59e0b" />}
-                    bgColor="#fef3c7"
-                    textColor="#b45309"
+                    value={metrics.comReuniao.length}
+                    icon={<Activity size={20} />}
+                    color="#f59e0b"
+                    onClick={() => setSelectedMetric({ title: 'Agendamentos', leads: metrics.comReuniao })}
                 />
                 <MetricCard
-                    title="Vendas (Ganho)"
-                    value={metrics.ganhos}
-                    icon={<CheckCircle2 size={20} color="#ec4899" />}
-                    bgColor="#fce7f3"
-                    textColor="#be185d"
+                    title="Vendas (Ganhos)"
+                    value={metrics.ganhos.length}
+                    icon={<CheckCircle2 size={20} />}
+                    color="#ec4899"
+                    onClick={() => setSelectedMetric({ title: 'Vendas (Ganhos)', leads: metrics.ganhos })}
                 />
             </div>
 
-            {/* Gráficos Principais */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '1.5rem', alignItems: 'start' }}>
-
-                {/* Gráfico 1: Volume de Leads Diário */}
+            <div style={{ display: 'grid', gridTemplateColumns: isAfter(parseISO('2000-01-01'), subDays(new Date(), 1)) ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                {/* Gráfico Forecast por Stage */}
                 <div className="glass-card" style={{ padding: '1.5rem' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Activity size={18} /> Volume de Leads Cadastrados
+                        <TrendingUp size={18} /> Previsão de Receita por Estágio
                     </h3>
-                    {dateRange === 'all' ? (
-                        <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                            Selecione um período (7 ou 30 dias) para ver a curva diária.
-                        </div>
-                    ) : (
-                        <div style={{ height: '300px', width: '100%' }}>
-                            <ResponsiveContainer>
-                                <LineChart data={timelineData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} allowDecimals={false} />
-                                    <RechartsTooltip
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                        labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="count"
-                                        name="Novos Leads"
-                                        stroke="#6366f1"
-                                        strokeWidth={4}
-                                        dot={{ strokeWidth: 2, r: 4, fill: '#fff' }}
-                                        activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
+                    <div style={{ height: '300px', width: '100%' }}>
+                        <ResponsiveContainer>
+                            <BarChart data={forecastByStage} layout="vertical" margin={{ left: 40 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12, fontWeight: 600 }} />
+                                <RechartsTooltip
+                                    formatter={(val: any) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    contentStyle={{ borderRadius: '12px' }}
+                                />
+                                <Bar dataKey="value" fill="var(--accent)" radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
-                {/* Pilares IA vs Humano */}
-                <div className="glass-card" style={{ padding: '1.5rem', height: '100%' }}>
+                {/* Gráfico Timeline */}
+                <div className="glass-card" style={{ padding: '1.5rem' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <PieChartIcon size={18} /> Atuação
+                        <Activity size={18} /> Volume de Novos Leads
                     </h3>
-                    <div style={{ height: '240px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ height: '300px', width: '100%' }}>
                         <ResponsiveContainer>
-                            <PieChart>
-                                <Pie
-                                    data={iaData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={90}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {iaData.map((_entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : '#f59e0b'} />
-                                    ))}
-                                </Pie>
-                                <RechartsTooltip
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                    itemStyle={{ fontWeight: 'bold' }}
-                                />
-                                <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                            </PieChart>
+                            <LineChart data={timelineData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                                <RechartsTooltip contentStyle={{ borderRadius: '12px' }} />
+                                <Line type="monotone" dataKey="count" stroke="var(--accent)" strokeWidth={3} dot={{ r: 4 }} />
+                            </LineChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
             </div>
 
-            {/* Funil de Vendas Transversal */}
-            <div className="glass-card" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Filter size={18} /> Distribuição do Funil (Estágios Atuais)
-                </h3>
-                <div style={{ height: '300px', width: '100%' }}>
-                    <ResponsiveContainer>
-                        <BarChart data={stageData} layout="vertical" margin={{ top: 0, right: 20, left: 30, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                            <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} />
-                            <YAxis
-                                type="category"
-                                dataKey="name"
-                                axisLine={false}
-                                tickLine={false}
-                                tick={{ fontSize: 12, fill: '#475569', fontWeight: 600 }}
-                                width={120}
-                            />
-                            <RechartsTooltip
-                                cursor={{ fill: '#f8fafc' }}
-                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                            />
-                            <Bar dataKey="value" name="Leads" radius={[0, 6, 6, 0]} barSize={32}>
-                                {stageData.map((_entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
+            {/* Modal de Detalhes da Métrica */}
+            {selectedMetric && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div className="fade-in" style={{ backgroundColor: 'white', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                        <div style={{ padding: '1.5rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <button onClick={() => setSelectedMetric(null)} style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer', color: '#64748b' }}><ArrowLeft size={18} /></button>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{selectedMetric.title}</h3>
+                            </div>
+                            <button onClick={() => setSelectedMetric(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={24} /></button>
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9' }}>
+                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b' }}>Lead</th>
+                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b' }}>Status</th>
+                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b' }}>Forecast</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedMetric.leads.length === 0 ? (
+                                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>Nenhum lead nesta categoria</td></tr>
+                                    ) : (
+                                        selectedMetric.leads.map(lead => (
+                                            <tr key={lead.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                                <td style={{ padding: '12px' }}>
+                                                    <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>{lead.nome || lead.telefone}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{(lead.custom_fields as any)?.email || lead.telefone}</div>
+                                                </td>
+                                                <td style={{ padding: '12px' }}>
+                                                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', backgroundColor: '#f1f5f9', fontWeight: '700' }}>{lead.stage || lead.status || 'Novo'}</span>
+                                                </td>
+                                                <td style={{ padding: '12px', fontWeight: '800', color: 'var(--accent)' }}>
+                                                    {parseFloat((lead.custom_fields as any)?.proposta_valor || '0').toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-            </div>
-
+            )}
         </div>
     );
 };
 
-// Componente helper para cards numéricos
-function MetricCard({ title, value, icon, bgColor, textColor }: { title: string; value: string | number; icon: React.ReactNode; bgColor: string; textColor: string }) {
-    return (
-        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', borderLeft: `4px solid ${textColor}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {title}
-                </span>
-                <div style={{ padding: '8px', borderRadius: '10px', backgroundColor: bgColor }}>
-                    {icon}
-                </div>
-            </div>
-            <div style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--text-primary)', lineHeight: 1 }}>
-                {value}
-            </div>
+const MetricCard = ({ title, value, icon, color, onClick }: any) => (
+    <div
+        onClick={onClick}
+        className="glass-card"
+        style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderLeft: `5px solid ${color}`, cursor: 'pointer', transition: 'transform 0.2s' }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-4px)')}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+    >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase' }}>{title}</span>
+            <div style={{ opacity: 0.8 }}>{icon}</div>
         </div>
-    );
-}
+        <div style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-primary)' }}>{value}</div>
+    </div>
+);
 
 export default DashboardView;
