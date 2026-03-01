@@ -473,7 +473,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setEvoError(null);
         try {
             const response = await fetch(
-                `${instance.evo_api_url}/instance/connectionStatus/${instance.instance_name}`,
+                `${instance.evo_api_url}/instance/connectionState/${instance.instance_name}`,
                 { headers: { 'apikey': instance.evo_api_key } }
             );
 
@@ -511,7 +511,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         try {
             // Verificar se instância já existe
             const checkRes = await fetch(
-                `${instance.evo_api_url}/instance/connectionStatus/${instance.instance_name}`,
+                `${instance.evo_api_url}/instance/connectionState/${instance.instance_name}`,
                 { headers: { 'apikey': instance.evo_api_key } }
             );
 
@@ -597,7 +597,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             if (!activeInstance) return;
             try {
                 const response = await fetch(
-                    `${activeInstance.evo_api_url}/instance/connectionStatus/${activeInstance.instance_name}`,
+                    `${activeInstance.evo_api_url}/instance/connectionState/${activeInstance.instance_name}`,
                     { headers: { 'apikey': activeInstance.evo_api_key } }
                 );
                 if (response.ok) {
