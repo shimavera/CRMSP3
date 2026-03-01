@@ -93,6 +93,7 @@ export type FollowupStep = {
   company_id?: string;
   step_number: number;
   delay_days: number;
+  delay_unit: 'minutes' | 'hours' | 'days';
   active: boolean;
   messages: FollowupStepMessage[];
   created_at?: string;
