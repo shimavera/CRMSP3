@@ -298,18 +298,39 @@ function App() {
     await supabase.auth.signOut();
   };
 
+  // Normaliza telefone: remove tudo exceto dígitos (formato Evolution API)
+  const normalizePhone = (raw: string): string => raw.replace(/\D/g, '');
+
   const handleSaveLead = async () => {
-    if (!newLeadTelefone.trim()) {
+    const phone = normalizePhone(newLeadTelefone);
+    if (!phone) {
       setAddLeadError('O telefone é obrigatório.');
+      return;
+    }
+    if (phone.length < 10 || phone.length > 15) {
+      setAddLeadError('Telefone inválido. Use o formato: 5511999999999');
       return;
     }
     setIsAddingLead(true);
     setAddLeadError(null);
 
     if (editingLeadId) {
+      // Checar se já existe outro lead com esse telefone
+      const { data: existing } = await supabase
+        .from('sp3chat')
+        .select('id')
+        .eq('telefone', phone)
+        .eq('company_id', authUser!.company_id)
+        .neq('id', editingLeadId)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        setAddLeadError('Já existe um lead com esse telefone.');
+        setIsAddingLead(false);
+        return;
+      }
       const { error } = await supabase.from('sp3chat').update({
         nome: newLeadNome.trim() || null,
-        telefone: newLeadTelefone.trim()
+        telefone: phone
       }).eq('id', editingLeadId);
 
       if (error) {
@@ -322,10 +343,22 @@ function App() {
         await fetchLeads();
       }
     } else {
+      // Checar se já existe lead com esse telefone
+      const { data: existing } = await supabase
+        .from('sp3chat')
+        .select('id')
+        .eq('telefone', phone)
+        .eq('company_id', authUser!.company_id)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        setAddLeadError('Já existe um lead com esse telefone. Edite o existente.');
+        setIsAddingLead(false);
+        return;
+      }
       const { error } = await supabase.from('sp3chat').insert([{
         company_id: authUser.company_id,
         nome: newLeadNome.trim() || null,
-        telefone: newLeadTelefone.trim(),
+        telefone: phone,
         ia_active: true
       }]);
       if (error) {
