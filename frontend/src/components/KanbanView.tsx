@@ -89,16 +89,17 @@ const LeadCard = ({
             onDragEnd={onDragEnd}
             onClick={() => onClick(lead)}
             style={{
-                backgroundColor: 'white',
-                borderRadius: '10px',
-                padding: '14px',
-                marginBottom: '8px',
-                boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.08)',
-                cursor: 'grab',
-                border: '1px solid #f1f5f9',
-                borderLeft: `3px solid ${stageColor}`,
-                opacity: isDragging ? 0.5 : 1,
-                transition: 'all 0.2s ease',
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius-md)',
+                padding: '16px',
+                marginBottom: '10px',
+                boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm), 0 0 0 1px rgba(0,0,0,0.02)',
+                cursor: isDragging ? 'grabbing' : 'grab',
+                border: '1px solid var(--border)',
+                borderLeft: `4px solid ${stageColor}`,
+                opacity: isDragging ? 0.8 : 1,
+                transform: isDragging ? 'scale(1.02) translateY(-2px)' : 'scale(1)',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                 position: 'relative',
                 userSelect: 'none',
             }}
@@ -334,11 +335,11 @@ const MetricsBar = ({ leads }: { leads: Lead[] }) => {
     ];
 
     return (
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '14px', marginBottom: '2rem', flexWrap: 'wrap' }}>
             {metrics.map(m => (
-                <div key={m.label} style={{ backgroundColor: 'white', borderRadius: '10px', padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px' }}>
-                    <span style={{ fontSize: '0.65rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>{m.label}</span>
-                    <span style={{ fontSize: '1.3rem', fontWeight: '800', color: m.color }}>{m.value}</span>
+                <div key={m.label} className="glass-card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '130px', flex: 1, borderTop: `3px solid ${m.color}` }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</span>
+                    <span style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>{m.value}</span>
                 </div>
             ))}
         </div>
@@ -430,19 +431,19 @@ const KanbanView = () => {
             {/* Header da Pipeline */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div>
-                    <h2 style={{ fontWeight: '900', fontSize: '1.4rem', color: '#1e293b' }}>
-                        Pipeline <span style={{ color: '#6366f1' }}>Comercial</span>
+                    <h2 style={{ fontWeight: '900', fontSize: '1.6rem', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
+                        Pipeline <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Comercial</span>
                     </h2>
-                    <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: '500' }}>
                         {leads.length} leads · Realtime ativo
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                         onClick={() => setShowMetrics(!showMetrics)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', backgroundColor: 'white', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem', color: '#374151' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)', boxShadow: 'var(--shadow-sm)' }}
                     >
-                        <TrendingUp size={15} /> {showMetrics ? 'Ocultar' : 'Ver'} Métricas
+                        <TrendingUp size={16} /> {showMetrics ? 'Ocultar' : 'Ver'} Métricas
                     </button>
                 </div>
             </div>

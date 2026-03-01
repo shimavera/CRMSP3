@@ -183,16 +183,18 @@ function App() {
   // ─── LOADING ────────────────────────────────────────────────────────────────
   if (authLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #001A4D, #003399)' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #001A4D 0%, #003399 50%, #0052CC 100%)' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-            <img
-              src="/favicon.png"
-              alt="SP3 Symbol"
-              style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '14px', boxShadow: '0 10px 25px rgba(27, 94, 240, 0.2)' }}
-            />
+            <div style={{ padding: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', backdropFilter: 'blur(10px)' }}>
+              <img
+                src="/favicon.png"
+                alt="SP3 Symbol"
+                style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '14px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)' }}
+              />
+            </div>
           </div>
-          <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)', margin: '0 auto' }} />
+          <Loader2 size={28} className="animate-spin" style={{ color: '#ffffff', margin: '0 auto' }} />
         </div>
       </div>
     );
@@ -275,13 +277,15 @@ function App() {
     <div className="dashboard-container">
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
-        <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img
-            src="/favicon.png"
-            alt="SP3 Symbol"
-            style={{ height: '34px', width: '34px', objectFit: 'contain', borderRadius: '8px' }}
-          />
-          <span style={{ fontSize: '1.85rem', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+        <div style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: '12px' }}>
+            <img
+              src="/favicon.png"
+              alt="SP3 Symbol"
+              style={{ height: '34px', width: '34px', objectFit: 'contain', borderRadius: '8px' }}
+            />
+          </div>
+          <span style={{ fontSize: '1.85rem', fontWeight: '900', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.04em', lineHeight: 1 }}>
             SP3
           </span>
         </div>
@@ -306,9 +310,9 @@ function App() {
             <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => navigate('settings')} />
           )}
           {/* Perfil do usuário logado */}
-          <div style={{ padding: '10px 14px', borderRadius: '12px', backgroundColor: 'var(--accent-soft)', marginBottom: '4px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent)', marginBottom: '2px' }}>{authUser.nome}</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{authUser.role === 'master' ? '⭐ Master' : 'Operador'}</div>
+          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'var(--bg-primary)', border: '1px solid var(--border-soft)', marginBottom: '8px' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '2px' }}>{authUser.nome}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>{authUser.role === 'master' ? '⭐ Administrador Master' : 'Operador'}</div>
           </div>
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
         </div>
