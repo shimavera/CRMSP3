@@ -12,6 +12,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export type UserProfile = {
   id: string;
   email: string;
+  company_id?: string;
   nome: string;
   role: 'master' | 'user';
   permissions: {
@@ -44,6 +45,7 @@ export type QuickMessage = {
 
 export type Instance = {
   id: string;
+  company_id?: string;
   instance_name: string;
   display_name: string;
   evo_api_url: string;

@@ -119,6 +119,7 @@ function App() {
       const newProfile: Omit<UserProfile, 'created_at'> = {
         id: userId,
         email: userEmail,
+        company_id: undefined, // Será associado depois no DB
         nome: userEmail.split('@')[0],
         role: isFirstUser ? 'master' : 'user',
         permissions: isFirstUser ? MASTER_PERMISSIONS : { dashboard: true, chats: true, kanban: true, leads: true, settings: false }
@@ -240,6 +241,7 @@ function App() {
       }
     } else {
       const { error } = await supabase.from('sp3chat').insert([{
+        company_id: authUser.company_id,
         nome: newLeadNome.trim() || null,
         telefone: newLeadTelefone.trim(),
         ia_active: true

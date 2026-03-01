@@ -35,7 +35,8 @@
       "Bash(curl -s -X POST \"https://sp3company.app.n8n.cloud/webhook/temp-create-bucket\" -H \"Content-Type: application/json\" -d '{}')",
       "mcp__n8n__n8n_health_check",
       "Bash(curl -s -X POST \"https://n8n.sp3company.shop/webhook/temp-create-bucket\" -H \"Content-Type: application/json\" -d '{}')",
-      "Bash(curl -s -X POST \"https://n8n.sp3company.shop/webhook/create-bucket-temp\" -H \"Content-Type: application/json\" -d '{}')"
+      "Bash(curl -s -X POST \"https://n8n.sp3company.shop/webhook/create-bucket-temp\" -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s -X POST \"https://ioqjhbhjzuukmssxhvma.supabase.co/rest/v1/rpc/exec_sql\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvcWpoYmhqenV1a21zc3hodm1hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MDM0MTcyMywiZXhwIjoyMDU1OTE3NzIzfQ.2SxufFT7LBXZ6w6VCFnv7VpXmRijlYMi9Jl0X_q-KBU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvcWpoYmhqenV1a21zc3hodm1hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MDM0MTcyMywiZXhwIjoyMDU1OTE3NzIzfQ.2SxufFT7LBXZ6w6VCFnv7VpXmRijlYMi9Jl0X_q-KBU\" -H \"Content-Type: application/json\")"
     ]
   }
 }
