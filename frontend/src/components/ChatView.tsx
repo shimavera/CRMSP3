@@ -595,6 +595,49 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     // LÓGICA DE ÁUDIO
+    const playRecordSound = (type: 'start' | 'stop') => {
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContextClass) return;
+            const audioCtx = new AudioContextClass();
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.type = 'sine';
+            const now = audioCtx.currentTime;
+
+            if (type === 'start') {
+                // Som de início (beep duplo sutil, estilo whatsapp)
+                oscillator.frequency.setValueAtTime(600, now);
+                oscillator.frequency.setValueAtTime(800, now + 0.1);
+
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+
+                oscillator.start(now);
+                oscillator.stop(now + 0.2);
+            } else {
+                // Som de parada (beep descendente sutil)
+                oscillator.frequency.setValueAtTime(600, now);
+                oscillator.frequency.exponentialRampToValueAtTime(300, now + 0.2);
+
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+
+                oscillator.start(now);
+                oscillator.stop(now + 0.2);
+            }
+        } catch (e) {
+            console.warn("AudioContext init failed", e);
+        }
+    };
+
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -615,6 +658,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             };
 
             mediaRecorder.start();
+            playRecordSound('start');
             setIsRecording(true);
             setRecordingTime(0);
             timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
@@ -626,6 +670,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
+            playRecordSound('stop');
             setIsRecording(false);
             clearInterval(timerRef.current);
         }
