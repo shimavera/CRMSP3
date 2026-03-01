@@ -12,13 +12,23 @@ import type { Lead } from '../lib/supabase';
 
 interface DashboardViewProps {
     leads: Lead[];
+    onOpenChat: (phone: string) => void;
 }
 
 // const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
 
-const DashboardView: React.FC<DashboardViewProps> = ({ leads }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
     const [dateRange, setDateRange] = useState<'7' | '30' | 'all'>('30');
     const [selectedMetric, setSelectedMetric] = useState<{ title: string, leads: Lead[] } | null>(null);
+
+    // Fechar modal com Esc
+    React.useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setSelectedMetric(null);
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, []);
 
     // Filtrar leads baseado no range selecionado
     const filteredLeads = useMemo(() => {
@@ -208,7 +218,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads }) => {
                                         <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>Nenhum lead nesta categoria</td></tr>
                                     ) : (
                                         selectedMetric.leads.map(lead => (
-                                            <tr key={lead.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                            <tr
+                                                key={lead.id}
+                                                onClick={() => { onOpenChat(lead.telefone); setSelectedMetric(null); }}
+                                                style={{ borderBottom: '1px solid #f8fafc', cursor: 'pointer', transition: 'background 0.2s' }}
+                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                title="Clique para abrir conversa"
+                                            >
                                                 <td style={{ padding: '12px' }}>
                                                     <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>{lead.nome || lead.telefone}</div>
                                                     <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{(lead.custom_fields as any)?.email || lead.telefone}</div>

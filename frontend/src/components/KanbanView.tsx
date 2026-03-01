@@ -188,11 +188,12 @@ const LeadCard = (props: {
             </div>
 
             {/* Tempo no estágio */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px' }}>
-                <Clock size={11} color={daysInStage > 3 ? '#ef4444' : '#94a3b8'} />
-                <span style={{ fontSize: '0.65rem', color: daysInStage > 3 ? '#ef4444' : '#94a3b8', fontWeight: daysInStage > 3 ? '700' : '400' }}>
-                    {daysInStage === 0 ? 'Hoje' : `${daysInStage}d neste estágio`}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: daysInStage >= 5 ? '4px 8px' : '0', background: daysInStage >= 5 ? '#fff1f2' : 'transparent', borderRadius: '8px', width: 'fit-content' }}>
+                <Clock size={11} color={daysInStage >= 3 ? '#ef4444' : '#94a3b8'} />
+                <span style={{ fontSize: '0.65rem', color: daysInStage >= 3 ? '#ef4444' : '#94a3b8', fontWeight: daysInStage >= 5 ? '800' : '500' }}>
+                    {daysInStage === 0 ? 'Atualizado hoje' : `${daysInStage}d parado`}
                 </span>
+                {daysInStage >= 5 && <AlertCircle size={10} color="#ef4444" style={{ animation: 'bounce 1s infinite' }} />}
             </div>
 
             {/* Menu de ações rápidas */}
