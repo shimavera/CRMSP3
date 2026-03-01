@@ -40,6 +40,7 @@ interface Lead {
     closed_reason?: string;
     stage_updated_at?: string;
     followup_stage?: number;
+    followup_locked?: boolean;
     last_interaction_at?: string;
     tasks?: { id: string; title: string; due_date: string; completed: boolean }[];
     custom_fields?: Record<string, string>;
