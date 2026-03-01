@@ -942,27 +942,25 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         })()}
 
                         <div ref={inputBarRef} style={{ padding: '0.75rem 1rem', display: 'flex', gap: '8px', backgroundColor: '#f0f2f5', alignItems: 'center', position: 'relative' }}>
-                            {showEmojiPicker && (() => {
-                                const rect = inputBarRef.current?.getBoundingClientRect();
-                                const pickerBottom = rect ? window.innerHeight - rect.top : 60;
-                                return (
-                                    <div style={{
-                                        position: 'fixed',
-                                        bottom: pickerBottom,
-                                        left: isMobile ? 0 : (rect?.left ?? 0),
-                                        width: isMobile ? '100vw' : undefined,
-                                        zIndex: 1000,
-                                        boxShadow: '0 -4px 12px rgba(0,0,0,0.15)'
-                                    }}>
-                                        <EmojiPicker
-                                            theme={Theme.LIGHT}
-                                            onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
-                                            width={isMobile ? window.innerWidth : 320}
-                                            height={isMobile ? 300 : 400}
-                                        />
-                                    </div>
-                                );
-                            })()}
+                            {showEmojiPicker && (
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: '100%',
+                                    left: isMobile ? '1rem' : '0',
+                                    marginBottom: '10px',
+                                    zIndex: 1000,
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                                    borderRadius: '12px',
+                                    overflow: 'hidden'
+                                }}>
+                                    <EmojiPicker
+                                        theme={Theme.LIGHT}
+                                        onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
+                                        width={isMobile ? 'calc(100vw - 2rem)' : 320}
+                                        height={350}
+                                    />
+                                </div>
+                            )}
 
                             <button
                                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
