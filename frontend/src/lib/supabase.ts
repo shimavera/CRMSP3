@@ -42,6 +42,20 @@ export type QuickMessage = {
   created_at?: string;
 };
 
+export type Instance = {
+  id: string;
+  instance_name: string;
+  display_name: string;
+  evo_api_url: string;
+  evo_api_key: string;
+  is_active: boolean;
+  connection_status: 'connected' | 'disconnected' | 'connecting';
+  phone_number?: string;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type Lead = {
   id: number;
   nome?: string;
