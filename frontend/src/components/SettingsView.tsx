@@ -387,6 +387,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     const ensureInstanceExists = async (instance: Instance): Promise<boolean> => {
         try {
+            // Verificar se instância já existe
             const checkRes = await fetch(
                 `${instance.evo_api_url}/instance/connectionStatus/${instance.instance_name}`,
                 { headers: { 'apikey': instance.evo_api_key } }
@@ -394,31 +395,29 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
             if (checkRes.ok) return true;
 
-            if (checkRes.status === 404 || checkRes.status === 400) {
-                const createRes = await fetch(
-                    `${instance.evo_api_url}/instance/create`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'apikey': instance.evo_api_key
-                        },
-                        body: JSON.stringify({
-                            instanceName: instance.instance_name,
-                            qrcode: true,
-                            integration: 'WHATSAPP-BAILEYS'
-                        })
-                    }
-                );
-
-                if (!createRes.ok) {
-                    const errBody = await createRes.text();
-                    throw new Error(`Falha ao criar instancia: ${createRes.status} ${errBody}`);
+            // Qualquer erro = tentar criar a instância
+            console.log(`Instance check returned ${checkRes.status}, tentando criar...`);
+            const createRes = await fetch(
+                `${instance.evo_api_url}/instance/create`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': instance.evo_api_key
+                    },
+                    body: JSON.stringify({
+                        instanceName: instance.instance_name,
+                        qrcode: true,
+                        integration: 'WHATSAPP-BAILEYS'
+                    })
                 }
-                return true;
-            }
+            );
 
-            return false;
+            if (!createRes.ok) {
+                const errBody = await createRes.text();
+                throw new Error(`Falha ao criar instancia (${createRes.status}): ${errBody}`);
+            }
+            return true;
         } catch (err: any) {
             console.error('Erro ao verificar/criar instancia:', err);
             setEvoError(err.message);
