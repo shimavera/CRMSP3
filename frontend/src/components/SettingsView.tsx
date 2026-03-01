@@ -142,6 +142,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     // Estados de Clientes SaaS
     const [saasClientsList, setSaasClientsList] = useState<any[]>([]);
     const [isLoadingSaas, setIsLoadingSaas] = useState(false);
+    const [whatsappStatuses, setWhatsappStatuses] = useState<Record<string, 'connected' | 'disconnected' | 'checking' | 'no_key'>>({});
     const [newClientName, setNewClientName] = useState('');
     const [newClientEmail, setNewClientEmail] = useState('');
     const [newClientPassword, setNewClientPassword] = useState('');
@@ -857,11 +858,53 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsCreatingUser(false);
     };
 
+    const checkWhatsappStatuses = async (clients: any[]) => {
+        // Buscar todas as instâncias ativas (RLS permite master ver todas)
+        const { data: instances } = await supabase
+            .from('sp3_instances')
+            .select('company_id, instance_name, evo_api_url, evo_api_key, is_active');
+
+        if (!instances) return;
+
+        const statusMap: Record<string, 'connected' | 'disconnected' | 'checking' | 'no_key'> = {};
+
+        // Marcar todos como "checking" inicialmente
+        clients.forEach(c => { statusMap[c.id] = 'checking'; });
+        setWhatsappStatuses({ ...statusMap });
+
+        // Verificar cada instância em paralelo
+        await Promise.allSettled(instances.map(async (inst) => {
+            if (!inst.evo_api_key || !inst.evo_api_url) {
+                statusMap[inst.company_id] = 'no_key';
+                return;
+            }
+            try {
+                const res = await fetch(
+                    `${inst.evo_api_url}/instance/connectionState/${inst.instance_name}`,
+                    { headers: { 'apikey': inst.evo_api_key } }
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    const state = data?.instance?.state || data?.state || '';
+                    statusMap[inst.company_id] = state === 'open' ? 'connected' : 'disconnected';
+                } else {
+                    statusMap[inst.company_id] = 'disconnected';
+                }
+            } catch {
+                statusMap[inst.company_id] = 'disconnected';
+            }
+        }));
+
+        setWhatsappStatuses({ ...statusMap });
+    };
+
     const fetchSaasClients = async () => {
         setIsLoadingSaas(true);
         const { data, error } = await supabase.rpc('get_all_tenants');
         if (data && !error) {
             setSaasClientsList(data);
+            // Verificar status do WhatsApp de cada cliente em background
+            checkWhatsappStatuses(data);
         }
         setIsLoadingSaas(false);
     };
@@ -923,7 +966,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         await configureInstanceWebhookAndSettings(evoUrl, newClientEvo.trim(), instanceToken);
 
                         // Salvar chave global no localStorage para pré-preencher na próxima vez
-                        try { localStorage.setItem('sp3_evo_global_key', evoGlobalKey); } catch {}
+                        try { localStorage.setItem('sp3_evo_global_key', evoGlobalKey); } catch { }
                     }
                 } else {
                     const errBody = await evoRes.text();
@@ -1006,7 +1049,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             if (error) {
                 await showAlert('Erro ao excluir: ' + error.message);
             } else {
-                alert(`Empresa "${empresa.name}" excluída com sucesso! ${data?.deleted_users || 0} usuário(s) removido(s).`);
+                await showAlert(`Empresa "${empresa.name}" excluída com sucesso! ${data?.deleted_users || 0} usuário(s) removido(s).`);
                 await fetchSaasClients();
             }
         } catch (e: any) {
@@ -2144,6 +2187,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Empresa</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Instância (Evo)</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>
+                                            <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>WhatsApp</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Cadastro</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ações</th>
                                         </tr>
@@ -2151,14 +2195,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <tbody>
                                         {isLoadingSaas ? (
                                             <tr>
-                                                <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                                <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                                                     <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto', marginBottom: '8px' }} />
                                                     Carregando clientes...
                                                 </td>
                                             </tr>
                                         ) : saasClientsList.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum cliente SaaS encontrado.</td>
+                                                <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum cliente SaaS encontrado.</td>
                                             </tr>
                                         ) : (
                                             saasClientsList.map(empresa => (
@@ -2177,6 +2221,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                         <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: empresa.active ? '#dcfce7' : '#fee2e2', color: empresa.active ? '#15803d' : '#b91c1c', fontWeight: '700', textTransform: 'uppercase' }}>
                                                             {empresa.active ? 'Ativa' : 'Inativa'}
                                                         </span>
+                                                    </td>
+                                                    <td style={{ padding: '14px 16px' }}>
+                                                        {(() => {
+                                                            const wsStatus = whatsappStatuses[empresa.id];
+                                                            if (!wsStatus || wsStatus === 'checking') return <Loader2 size={14} className="animate-spin" style={{ color: 'var(--text-muted)' }} />;
+                                                            if (wsStatus === 'connected') return <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: '#dcfce7', color: '#15803d', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Smartphone size={10} /> Conectado</span>;
+                                                            if (wsStatus === 'no_key') return <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: '#fef3c7', color: '#92400e', fontWeight: '700' }}>Sem chave</span>;
+                                                            return <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: '#fee2e2', color: '#b91c1c', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><PowerOff size={10} /> Desconectado</span>;
+                                                        })()}
                                                     </td>
                                                     <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                                                         {new Date(empresa.created_at).toLocaleDateString('pt-BR')}
