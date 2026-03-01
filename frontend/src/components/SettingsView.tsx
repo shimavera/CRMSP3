@@ -297,75 +297,68 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsSavingFollowup(true);
         setFollowupSuccess(false);
         try {
-            // 1. Buscar IDs atuais no banco para diff
-            const { data: dbSteps } = await supabase
-                .from('sp3_followup_steps')
-                .select('id')
-                .eq('company_id', authUser.company_id);
+            const companyId = authUser.company_id;
 
-            const dbStepIds = new Set((dbSteps || []).map((s: any) => s.id));
-            const currentStepIds = new Set(followupSteps.filter(s => s.id > 0).map(s => s.id));
+            // 1. Deletar TODAS as etapas atuais da empresa (cascade deleta mensagens)
+            await supabase.from('sp3_followup_steps').delete().eq('company_id', companyId);
 
-            // 2. Deletar etapas removidas (cascade deleta mensagens)
-            const toDelete = [...dbStepIds].filter(id => !currentStepIds.has(id));
-            if (toDelete.length > 0) {
-                await supabase.from('sp3_followup_steps').delete().in('id', toDelete);
-            }
+            // 2. Inserir todas as etapas de uma vez (batch)
+            if (followupSteps.length > 0) {
+                const stepsToInsert = followupSteps.map(s => ({
+                    company_id: companyId,
+                    step_number: s.step_number,
+                    delay_days: s.delay_days,
+                    delay_unit: s.delay_unit || 'days',
+                    active: s.active,
+                }));
+                const { data: insertedSteps, error: stepsError } = await supabase
+                    .from('sp3_followup_steps')
+                    .insert(stepsToInsert)
+                    .select('id, step_number');
 
-            // 3. Upsert cada etapa e suas mensagens
-            for (const step of followupSteps) {
-                let stepId = step.id;
+                if (stepsError) throw stepsError;
+                if (!insertedSteps) throw new Error('Falha ao inserir etapas');
 
-                if (!stepId || stepId < 0) {
-                    // Nova etapa (id temporário negativo)
-                    const { data: inserted } = await supabase
-                        .from('sp3_followup_steps')
-                        .insert({
-                            company_id: authUser.company_id,
-                            step_number: step.step_number,
-                            delay_days: step.delay_days,
-                            delay_unit: step.delay_unit || 'days',
-                            active: step.active,
-                        })
-                        .select('id')
-                        .single();
-                    if (!inserted) continue;
-                    stepId = inserted.id;
-                } else {
-                    await supabase
-                        .from('sp3_followup_steps')
-                        .update({ step_number: step.step_number, delay_days: step.delay_days, delay_unit: step.delay_unit || 'days', active: step.active, updated_at: new Date().toISOString() })
-                        .eq('id', stepId);
+                // 3. Mapear step_number → ID real do banco
+                const stepIdMap = new Map<number, number>();
+                for (const s of insertedSteps) stepIdMap.set(s.step_number, s.id);
+
+                // 4. Inserir todas as mensagens de todas as etapas em batch
+                const allMsgs: any[] = [];
+                for (const step of followupSteps) {
+                    const realId = stepIdMap.get(step.step_number);
+                    if (!realId) continue;
+                    for (let idx = 0; idx < step.messages.length; idx++) {
+                        const m = step.messages[idx];
+                        allMsgs.push({
+                            step_id: realId,
+                            company_id: companyId,
+                            sort_order: idx,
+                            message_type: m.message_type,
+                            text_content: m.text_content || null,
+                            media_url: m.media_url || null,
+                            media_name: m.media_name || null,
+                            media_mime: m.media_mime || null,
+                            caption: m.caption || null,
+                        });
+                    }
                 }
-
-                // Deletar mensagens existentes e reinserir
-                await supabase.from('sp3_followup_step_messages').delete().eq('step_id', stepId);
-
-                if (step.messages.length > 0) {
-                    const msgs = step.messages.map((m, idx) => ({
-                        step_id: stepId,
-                        company_id: authUser.company_id,
-                        sort_order: idx,
-                        message_type: m.message_type,
-                        text_content: m.text_content || null,
-                        media_url: m.media_url || null,
-                        media_name: m.media_name || null,
-                        media_mime: m.media_mime || null,
-                        caption: m.caption || null,
-                    }));
-                    await supabase.from('sp3_followup_step_messages').insert(msgs);
+                if (allMsgs.length > 0) {
+                    const { error: msgsError } = await supabase
+                        .from('sp3_followup_step_messages')
+                        .insert(allMsgs);
+                    if (msgsError) throw msgsError;
                 }
             }
 
-            // 4. Atualizar total_steps
+            // 5. Atualizar total_steps
             await supabase
                 .from('sp3_followup_settings')
                 .update({ total_steps: followupSteps.length })
-                .eq('company_id', authUser.company_id);
+                .eq('company_id', companyId);
 
             setFollowupSuccess(true);
             setTimeout(() => setFollowupSuccess(false), 3000);
-            // Recarregar para pegar IDs reais
             await fetchFollowupSteps();
         } catch (err: any) {
             console.error('Erro ao salvar etapas:', err);
