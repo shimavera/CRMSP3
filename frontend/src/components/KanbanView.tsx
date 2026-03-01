@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import {
     Users, Phone, Calendar, XCircle, CheckCircle2,
     FileText, Handshake, Trophy, Trash2,
     TrendingUp, Clock, MoreHorizontal,
-    Video, AlertCircle, Loader2, ArrowRight, Bell
+    Video, AlertCircle, Loader2, ArrowRight, Bell, Filter
 } from 'lucide-react';
 
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
@@ -361,6 +361,12 @@ const KanbanView = () => {
     const [dragOverStage, setDragOverStage] = useState<Stage | null>(null);
     const [showMetrics, setShowMetrics] = useState(true);
 
+    // Filter states
+    const [dateFilterMode, setDateFilterMode] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+    const [startDate, setStartDate] = useState<string>('');
+    const [endDate, setEndDate] = useState<string>('');
+    const [showFilterOptions, setShowFilterOptions] = useState(false);
+
     const fetchLeads = async () => {
         const { data, error } = await supabase
             .from('sp3chat')
@@ -425,6 +431,36 @@ const KanbanView = () => {
         setDragOverStage(null);
     };
 
+    // Filtros de data
+    const filteredLeads = useMemo(() => {
+        if (dateFilterMode === 'all') return leads;
+
+        const now = new Date();
+        return leads.filter(l => {
+            if (!l.created_at) return false;
+
+            const leadDate = new Date(l.created_at);
+
+            if (dateFilterMode === 'today') {
+                return leadDate.toDateString() === now.toDateString();
+            }
+            if (dateFilterMode === 'week') {
+                const oneWeekAgo = new Date();
+                oneWeekAgo.setDate(now.getDate() - 7);
+                return leadDate >= oneWeekAgo && leadDate <= now;
+            }
+            if (dateFilterMode === 'month') {
+                return leadDate.getMonth() === now.getMonth() && leadDate.getFullYear() === now.getFullYear();
+            }
+            if (dateFilterMode === 'custom') {
+                if (startDate && leadDate < new Date(startDate + 'T00:00:00')) return false;
+                if (endDate && leadDate > new Date(endDate + 'T23:59:59')) return false;
+                return true;
+            }
+            return true;
+        });
+    }, [leads, dateFilterMode, startDate, endDate]);
+
     if (loading) return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px', color: '#6366f1' }}>
             <Loader2 className="animate-spin" size={28} /> <span style={{ fontWeight: '700' }}>Carregando pipeline...</span>
@@ -440,10 +476,58 @@ const KanbanView = () => {
                         Pipeline <span style={{ background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Comercial</span>
                     </h2>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: '500' }}>
-                        {leads.length} leads · Realtime ativo
+                        {filteredLeads.length} leads filtrados · Realtime ativo
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', position: 'relative' }}>
+                    <div style={{ position: 'relative' }}>
+                        <button
+                            onClick={() => setShowFilterOptions(!showFilterOptions)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: dateFilterMode !== 'all' ? '1px solid var(--accent)' : '1px solid var(--border)', backgroundColor: dateFilterMode !== 'all' ? 'var(--accent-soft)' : 'var(--bg-secondary)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', color: dateFilterMode !== 'all' ? 'var(--accent)' : 'var(--text-primary)', boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' }}
+                        >
+                            <Filter size={16} />
+                            {dateFilterMode === 'all' ? 'Filtro: Todo Período' :
+                                dateFilterMode === 'today' ? 'Filtro: Hoje' :
+                                    dateFilterMode === 'week' ? 'Filtro: Últimos 7 dias' :
+                                        dateFilterMode === 'month' ? 'Filtro: Este Mês' : 'Filtro: Período Específico'}
+                        </button>
+
+                        {showFilterOptions && (
+                            <div style={{ position: 'absolute', top: '100%', right: '0', marginTop: '8px', zIndex: 100, backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', border: '1px solid var(--border)', width: '320px', padding: '16px' }}>
+                                <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>Filtrar por data</h4>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                                    {['all', 'today', 'week', 'month', 'custom'].map(mode => (
+                                        <button
+                                            key={mode}
+                                            onClick={() => setDateFilterMode(mode as any)}
+                                            style={{ padding: '8px 12px', textAlign: 'left', background: dateFilterMode === mode ? 'var(--accent-soft)' : 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer', color: dateFilterMode === mode ? 'var(--accent)' : 'var(--text-primary)', fontWeight: dateFilterMode === mode ? '700' : '500', fontSize: '0.85rem' }}
+                                        >
+                                            {mode === 'all' && '🔄 Todo o Período'}
+                                            {mode === 'today' && '📅 Data de Hoje'}
+                                            {mode === 'week' && '📆 Últimos 7 dias'}
+                                            {mode === 'month' && '📊 Este Mês'}
+                                            {mode === 'custom' && '⚙️ Período Específico'}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {dateFilterMode === 'custom' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-soft)', paddingTop: '12px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)' }}>Data Inicial</label>
+                                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '4px', fontSize: '0.85rem' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)' }}>Data Final</label>
+                                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '4px', fontSize: '0.85rem' }} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     <button
                         onClick={() => setShowMetrics(!showMetrics)}
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)', boxShadow: 'var(--shadow-sm)' }}
@@ -454,12 +538,12 @@ const KanbanView = () => {
             </div>
 
             {/* Métricas */}
-            {showMetrics && <MetricsBar leads={leads} />}
+            {showMetrics && <MetricsBar leads={filteredLeads} />}
 
             {/* Board */}
             <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', flex: 1, paddingBottom: '1rem' }}>
                 {PIPELINE.map(col => {
-                    const colLeads = leads.filter(l => (l.stage || 'Novo Lead') === col.stage);
+                    const colLeads = filteredLeads.filter(l => (l.stage || 'Novo Lead') === col.stage);
                     const isOver = dragOverStage === col.stage;
 
                     return (
