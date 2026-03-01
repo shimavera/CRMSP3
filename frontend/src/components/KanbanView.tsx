@@ -151,19 +151,13 @@ const LeadCard = (props: {
                         📥 Entrou em {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                     </span>
                 )}
-                {lead.followup_stage === 1 && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '800' }}>
-                        ⏱ 1º Follow-up (10m)
-                    </span>
-                )}
-                {lead.followup_stage === 2 && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fecaca', color: '#991b1b', fontWeight: '800' }}>
-                        ⏱ 2º Follow-up (30m)
-                    </span>
-                )}
-                {lead.followup_stage === 3 && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fca5a5', color: '#991b1b', fontWeight: '800' }}>
-                        🚨 3º Follow-up (1h)
+                {lead.followup_stage != null && lead.followup_stage > 0 && (
+                    <span style={{
+                        fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px',
+                        backgroundColor: lead.followup_stage >= 3 ? '#fca5a5' : '#fee2e2',
+                        color: '#991b1b', fontWeight: '800'
+                    }}>
+                        {lead.followup_stage >= 3 ? '🚨' : '⏱'} {lead.followup_stage}º Follow-up
                     </span>
                 )}
                 {lead.meeting_status === 'scheduled' && (

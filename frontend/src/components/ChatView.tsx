@@ -1145,19 +1145,17 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '16px' }}>
                                 {!selectedLead.followup_stage || selectedLead.followup_stage === 0 ? (
                                     <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#f0fdf4', color: '#15803d', fontWeight: '700', border: '1px solid #86efac' }}>
-                                        ✓ Sem follow-up pendente
-                                    </span>
-                                ) : selectedLead.followup_stage === 1 ? (
-                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '800', border: '1px solid #fca5a5' }}>
-                                        ⏱ 1º Follow-up
-                                    </span>
-                                ) : selectedLead.followup_stage === 2 ? (
-                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fecaca', color: '#991b1b', fontWeight: '800', border: '1px solid #f87171' }}>
-                                        ⏱ 2º Follow-up
+                                        Sem follow-up pendente
                                     </span>
                                 ) : (
-                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fca5a5', color: '#7f1d1d', fontWeight: '800', border: '1px solid #ef4444' }}>
-                                        🚨 3º Follow-up
+                                    <span style={{
+                                        fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px',
+                                        backgroundColor: selectedLead.followup_stage >= 3 ? '#fca5a5' : '#fee2e2',
+                                        color: selectedLead.followup_stage >= 3 ? '#7f1d1d' : '#991b1b',
+                                        fontWeight: '800',
+                                        border: `1px solid ${selectedLead.followup_stage >= 3 ? '#ef4444' : '#fca5a5'}`
+                                    }}>
+                                        {selectedLead.followup_stage >= 3 ? '🚨' : '⏱'} {selectedLead.followup_stage}º Follow-up
                                     </span>
                                 )}
                                 {selectedLead.followup_locked && (
