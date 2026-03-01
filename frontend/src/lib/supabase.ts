@@ -13,6 +13,7 @@ export type UserProfile = {
   id: string;
   email: string;
   company_id?: string;
+  company_name?: string;
   nome: string;
   role: 'master' | 'user';
   permissions: {

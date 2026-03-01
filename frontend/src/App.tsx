@@ -96,7 +96,7 @@ function App() {
   const loadUserProfile = async (userId: string, _userEmail: string) => {
     const { data, error } = await supabase
       .from('sp3_users')
-      .select('*')
+      .select('*, sp3_companies(name)')
       .eq('id', userId)
       .maybeSingle();
 
@@ -107,7 +107,11 @@ function App() {
     }
 
     if (data) {
-      setAuthUser(data as UserProfile);
+      const { sp3_companies, ...userData } = data as any;
+      setAuthUser({
+        ...userData,
+        company_name: sp3_companies?.name || ''
+      } as UserProfile);
     } else {
       // Usuário não cadastrado — não auto-criar (apenas masters podem cadastrar usuários)
       console.warn('Usuário não encontrado na tabela sp3_users. Acesso negado.');
@@ -145,6 +149,7 @@ function App() {
       const { data, error } = await supabase
         .from('sp3chat')
         .select('*')
+        .eq('company_id', authUser?.company_id)
         .order('id', { ascending: false });
 
       if (error) {
