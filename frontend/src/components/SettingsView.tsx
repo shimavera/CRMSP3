@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, Activity } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, Activity, Square } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance, FollowupStep, FollowupStepMessage } from '../lib/supabase';
 
@@ -127,6 +127,13 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [uploadingMedia, setUploadingMedia] = useState<string | null>(null);
     const [showMsgTypeMenu, setShowMsgTypeMenu] = useState<number | null>(null);
     const followupMediaRefs = useRef<Record<string, HTMLInputElement | null>>({});
+    const stepBuilderEndRef = useRef<HTMLDivElement | null>(null);
+    // Gravação de áudio ao vivo
+    const [recordingKey, setRecordingKey] = useState<string | null>(null);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Estados de Vídeos de Prova Social
     const [videos, setVideos] = useState<SocialProofVideo[]>([]);
@@ -423,7 +430,52 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         };
         setFollowupSteps([...followupSteps, newStep]);
         setExpandedStep(nextNum);
+        // Auto-scroll para a nova etapa
+        setTimeout(() => stepBuilderEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
     };
+
+    // ─── Gravação de áudio ao vivo ──────────────────────────
+    const startRecording = async (stepIdx: number, msgIdx: number) => {
+        const key = `${stepIdx}_${msgIdx}`;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop());
+                if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+                setRecordingTime(0);
+
+                const blob = new Blob(audioChunksRef.current, { type: 'audio/ogg' });
+                if (blob.size < 500) { setRecordingKey(null); return; }
+
+                const file = new File([blob], `gravacao_${Date.now()}.ogg`, { type: 'audio/ogg' });
+                setRecordingKey(null);
+                await handleFollowupMediaUpload(file, stepIdx, msgIdx);
+            };
+
+            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder.start(250);
+            setRecordingKey(key);
+            setRecordingTime(0);
+            recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+        } catch {
+            await showAlert('Permissão do microfone negada. Permita o acesso ao microfone nas configurações do navegador.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+    };
+
+    const formatRecTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
     const removeFollowupStep = (idx: number) => {
         const updated = followupSteps.filter((_, i) => i !== idx);
@@ -2062,6 +2114,33 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                                     <Trash2 size={14} />
                                                                                 </button>
                                                                             </div>
+                                                                        ) : recordingKey === `${stepIdx}_${msgIdx}` ? (
+                                                                            /* Gravando ao vivo */
+                                                                            <div style={{
+                                                                                display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px',
+                                                                                borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5'
+                                                                            }}>
+                                                                                <div style={{
+                                                                                    width: '12px', height: '12px', borderRadius: '50%',
+                                                                                    backgroundColor: '#ef4444',
+                                                                                    animation: 'pulse 1s infinite'
+                                                                                }} />
+                                                                                <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#b91c1c', fontFamily: 'monospace' }}>
+                                                                                    {formatRecTime(recordingTime)}
+                                                                                </span>
+                                                                                <span style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: '600' }}>Gravando...</span>
+                                                                                <span style={{ flex: 1 }} />
+                                                                                <button
+                                                                                    onClick={stopRecording}
+                                                                                    style={{
+                                                                                        padding: '8px 18px', borderRadius: '10px', border: 'none',
+                                                                                        background: '#ef4444', color: 'white', fontWeight: '700',
+                                                                                        fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                                                                    }}
+                                                                                >
+                                                                                    <Square size={14} fill="white" /> Parar
+                                                                                </button>
+                                                                            </div>
                                                                         ) : (
                                                                             <div>
                                                                                 <input
@@ -2074,21 +2153,35 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                                         if (f) handleFollowupMediaUpload(f, stepIdx, msgIdx);
                                                                                     }}
                                                                                 />
-                                                                                <button
-                                                                                    onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
-                                                                                    disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
-                                                                                    style={{
-                                                                                        padding: '10px 16px', borderRadius: '10px',
-                                                                                        border: '1px dashed var(--border-soft)', background: '#fffbeb',
-                                                                                        color: '#b45309', fontWeight: '600', fontSize: '0.8rem',
-                                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-                                                                                    }}
-                                                                                >
-                                                                                    {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
-                                                                                    Enviar Áudio (.ogg, .mp3)
-                                                                                </button>
+                                                                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                                                                    <button
+                                                                                        onClick={() => startRecording(stepIdx, msgIdx)}
+                                                                                        disabled={!!recordingKey}
+                                                                                        style={{
+                                                                                            padding: '10px 16px', borderRadius: '10px',
+                                                                                            border: 'none', background: '#ef4444',
+                                                                                            color: 'white', fontWeight: '700', fontSize: '0.8rem',
+                                                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+                                                                                        }}
+                                                                                    >
+                                                                                        <Mic size={16} /> Gravar Áudio
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
+                                                                                        disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
+                                                                                        style={{
+                                                                                            padding: '10px 16px', borderRadius: '10px',
+                                                                                            border: '1px dashed var(--border-soft)', background: '#fffbeb',
+                                                                                            color: '#b45309', fontWeight: '600', fontSize: '0.8rem',
+                                                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+                                                                                        }}
+                                                                                    >
+                                                                                        {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                                                                        Enviar Arquivo
+                                                                                    </button>
+                                                                                </div>
                                                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                                                                                    Será enviado como mensagem de voz (PTT) no WhatsApp. Grave um áudio natural como se fosse na hora.
+                                                                                    Grave na hora ou envie um arquivo (.ogg, .mp3). Será enviado como voz (PTT) no WhatsApp.
                                                                                 </p>
                                                                             </div>
                                                                         )}
@@ -2266,8 +2359,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             </div>
                                         );
                                     })}
+                                    <div ref={stepBuilderEndRef} />
                                 </div>
                             )}
+
+                            {/* Animação do indicador de gravação */}
+                            <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 
                             {/* Variáveis disponíveis */}
                             <div style={{ marginTop: '1.5rem', padding: '12px 16px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)' }}>
