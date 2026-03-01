@@ -87,3 +87,27 @@ export type Lead = {
   tasks?: { id: string; title: string; due_date: string; completed: boolean }[];
   custom_fields?: Record<string, string>;
 };
+
+export type FollowupStep = {
+  id: number;
+  company_id?: string;
+  step_number: number;
+  delay_days: number;
+  active: boolean;
+  messages: FollowupStepMessage[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type FollowupStepMessage = {
+  id?: number;
+  step_id?: number;
+  company_id?: string;
+  sort_order: number;
+  message_type: 'text' | 'audio' | 'image' | 'video';
+  text_content?: string;
+  media_url?: string;
+  media_name?: string;
+  media_mime?: string;
+  caption?: string;
+};

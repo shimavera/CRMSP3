@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2 } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, GripVertical, Play, Pause } from 'lucide-react';
 import { supabase } from "../lib/supabase";
-import type { UserProfile, SocialProofVideo, QuickMessage, Instance } from '../lib/supabase';
+import type { UserProfile, SocialProofVideo, QuickMessage, Instance, FollowupStep, FollowupStepMessage } from '../lib/supabase';
 
 interface SettingsViewProps {
     authUser: UserProfile;
@@ -119,6 +119,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     });
     const [isSavingFollowup, setIsSavingFollowup] = useState(false);
     const [followupSuccess, setFollowupSuccess] = useState(false);
+
+    // Estados do Step Builder (Follow-up dinâmico)
+    const [followupSteps, setFollowupSteps] = useState<FollowupStep[]>([]);
+    const [isLoadingSteps, setIsLoadingSteps] = useState(false);
+    const [expandedStep, setExpandedStep] = useState<number | null>(null);
+    const [uploadingMedia, setUploadingMedia] = useState<string | null>(null);
+    const [showMsgTypeMenu, setShowMsgTypeMenu] = useState<number | null>(null);
+    const followupMediaRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
     // Estados de Vídeos de Prova Social
     const [videos, setVideos] = useState<SocialProofVideo[]>([]);
@@ -243,6 +251,219 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         } finally {
             setIsSavingFollowup(false);
         }
+    };
+
+    // ─── FUNÇÕES DO STEP BUILDER (FOLLOW-UP DINÂMICO) ─────────────────
+    const FOLLOWUP_VARIABLES = [
+        { label: 'Nome', token: '[Lead: Nome]' },
+        { label: 'Telefone', token: '[Lead: Telefone]' },
+        { label: 'Saudação', token: '[Saudação]' },
+    ];
+
+    const fetchFollowupSteps = async () => {
+        setIsLoadingSteps(true);
+        try {
+            const { data: steps } = await supabase
+                .from('sp3_followup_steps')
+                .select('*, sp3_followup_step_messages(*)')
+                .eq('company_id', authUser.company_id)
+                .order('step_number', { ascending: true });
+
+            if (steps && steps.length > 0) {
+                const mapped: FollowupStep[] = steps.map((s: any) => ({
+                    ...s,
+                    messages: (s.sp3_followup_step_messages || [])
+                        .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                }));
+                setFollowupSteps(mapped);
+                if (expandedStep === null) setExpandedStep(mapped[0]?.step_number ?? null);
+            }
+        } catch (err) {
+            console.error('Erro ao carregar etapas:', err);
+        } finally {
+            setIsLoadingSteps(false);
+        }
+    };
+
+    const handleSaveFollowupSteps = async () => {
+        setIsSavingFollowup(true);
+        setFollowupSuccess(false);
+        try {
+            // 1. Buscar IDs atuais no banco para diff
+            const { data: dbSteps } = await supabase
+                .from('sp3_followup_steps')
+                .select('id')
+                .eq('company_id', authUser.company_id);
+
+            const dbStepIds = new Set((dbSteps || []).map((s: any) => s.id));
+            const currentStepIds = new Set(followupSteps.filter(s => s.id > 0).map(s => s.id));
+
+            // 2. Deletar etapas removidas (cascade deleta mensagens)
+            const toDelete = [...dbStepIds].filter(id => !currentStepIds.has(id));
+            if (toDelete.length > 0) {
+                await supabase.from('sp3_followup_steps').delete().in('id', toDelete);
+            }
+
+            // 3. Upsert cada etapa e suas mensagens
+            for (const step of followupSteps) {
+                let stepId = step.id;
+
+                if (!stepId || stepId < 0) {
+                    // Nova etapa (id temporário negativo)
+                    const { data: inserted } = await supabase
+                        .from('sp3_followup_steps')
+                        .insert({
+                            company_id: authUser.company_id,
+                            step_number: step.step_number,
+                            delay_days: step.delay_days,
+                            active: step.active,
+                        })
+                        .select('id')
+                        .single();
+                    if (!inserted) continue;
+                    stepId = inserted.id;
+                } else {
+                    await supabase
+                        .from('sp3_followup_steps')
+                        .update({ step_number: step.step_number, delay_days: step.delay_days, active: step.active, updated_at: new Date().toISOString() })
+                        .eq('id', stepId);
+                }
+
+                // Deletar mensagens existentes e reinserir
+                await supabase.from('sp3_followup_step_messages').delete().eq('step_id', stepId);
+
+                if (step.messages.length > 0) {
+                    const msgs = step.messages.map((m, idx) => ({
+                        step_id: stepId,
+                        company_id: authUser.company_id,
+                        sort_order: idx,
+                        message_type: m.message_type,
+                        text_content: m.text_content || null,
+                        media_url: m.media_url || null,
+                        media_name: m.media_name || null,
+                        media_mime: m.media_mime || null,
+                        caption: m.caption || null,
+                    }));
+                    await supabase.from('sp3_followup_step_messages').insert(msgs);
+                }
+            }
+
+            // 4. Atualizar total_steps
+            await supabase
+                .from('sp3_followup_settings')
+                .update({ total_steps: followupSteps.length })
+                .eq('company_id', authUser.company_id);
+
+            setFollowupSuccess(true);
+            setTimeout(() => setFollowupSuccess(false), 3000);
+            // Recarregar para pegar IDs reais
+            await fetchFollowupSteps();
+        } catch (err: any) {
+            console.error('Erro ao salvar etapas:', err);
+            await showAlert('Erro ao salvar etapas: ' + (err.message || 'Erro desconhecido'));
+        } finally {
+            setIsSavingFollowup(false);
+        }
+    };
+
+    const handleFollowupMediaUpload = async (file: File, stepIdx: number, msgIdx: number) => {
+        const uploadKey = `step_${stepIdx}_msg_${msgIdx}`;
+        setUploadingMedia(uploadKey);
+        try {
+            const maxSize = 16 * 1024 * 1024; // 16MB WhatsApp limit
+            if (file.size > maxSize) {
+                await showAlert('Arquivo muito grande. Máximo 16MB para WhatsApp.');
+                return;
+            }
+            const ext = file.name.split('.').pop() || 'bin';
+            const fileName = `${authUser.company_id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('followup-media')
+                .upload(fileName, file, { contentType: file.type });
+            if (uploadError) throw uploadError;
+
+            const { data: urlData } = supabase.storage
+                .from('followup-media')
+                .getPublicUrl(fileName);
+
+            let msgType: 'audio' | 'image' | 'video' = 'image';
+            if (file.type.startsWith('audio/')) msgType = 'audio';
+            else if (file.type.startsWith('video/')) msgType = 'video';
+
+            const updated = [...followupSteps];
+            updated[stepIdx].messages[msgIdx] = {
+                ...updated[stepIdx].messages[msgIdx],
+                media_url: urlData.publicUrl,
+                media_name: file.name,
+                media_mime: file.type,
+                message_type: msgType,
+            };
+            setFollowupSteps(updated);
+        } catch (err: any) {
+            await showAlert('Erro no upload: ' + err.message);
+        } finally {
+            setUploadingMedia(null);
+        }
+    };
+
+    const addFollowupStep = () => {
+        if (followupSteps.length >= 15) return;
+        const nextNum = followupSteps.length > 0 ? followupSteps[followupSteps.length - 1].step_number + 1 : 1;
+        const newStep: FollowupStep = {
+            id: -Date.now(), // ID temporário negativo
+            company_id: authUser.company_id,
+            step_number: nextNum,
+            delay_days: 1,
+            active: true,
+            messages: [{ sort_order: 0, message_type: 'text', text_content: '' }],
+        };
+        setFollowupSteps([...followupSteps, newStep]);
+        setExpandedStep(nextNum);
+    };
+
+    const removeFollowupStep = (idx: number) => {
+        const updated = followupSteps.filter((_, i) => i !== idx);
+        // Renumerar
+        const renumbered = updated.map((s, i) => ({ ...s, step_number: i + 1 }));
+        setFollowupSteps(renumbered);
+        if (expandedStep === followupSteps[idx]?.step_number) {
+            setExpandedStep(renumbered.length > 0 ? renumbered[0].step_number : null);
+        }
+    };
+
+    const addFollowupMessage = (stepIdx: number, type: 'text' | 'audio' | 'image' | 'video') => {
+        const updated = [...followupSteps];
+        const step = updated[stepIdx];
+        const newMsg: FollowupStepMessage = {
+            sort_order: step.messages.length,
+            message_type: type,
+            text_content: type === 'text' ? '' : undefined,
+        };
+        step.messages = [...step.messages, newMsg];
+        setFollowupSteps(updated);
+        setShowMsgTypeMenu(null);
+    };
+
+    const removeFollowupMessage = (stepIdx: number, msgIdx: number) => {
+        const updated = [...followupSteps];
+        updated[stepIdx].messages = updated[stepIdx].messages
+            .filter((_, i) => i !== msgIdx)
+            .map((m, i) => ({ ...m, sort_order: i }));
+        setFollowupSteps(updated);
+    };
+
+    const updateFollowupMessage = (stepIdx: number, msgIdx: number, field: string, value: string) => {
+        const updated = [...followupSteps];
+        (updated[stepIdx].messages[msgIdx] as any)[field] = value;
+        setFollowupSteps(updated);
+    };
+
+    const insertVariable = (stepIdx: number, msgIdx: number, token: string) => {
+        const msg = followupSteps[stepIdx].messages[msgIdx];
+        const field = msg.message_type === 'text' ? 'text_content' : 'caption';
+        const current = (msg as any)[field] || '';
+        updateFollowupMessage(stepIdx, msgIdx, field, current + token);
     };
 
     // Funções de Vídeos de Prova Social
@@ -964,7 +1185,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         await configureInstanceWebhookAndSettings(evoUrl, newClientEvo.trim(), instanceToken);
 
                         // Salvar chave global no banco para pré-preencher sempre
-                        supabase.rpc('save_evo_global_key', { p_key: evoGlobalKey }).catch(() => {});
+                        supabase.rpc('save_evo_global_key', { p_key: evoGlobalKey }).then(() => {});
                     }
                 } else {
                     const errBody = await evoRes.text();
@@ -1095,6 +1316,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             fetchPromptHistory();
         } else if (activeSubTab === 'followup') {
             fetchFollowupConfig();
+            fetchFollowupSteps();
         } else if (activeSubTab === 'videos') {
             fetchVideos();
         } else if (activeSubTab === 'quickmessages') {
@@ -1607,97 +1829,443 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
                         </div>
 
-                        {/* SEÇÃO 2: Follow-up Automático */}
+                        {/* SEÇÃO 2: Follow-up Automático — Step Builder */}
                         <div className="glass-card" style={{ padding: '2rem' }}>
-                            <div style={{ marginBottom: '2rem' }}>
-                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Follow-up Automático</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Configure as mensagens automáticas de cobrança quando o lead não responde.</p>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Intervalos (em minutos)</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>1ª Cobrança (Minutos)</span>
-                                        <input
-                                            type="number"
-                                            value={followupConfig.interval_1}
-                                            onChange={(e) => setFollowupConfig({ ...followupConfig, interval_1: parseInt(e.target.value) })}
-                                            style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', textAlign: 'center' }}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>2ª Cobrança (Minutos)</span>
-                                        <input
-                                            type="number"
-                                            value={followupConfig.interval_2}
-                                            onChange={(e) => setFollowupConfig({ ...followupConfig, interval_2: parseInt(e.target.value) })}
-                                            style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', textAlign: 'center' }}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>3ª Cobrança (Minutos)</span>
-                                        <input
-                                            type="number"
-                                            value={followupConfig.interval_3}
-                                            onChange={(e) => setFollowupConfig({ ...followupConfig, interval_3: parseInt(e.target.value) })}
-                                            style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', textAlign: 'center' }}
-                                        />
-                                    </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Follow-up Automático</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                        Configure até 15 etapas de follow-up com texto, áudio, vídeo e imagem. O lead para de receber se responder.
+                                    </p>
                                 </div>
+                                {followupSteps.length < 15 && (
+                                    <button
+                                        onClick={addFollowupStep}
+                                        style={{
+                                            padding: '10px 16px', borderRadius: '10px', border: 'none',
+                                            background: 'var(--accent)', color: 'white', fontWeight: '700',
+                                            fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        <Plus size={16} /> Adicionar Etapa
+                                    </button>
+                                )}
                             </div>
 
-                            {/* Mensagens */}
-                            <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-soft)', paddingTop: '2rem' }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginBottom: '1.5rem' }}>Mensagens de Follow-up</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                    {[
-                                        { key: 'msg_1', label: '1ª Mensagem (quando não responde pela 1ª vez)' },
-                                        { key: 'msg_2', label: '2ª Mensagem (quando continua sem responder)' },
-                                        { key: 'msg_3', label: '3ª Mensagem (último follow-up)' }
-                                    ].map(({ key, label }) => (
-                                        <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</label>
-                                            <textarea
-                                                value={followupConfig[key] || ''}
-                                                onChange={(e) => setFollowupConfig({ ...followupConfig, [key]: e.target.value })}
-                                                rows={3}
-                                                style={{
-                                                    padding: '10px 14px',
-                                                    borderRadius: '10px',
-                                                    border: '1px solid var(--border-soft)',
-                                                    backgroundColor: '#f8fafc',
-                                                    fontSize: '0.9rem',
-                                                    lineHeight: '1.5',
-                                                    fontFamily: 'inherit',
-                                                    resize: 'vertical',
-                                                    outline: 'none'
-                                                }}
-                                            />
-                                        </div>
+                            {isLoadingSteps ? (
+                                <div style={{ padding: '3rem', textAlign: 'center' }}><Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
+                            ) : followupSteps.length === 0 ? (
+                                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    <p style={{ marginBottom: '1rem' }}>Nenhuma etapa configurada.</p>
+                                    <button onClick={addFollowupStep} style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: 'white', fontWeight: '700', cursor: 'pointer' }}>
+                                        Criar Primeira Etapa
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {followupSteps.map((step, stepIdx) => {
+                                        const isExpanded = expandedStep === step.step_number;
+                                        return (
+                                            <div key={step.id || stepIdx} style={{
+                                                border: '1px solid', borderColor: isExpanded ? 'var(--accent)' : 'var(--border-soft)',
+                                                borderRadius: '14px', overflow: 'hidden', transition: 'all 0.25s ease',
+                                                background: isExpanded ? '#fafbff' : 'white'
+                                            }}>
+                                                {/* Header da Etapa (sempre visível) */}
+                                                <div
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 18px',
+                                                        cursor: 'pointer', userSelect: 'none'
+                                                    }}
+                                                    onClick={() => setExpandedStep(isExpanded ? null : step.step_number)}
+                                                >
+                                                    {isExpanded ? <ChevronDown size={18} style={{ color: 'var(--accent)' }} /> : <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />}
+
+                                                    <span style={{
+                                                        fontSize: '0.9rem', fontWeight: '800',
+                                                        color: isExpanded ? 'var(--accent)' : 'var(--text-primary)',
+                                                        minWidth: '70px'
+                                                    }}>
+                                                        Etapa {step.step_number}
+                                                    </span>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }} onClick={e => e.stopPropagation()}>
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>Após</span>
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            max={365}
+                                                            value={step.delay_days}
+                                                            onChange={(e) => {
+                                                                const updated = [...followupSteps];
+                                                                updated[stepIdx].delay_days = Math.max(0, parseInt(e.target.value) || 0);
+                                                                setFollowupSteps(updated);
+                                                            }}
+                                                            style={{
+                                                                width: '55px', padding: '5px 8px', borderRadius: '8px',
+                                                                border: '1px solid var(--border-soft)', textAlign: 'center',
+                                                                fontSize: '0.8rem', fontWeight: '700'
+                                                            }}
+                                                        />
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                                            {step.delay_days === 1 ? 'dia' : 'dias'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: '20px', backgroundColor: '#f1f5f9' }}>
+                                                            {step.messages.length} msg{step.messages.length !== 1 ? 's' : ''}
+                                                        </span>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={e => e.stopPropagation()}>
+                                                        {/* Toggle ativo */}
+                                                        <button
+                                                            onClick={() => {
+                                                                const updated = [...followupSteps];
+                                                                updated[stepIdx].active = !updated[stepIdx].active;
+                                                                setFollowupSteps(updated);
+                                                            }}
+                                                            title={step.active ? 'Ativo' : 'Inativo'}
+                                                            style={{
+                                                                background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
+                                                                color: step.active ? '#10b981' : '#94a3b8'
+                                                            }}
+                                                        >
+                                                            {step.active ? <Power size={16} /> : <PowerOff size={16} />}
+                                                        </button>
+
+                                                        {/* Excluir */}
+                                                        <button
+                                                            onClick={() => removeFollowupStep(stepIdx)}
+                                                            title="Excluir etapa"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#ef4444' }}
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Conteúdo expandido */}
+                                                {isExpanded && (
+                                                    <div style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid var(--border-soft)' }}>
+                                                        {step.messages.map((msg, msgIdx) => (
+                                                            <div key={msgIdx} style={{
+                                                                marginTop: msgIdx === 0 ? '14px' : 0,
+                                                                padding: '14px', borderRadius: '12px',
+                                                                backgroundColor: 'white', border: '1px solid var(--border-soft)',
+                                                                position: 'relative'
+                                                            }}>
+                                                                {/* Header da mensagem */}
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                                    <span style={{
+                                                                        fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase',
+                                                                        color: msg.message_type === 'text' ? 'var(--accent)' :
+                                                                               msg.message_type === 'audio' ? '#f59e0b' :
+                                                                               msg.message_type === 'video' ? '#ef4444' : '#10b981',
+                                                                        padding: '3px 8px', borderRadius: '6px',
+                                                                        backgroundColor: msg.message_type === 'text' ? 'var(--accent-soft)' :
+                                                                                         msg.message_type === 'audio' ? '#fef3c7' :
+                                                                                         msg.message_type === 'video' ? '#fef2f2' : '#f0fdf4'
+                                                                    }}>
+                                                                        {msg.message_type === 'text' && '📝 Texto'}
+                                                                        {msg.message_type === 'audio' && '🎙 Áudio PTT'}
+                                                                        {msg.message_type === 'video' && '🎬 Vídeo'}
+                                                                        {msg.message_type === 'image' && '🖼 Imagem'}
+                                                                    </span>
+                                                                    <span style={{ flex: 1 }} />
+                                                                    {step.messages.length > 1 && (
+                                                                        <button
+                                                                            onClick={() => removeFollowupMessage(stepIdx, msgIdx)}
+                                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px' }}
+                                                                            title="Remover mensagem"
+                                                                        >
+                                                                            <X size={14} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Corpo: TEXTO */}
+                                                                {msg.message_type === 'text' && (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                        <textarea
+                                                                            value={msg.text_content || ''}
+                                                                            onChange={(e) => updateFollowupMessage(stepIdx, msgIdx, 'text_content', e.target.value)}
+                                                                            rows={3}
+                                                                            placeholder="Digite a mensagem de follow-up..."
+                                                                            style={{
+                                                                                padding: '10px 14px', borderRadius: '10px',
+                                                                                border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc',
+                                                                                fontSize: '0.85rem', lineHeight: '1.5',
+                                                                                fontFamily: 'inherit', resize: 'vertical', outline: 'none'
+                                                                            }}
+                                                                        />
+                                                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                                            {FOLLOWUP_VARIABLES.map(v => (
+                                                                                <button
+                                                                                    key={v.token}
+                                                                                    onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
+                                                                                    style={{
+                                                                                        padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem',
+                                                                                        border: '1px solid var(--border-soft)', background: '#f8fafc',
+                                                                                        color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600'
+                                                                                    }}
+                                                                                >
+                                                                                    + {v.label}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Corpo: ÁUDIO */}
+                                                                {msg.message_type === 'audio' && (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                                        {msg.media_url ? (
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '10px', backgroundColor: '#fef3c7' }}>
+                                                                                <audio controls src={msg.media_url} style={{ flex: 1, height: '36px' }} />
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        const updated = [...followupSteps];
+                                                                                        updated[stepIdx].messages[msgIdx] = { ...msg, media_url: undefined, media_name: undefined, media_mime: undefined };
+                                                                                        setFollowupSteps(updated);
+                                                                                    }}
+                                                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
+                                                                                >
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div>
+                                                                                <input
+                                                                                    type="file"
+                                                                                    accept="audio/*"
+                                                                                    ref={el => { followupMediaRefs.current[`${stepIdx}_${msgIdx}`] = el; }}
+                                                                                    style={{ display: 'none' }}
+                                                                                    onChange={(e) => {
+                                                                                        const f = e.target.files?.[0];
+                                                                                        if (f) handleFollowupMediaUpload(f, stepIdx, msgIdx);
+                                                                                    }}
+                                                                                />
+                                                                                <button
+                                                                                    onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
+                                                                                    disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
+                                                                                    style={{
+                                                                                        padding: '10px 16px', borderRadius: '10px',
+                                                                                        border: '1px dashed var(--border-soft)', background: '#fffbeb',
+                                                                                        color: '#b45309', fontWeight: '600', fontSize: '0.8rem',
+                                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+                                                                                    }}
+                                                                                >
+                                                                                    {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
+                                                                                    Enviar Áudio (.ogg, .mp3)
+                                                                                </button>
+                                                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                                                                                    Será enviado como mensagem de voz (PTT) no WhatsApp. Grave um áudio natural como se fosse na hora.
+                                                                                </p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Corpo: IMAGEM */}
+                                                                {msg.message_type === 'image' && (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                                        {msg.media_url ? (
+                                                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                                                                <img src={msg.media_url} alt="Preview" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
+                                                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{msg.media_name}</span>
+                                                                                    <textarea
+                                                                                        value={msg.caption || ''}
+                                                                                        onChange={(e) => updateFollowupMessage(stepIdx, msgIdx, 'caption', e.target.value)}
+                                                                                        rows={2}
+                                                                                        placeholder="Legenda (opcional)..."
+                                                                                        style={{
+                                                                                            padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)',
+                                                                                            backgroundColor: '#f8fafc', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
+                                                                                        }}
+                                                                                    />
+                                                                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                                                        {FOLLOWUP_VARIABLES.map(v => (
+                                                                                            <button key={v.token} onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
+                                                                                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
+                                                                                                + {v.label}
+                                                                                            </button>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <button onClick={() => {
+                                                                                    const updated = [...followupSteps];
+                                                                                    updated[stepIdx].messages[msgIdx] = { ...msg, media_url: undefined, media_name: undefined, media_mime: undefined };
+                                                                                    setFollowupSteps(updated);
+                                                                                }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}>
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div>
+                                                                                <input type="file" accept="image/*"
+                                                                                    ref={el => { followupMediaRefs.current[`${stepIdx}_${msgIdx}`] = el; }}
+                                                                                    style={{ display: 'none' }}
+                                                                                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFollowupMediaUpload(f, stepIdx, msgIdx); }}
+                                                                                />
+                                                                                <button
+                                                                                    onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
+                                                                                    disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
+                                                                                    style={{
+                                                                                        padding: '10px 16px', borderRadius: '10px',
+                                                                                        border: '1px dashed var(--border-soft)', background: '#f0fdf4',
+                                                                                        color: '#065f46', fontWeight: '600', fontSize: '0.8rem',
+                                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+                                                                                    }}
+                                                                                >
+                                                                                    {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                                                                                    Enviar Imagem
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Corpo: VÍDEO */}
+                                                                {msg.message_type === 'video' && (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                                        {msg.media_url ? (
+                                                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                                                                <video src={msg.media_url} style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border-soft)' }} controls />
+                                                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{msg.media_name}</span>
+                                                                                    <textarea
+                                                                                        value={msg.caption || ''}
+                                                                                        onChange={(e) => updateFollowupMessage(stepIdx, msgIdx, 'caption', e.target.value)}
+                                                                                        rows={2}
+                                                                                        placeholder="Legenda (opcional)..."
+                                                                                        style={{
+                                                                                            padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)',
+                                                                                            backgroundColor: '#f8fafc', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
+                                                                                        }}
+                                                                                    />
+                                                                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                                                        {FOLLOWUP_VARIABLES.map(v => (
+                                                                                            <button key={v.token} onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
+                                                                                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
+                                                                                                + {v.label}
+                                                                                            </button>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <button onClick={() => {
+                                                                                    const updated = [...followupSteps];
+                                                                                    updated[stepIdx].messages[msgIdx] = { ...msg, media_url: undefined, media_name: undefined, media_mime: undefined };
+                                                                                    setFollowupSteps(updated);
+                                                                                }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}>
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div>
+                                                                                <input type="file" accept="video/*"
+                                                                                    ref={el => { followupMediaRefs.current[`${stepIdx}_${msgIdx}`] = el; }}
+                                                                                    style={{ display: 'none' }}
+                                                                                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFollowupMediaUpload(f, stepIdx, msgIdx); }}
+                                                                                />
+                                                                                <button
+                                                                                    onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
+                                                                                    disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
+                                                                                    style={{
+                                                                                        padding: '10px 16px', borderRadius: '10px',
+                                                                                        border: '1px dashed var(--border-soft)', background: '#fef2f2',
+                                                                                        color: '#b91c1c', fontWeight: '600', fontSize: '0.8rem',
+                                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+                                                                                    }}
+                                                                                >
+                                                                                    {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
+                                                                                    Enviar Vídeo
+                                                                                </button>
+                                                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>Máximo 16MB (limite do WhatsApp)</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+
+                                                        {/* Botão adicionar mensagem */}
+                                                        <div style={{ position: 'relative', marginTop: '4px' }}>
+                                                            <button
+                                                                onClick={() => setShowMsgTypeMenu(showMsgTypeMenu === stepIdx ? null : stepIdx)}
+                                                                style={{
+                                                                    padding: '8px 14px', borderRadius: '10px',
+                                                                    border: '1px dashed var(--accent)', background: 'transparent',
+                                                                    color: 'var(--accent)', fontWeight: '700', fontSize: '0.8rem',
+                                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                                                }}
+                                                            >
+                                                                <Plus size={14} /> Adicionar Mensagem
+                                                            </button>
+                                                            {showMsgTypeMenu === stepIdx && (
+                                                                <div style={{
+                                                                    position: 'absolute', top: '100%', left: 0, marginTop: '4px',
+                                                                    background: 'white', borderRadius: '10px', border: '1px solid var(--border-soft)',
+                                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, overflow: 'hidden', minWidth: '180px'
+                                                                }}>
+                                                                    {[
+                                                                        { type: 'text' as const, icon: <Type size={16} />, label: 'Texto', color: 'var(--accent)' },
+                                                                        { type: 'audio' as const, icon: <Mic size={16} />, label: 'Áudio (PTT)', color: '#f59e0b' },
+                                                                        { type: 'image' as const, icon: <ImageIcon size={16} />, label: 'Imagem', color: '#10b981' },
+                                                                        { type: 'video' as const, icon: <Video size={16} />, label: 'Vídeo', color: '#ef4444' },
+                                                                    ].map(opt => (
+                                                                        <button
+                                                                            key={opt.type}
+                                                                            onClick={() => addFollowupMessage(stepIdx, opt.type)}
+                                                                            style={{
+                                                                                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
+                                                                                padding: '10px 14px', border: 'none', background: 'transparent',
+                                                                                cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: opt.color,
+                                                                                textAlign: 'left'
+                                                                            }}
+                                                                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                                                                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                                        >
+                                                                            {opt.icon} {opt.label}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Variáveis disponíveis */}
+                            <div style={{ marginTop: '1.5rem', padding: '12px 16px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)' }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Variáveis disponíveis nas mensagens:</span>
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                    {FOLLOWUP_VARIABLES.map(v => (
+                                        <span key={v.token} style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '6px', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: '700', fontFamily: 'monospace' }}>
+                                            {v.token}
+                                        </span>
                                     ))}
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '2.5rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
+                            {/* Botão Salvar */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '2rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
                                 {followupSuccess && (
-                                    <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Configurações salvas!</span>
+                                    <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>Configurações salvas!</span>
                                 )}
                                 <button
-                                    onClick={handleSaveFollowup}
+                                    onClick={async () => { await handleSaveFollowup(); await handleSaveFollowupSteps(); }}
                                     disabled={isSavingFollowup}
                                     style={{
-                                        padding: '12px 24px',
-                                        borderRadius: '12px',
-                                        border: 'none',
-                                        background: 'var(--accent)',
-                                        color: 'white',
-                                        fontWeight: '700',
-                                        fontSize: '0.9rem',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px'
+                                        padding: '12px 24px', borderRadius: '12px', border: 'none',
+                                        background: 'var(--accent)', color: 'white', fontWeight: '700',
+                                        fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
                                     }}
                                 >
                                     {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
