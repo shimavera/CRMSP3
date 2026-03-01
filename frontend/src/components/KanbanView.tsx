@@ -160,6 +160,11 @@ const LeadCard = (props: {
                         {lead.followup_stage >= 3 ? '🚨' : '⏱'} {lead.followup_stage}º Follow-up
                     </span>
                 )}
+                {lead.followup_locked && (
+                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '800' }}>
+                        🔒 F.UP Travado
+                    </span>
+                )}
                 {lead.meeting_status === 'scheduled' && (
                     <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#b45309', fontWeight: '600' }}>
                         📅 Reunião marcada
