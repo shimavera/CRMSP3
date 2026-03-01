@@ -146,6 +146,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [newClientEmail, setNewClientEmail] = useState('');
     const [newClientPassword, setNewClientPassword] = useState('');
     const [newClientEvo, setNewClientEvo] = useState('');
+    const [newClientEvoKey, setNewClientEvoKey] = useState('');
     const [showCreateClient, setShowCreateClient] = useState(false);
     const [isCreatingClient, setIsCreatingClient] = useState(false);
     const [createClientError, setCreateClientError] = useState<string | null>(null);
@@ -154,6 +155,32 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [editClientName, setEditClientName] = useState('');
     const [editClientEvo, setEditClientEvo] = useState('');
     const [togglingClientId, setTogglingClientId] = useState<string | null>(null);
+
+    // --- DIALOG MODAL STATE ---
+    const [dialog, setDialog] = useState<{
+        type: 'alert' | 'confirm' | 'prompt';
+        title: string;
+        message: string;
+        placeholder?: string;
+        onConfirm: (val?: string) => void;
+        onCancel: () => void;
+    } | null>(null);
+
+    const [promptInput, setPromptInput] = useState('');
+
+    const showAlert = (message: string) => new Promise<void>((resolve) => {
+        setDialog({ type: 'alert', title: 'Aviso', message, onConfirm: () => { setDialog(null); resolve(); }, onCancel: () => { setDialog(null); resolve(); } });
+    });
+
+    const showConfirm = (message: string) => new Promise<boolean>((resolve) => {
+        setDialog({ type: 'confirm', title: 'Confirmação', message, onConfirm: () => { setDialog(null); resolve(true); }, onCancel: () => { setDialog(null); resolve(false); } });
+    });
+
+    const showPrompt = (message: string, placeholder?: string) => new Promise<string | null>((resolve) => {
+        setPromptInput('');
+        setDialog({ type: 'prompt', title: 'Confirmação Exigida', message, placeholder, onConfirm: (val) => { setDialog(null); resolve(val || null); }, onCancel: () => { setDialog(null); resolve(null); } });
+    });
+
 
     const fetchFollowupConfig = async () => {
         try {
@@ -211,7 +238,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             setTimeout(() => setFollowupSuccess(false), 3000);
         } catch (err: any) {
             console.error('Erro ao salvar follow-up:', err);
-            alert(`Erro ao salvar: ${err.message || 'Verifique se a tabela sp3_followup_settings existe e tem as colunas corretas.'}`);
+            await showAlert(`Erro ao salvar: ${err.message || 'Verifique se a tabela sp3_followup_settings existe e tem as colunas corretas.'}`);
         } finally {
             setIsSavingFollowup(false);
         }
@@ -267,7 +294,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             if (videoFileRef.current) videoFileRef.current.value = '';
             await fetchVideos();
         } catch (err: any) {
-            alert('Erro ao fazer upload: ' + err.message);
+            await showAlert('Erro ao fazer upload: ' + err.message);
         } finally {
             setIsUploadingVideo(false);
         }
@@ -278,18 +305,18 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             .from('sp3_social_proof_videos')
             .update({ active: !video.active })
             .eq('id', video.id);
-        if (error) alert('Erro: ' + error.message);
+        if (error) { await showAlert('Erro: ' + error.message); }
         else setVideos(prev => prev.map(v => v.id === video.id ? { ...v, active: !v.active } : v));
     };
 
     const handleDeleteVideo = async (video: SocialProofVideo) => {
-        if (!window.confirm(`Excluir o vídeo "${video.titulo}"?`)) return;
+        if (!await showConfirm(`Excluir o vídeo "${video.titulo}"?`)) return;
         // Extrair nome do arquivo da URL
         const urlParts = video.url.split('/');
         const fileName = urlParts[urlParts.length - 1];
         await supabase.storage.from('social-proof-videos').remove([fileName]);
         const { error } = await supabase.from('sp3_social_proof_videos').delete().eq('id', video.id);
-        if (error) alert('Erro: ' + error.message);
+        if (error) { await showAlert('Erro: ' + error.message); }
         else setVideos(prev => prev.filter(v => v.id !== video.id));
     };
 
@@ -325,16 +352,16 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             setShowAddQuickMessage(false);
             await fetchQuickMessages();
         } catch (err: any) {
-            alert('Erro ao salvar mensagem rápida: ' + err.message);
+            await showAlert('Erro ao salvar mensagem rápida: ' + err.message);
         } finally {
             setIsSavingQuickMessage(false);
         }
     };
 
     const handleDeleteQuickMessage = async (msgId: string) => {
-        if (!window.confirm('Excluir esta mensagem rápida?')) return;
+        if (!await showConfirm('Excluir esta mensagem rápida?')) return;
         const { error } = await supabase.from('sp3_quick_messages').delete().eq('id', msgId);
-        if (error) alert('Erro: ' + error.message);
+        if (error) { await showAlert('Erro: ' + error.message); }
         else setQuickMessages(prev => prev.filter(m => m.id !== msgId));
     };
 
@@ -395,14 +422,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             setTimeout(() => setSaveSuccess(false), 3000);
         } catch (err) {
             console.error('Erro ao salvar prompt:', err);
-            alert('Erro ao salvar no banco. Verifique se criou a tabela sp3_prompts via SQL no Supabase.');
+            await showAlert('Erro ao salvar no banco. Verifique se criou a tabela sp3_prompts via SQL no Supabase.');
         } finally {
             setIsSavingPrompt(false);
         }
     };
 
-    const handleRestoreVersion = (content: string) => {
-        if (window.confirm('Deseja carregar esta versão no editor? (Você precisará clicar em Salvar para ativá-la como a principal)')) {
+    const handleRestoreVersion = async (content: string) => {
+        if (await showConfirm('Deseja carregar esta versão no editor? (Você precisará clicar em Salvar para ativá-la como a principal)')) {
             const parsed = parsePromptData(content);
             setAiPrompt(parsed.basePrompt);
             setAiEquipe(parsed.equipe);
@@ -600,7 +627,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     const handleLogout = async () => {
         if (!activeInstance) return;
-        if (!window.confirm('Deseja realmente desconectar o WhatsApp?')) return;
+        if (!await showConfirm('Deseja realmente desconectar o WhatsApp?')) return;
 
         try {
             await fetch(
@@ -677,10 +704,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     const handleDeleteInstance = async (instance: Instance) => {
         if (instance.is_active) {
-            alert('Nao e possivel excluir a instancia ativa. Ative outra instancia primeiro.');
+            await showAlert('Nao e possivel excluir a instancia ativa. Ative outra instancia primeiro.');
             return;
         }
-        if (!window.confirm(`Excluir a instancia "${instance.display_name}"?`)) return;
+        if (!await showConfirm(`Excluir a instancia "${instance.display_name}"?`)) return;
 
         try {
             await supabase.from('sp3_instances').delete().eq('id', instance.id);
@@ -761,7 +788,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setCreateClientError(null);
 
         // RPC cria tudo: auth user (auto-confirmado), empresa, sp3_users, sp3_instances, followup_settings
-        const { error: rpcError } = await supabase.rpc('create_new_tenant', {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('create_new_tenant', {
             p_company_name: newClientName.trim(),
             p_evo_instance: newClientEvo.trim(),
             p_admin_email: newClientEmail.trim(),
@@ -774,17 +801,66 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             return;
         }
 
-        // Criar instância na Evolution API (best effort — pode ser criada depois via QR code)
-        try {
-            const EVO_URL = 'https://evo.sp3company.shop';
-            const EVO_KEY = 'AD0E503AFBB6-4337-B1F4-E235C7B0F95D';
-            await fetch(`${EVO_URL}/instance/create`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': EVO_KEY },
-                body: JSON.stringify({ instanceName: newClientEvo.trim(), qrcode: true, integration: 'WHATSAPP-BAILEYS' })
-            });
-        } catch (evoErr) {
-            console.warn('Evolution API instance creation (non-critical):', evoErr);
+        // Criar instância na Evolution API usando a chave global do servidor
+        // A chave global é lida da instância master (SP3) ou da configuração
+        const evoUrl = activeInstance?.evo_api_url || 'https://evo.sp3company.shop';
+        const evoGlobalKey = newClientEvoKey.trim();
+
+        if (evoGlobalKey) {
+            try {
+                const evoRes = await fetch(`${evoUrl}/instance/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'apikey': evoGlobalKey },
+                    body: JSON.stringify({
+                        instanceName: newClientEvo.trim(),
+                        qrcode: true,
+                        integration: 'WHATSAPP-BAILEYS'
+                    })
+                });
+
+                if (evoRes.ok) {
+                    const evoData = await evoRes.json();
+                    // Salvar o token da instância e configurar webhook
+                    const instanceToken = evoData?.hash || evoData?.token || evoData?.instance?.apikey || '';
+                    const companyId = rpcData?.company_id;
+
+                    if (instanceToken && companyId) {
+                        await supabase
+                            .from('sp3_instances')
+                            .update({
+                                evo_api_key: instanceToken,
+                                evo_api_url: evoUrl
+                            })
+                            .eq('company_id', companyId)
+                            .eq('instance_name', newClientEvo.trim());
+
+                        // Configurar webhook para o n8n
+                        try {
+                            await fetch(`${evoUrl}/webhook/set/${newClientEvo.trim()}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+                                body: JSON.stringify({
+                                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                                    webhookByEvents: false,
+                                    webhookBase64: false,
+                                    events: ['MESSAGES_UPSERT']
+                                })
+                            });
+                        } catch (whErr) {
+                            console.warn('Webhook config (non-critical):', whErr);
+                        }
+                    }
+                } else {
+                    const errBody = await evoRes.text();
+                    console.warn('Evolution instance creation failed:', evoRes.status, errBody);
+                    setCreateClientError('Cliente criado, mas a instância Evolution falhou. Verifique a Chave Global Evolution e tente reconectar nas configurações do cliente.');
+                }
+            } catch (evoErr) {
+                console.warn('Evolution API instance creation error:', evoErr);
+                setCreateClientError('Cliente criado, mas não foi possível conectar à Evolution API. Configure a instância manualmente.');
+            }
+        } else {
+            setCreateClientError('Cliente criado, mas a Chave Global Evolution não foi informada. A instância precisa ser criada manualmente.');
         }
 
         setCreateClientSuccess(true);
@@ -792,6 +868,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setNewClientEmail('');
         setNewClientPassword('');
         setNewClientEvo('');
+        setNewClientEvoKey('');
         setShowCreateClient(false);
         await fetchSaasClients();
         setTimeout(() => setCreateClientSuccess(false), 3000);
@@ -805,7 +882,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             p_active: !currentActive
         });
         if (error) {
-            alert('Erro ao alterar status: ' + error.message);
+            await showAlert('Erro ao alterar status: ' + error.message);
         } else {
             await fetchSaasClients();
         }
@@ -826,7 +903,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             p_evo_instance: editClientEvo.trim() || null
         });
         if (error) {
-            alert('Erro ao salvar: ' + error.message);
+            await showAlert('Erro ao salvar: ' + error.message);
         } else {
             setEditingClientId(null);
             await fetchSaasClients();
@@ -837,12 +914,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     const handleDeleteClient = async (empresa: any) => {
         const confirmText = `EXCLUIR PERMANENTEMENTE a empresa "${empresa.name}"?\n\nIsso vai remover:\n- Todos os leads e histórico de conversas\n- Todos os usuários da empresa\n- Configurações, prompts, vídeos e mensagens rápidas\n- Instâncias WhatsApp\n\nEssa ação NÃO pode ser desfeita!`;
-        if (!window.confirm(confirmText)) return;
+        if (!await showConfirm(confirmText)) return;
 
         // Segunda confirmação
-        const confirmName = window.prompt(`Para confirmar, digite o nome da empresa: "${empresa.name}"`);
+        const confirmName = await showPrompt(`Para confirmar, digite o nome da empresa: "${empresa.name}"`);
         if (confirmName !== empresa.name) {
-            alert('Nome não confere. Exclusão cancelada.');
+            await showAlert('Nome não confere. Exclusão cancelada.');
             return;
         }
 
@@ -852,26 +929,26 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 p_company_id: empresa.id
             });
             if (error) {
-                alert('Erro ao excluir: ' + error.message);
+                await showAlert('Erro ao excluir: ' + error.message);
             } else {
                 alert(`Empresa "${empresa.name}" excluída com sucesso! ${data?.deleted_users || 0} usuário(s) removido(s).`);
                 await fetchSaasClients();
             }
         } catch (e: any) {
-            alert('Erro: ' + e.message);
+            await showAlert('Erro: ' + e.message);
         }
         setDeletingClientId(null);
     };
 
     const handleDeleteUser = async (userId: string) => {
-        if (!window.confirm('Remover este usuário do sistema? Ele não conseguirá mais acessar o CRM.')) return;
+        if (!await showConfirm('Remover este usuário do sistema? Ele não conseguirá mais acessar o CRM.')) return;
         await supabase.from('sp3_users').delete().eq('id', userId);
         await fetchUsers();
     };
 
     const handleResetChats = async () => {
-        if (!window.confirm('CUIDADO: Isso irá apagar todo o histórico de conversas do sistema! Deseja realmente continuar?')) return;
-        if (!window.confirm('TEM CERTEZA ABSOLUTA? Esta ação não pode ser desfeita e irá zerar as conversas da IA.')) return;
+        if (!await showConfirm('CUIDADO: Isso irá apagar todo o histórico de conversas do sistema! Deseja realmente continuar?')) return;
+        if (!await showConfirm('TEM CERTEZA ABSOLUTA? Esta ação não pode ser desfeita e irá zerar as conversas da IA.')) return;
 
         setIsResettingChats(true);
         try {
@@ -881,10 +958,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 .eq('company_id', authUser.company_id);
 
             if (error) throw error;
-            alert('Histórico de conversas apagado com sucesso! As próximas mensagens iniciarão uma nova conversa do zero.');
+            await showAlert('Histórico de conversas apagado com sucesso! As próximas mensagens iniciarão uma nova conversa do zero.');
         } catch (err: any) {
             console.error('Erro ao limpar histórico:', err);
-            alert('Erro ao apagar histórico: ' + err.message);
+            await showAlert('Erro ao apagar histórico: ' + err.message);
         } finally {
             setIsResettingChats(false);
         }
@@ -1966,6 +2043,11 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             <input value={newClientPassword} onChange={(e) => setNewClientPassword(e.target.value)} type="text" placeholder="Senha Forte" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
                                         </div>
                                     </div>
+                                    <div style={{ marginBottom: '1rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Chave Global Evolution (AUTHENTICATION_API_KEY do servidor)</label>
+                                        <input value={newClientEvoKey} onChange={(e) => setNewClientEvoKey(e.target.value)} type="password" placeholder="Chave do servidor Evolution para criar instâncias" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontFamily: 'monospace' }} />
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Encontre em: Evolution Manager ou variáveis de ambiente do servidor. Se deixar vazio, a instância precisará ser criada manualmente.</p>
+                                    </div>
 
                                     {createClientError && <p style={{ color: '#b91c1c', fontSize: '0.85rem', marginBottom: '1rem' }}>{createClientError}</p>}
                                     {createClientSuccess && <p style={{ color: '#15803d', fontSize: '0.85rem', marginBottom: '1rem', background: '#dcfce7', padding: '8px', borderRadius: '8px' }}>Cliente criado com sucesso! O acesso mestre dele já está liberado.</p>}
@@ -2062,8 +2144,47 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     </div>
                 )}
             </div>
+
+            {dialog && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
+                        <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+
+                        {dialog.type === 'prompt' && (
+                            <input
+                                type="text"
+                                autoFocus
+                                value={promptInput}
+                                onChange={(e) => setPromptInput(e.target.value)}
+                                placeholder={dialog.placeholder || 'Digite...'}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #d1d5db', marginBottom: '20px', fontSize: '0.95rem', outline: 'none' }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') dialog.onConfirm(promptInput); }}
+                            />
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            {dialog.type !== 'alert' && (
+                                <button
+                                    onClick={dialog.onCancel}
+                                    style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                            <button
+                                onClick={() => dialog.onConfirm(promptInput)}
+                                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
+
 };
 
 export default SettingsView;
