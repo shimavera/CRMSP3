@@ -153,6 +153,9 @@ const LoginView = () => {
                 <p style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Acesso restrito a usuários autorizados
                 </p>
+                <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.65rem', color: '#cbd5e1', fontWeight: '600' }}>
+                    V12 - 01/03 - 18:32
+                </p>
             </div>
         </div>
     );

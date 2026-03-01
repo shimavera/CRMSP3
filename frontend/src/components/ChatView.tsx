@@ -91,7 +91,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const handleUpdateCustomField = async (key: string, value: string) => {
         if (!selectedLead) return;
-        const newCustomFields = { ...(selectedLead.custom_fields || {}), [key]: value };
+
+        let finalValue = value;
+        // Se for campo de valor, remove caracteres não numéricos mas mantém o ponto decimal se houver
+        if (key === 'proposta_valor') {
+            finalValue = value.replace(/[^\d.]/g, '');
+        }
+
+        const newCustomFields = { ...(selectedLead.custom_fields || {}), [key]: finalValue };
         const updatedLead = { ...selectedLead, custom_fields: newCustomFields };
         setSelectedLead(updatedLead);
         setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
@@ -127,6 +134,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
         await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
     };
+
+    const [isSarahThinking, setIsSarahThinking] = useState(false);
 
     // Instância WhatsApp ativa
     const [evoInstance, setEvoInstance] = useState<{ evo_api_url: string; evo_api_key: string; instance_name: string } | null>(null);
@@ -543,6 +552,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     session_id: selectedLead.telefone,
                     message: JSON.stringify({ type: 'ai', content: messageToSend, sender: authUser.nome, sentByCRM: true })
                 }]);
+
+            // Exibir Sarah pensando brevemente para feedback visual se a IA estiver ativa
+            if (selectedLead.ia_active) {
+                setIsSarahThinking(true);
+                setTimeout(() => setIsSarahThinking(false), 3000);
+            }
 
             fetchMessages();
         } catch (err: any) {
@@ -974,6 +989,24 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     </div>
                                 )
                             ))}
+
+                            {isSarahThinking && (
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-end',
+                                    gap: '2px',
+                                    marginBottom: '4px',
+                                    animation: 'fadeIn 0.3s ease-out'
+                                }}>
+                                    <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingRight: '4px' }}>Sarah IA</div>
+                                    <div className="sarah-thinking">
+                                        <div className="dot"></div>
+                                        <div className="dot"></div>
+                                        <div className="dot"></div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {(() => {
@@ -1365,17 +1398,17 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
                         <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
                         <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
-                        
+
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                             {dialog.type !== 'alert' && (
-                                <button 
+                                <button
                                     onClick={dialog.onCancel}
                                     style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
                                 >
                                     Cancelar
                                 </button>
                             )}
-                            <button 
+                            <button
                                 onClick={() => dialog.onConfirm()}
                                 style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
                             >

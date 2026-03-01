@@ -66,6 +66,36 @@ function App() {
   const [isAddingLead, setIsAddingLead] = useState(false);
   const [addLeadError, setAddLeadError] = useState<string | null>(null);
   const [editingLeadId, setEditingLeadId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredLeads = leads.filter(l =>
+  (l.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    l.telefone.includes(searchTerm))
+  );
+
+  const handleExportLeads = () => {
+    const headers = ['ID', 'Nome', 'Telefone', 'Email', 'Status', 'Forecast', 'Criado Em'];
+    const rows = filteredLeads.map(l => [
+      l.id,
+      l.nome || 'N/A',
+      l.telefone,
+      (l.custom_fields as any)?.email || 'N/A',
+      l.status || 'Novo',
+      (l.custom_fields as any)?.proposta_valor || 0,
+      l.created_at
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(';')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'leads_crm_sp3.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   const [dialog, setDialog] = useState<{
     type: 'alert' | 'confirm' | 'prompt';
     title: string;
@@ -313,6 +343,10 @@ function App() {
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>{authUser.role === 'master' ? '⭐ Administrador Master' : 'Operador'}</div>
           </div>
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
+
+          <div style={{ textAlign: 'center', marginTop: '1rem', opacity: 0.5, fontSize: '0.65rem', fontWeight: 'bold' }}>
+            V12 - 01/03 - 18:32
+          </div>
         </div>
       </aside>
 
@@ -321,11 +355,12 @@ function App() {
           <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
-                className="desktop-menu-toggle"
+                className="desktop-only"
                 onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '6px', borderRadius: '8px', alignItems: 'center', display: 'none' }}
+                style={{ background: 'var(--accent-soft)', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                title={desktopSidebarOpen ? "Ocultar Menu" : "Mostrar Menu"}
               >
-                <Menu size={26} />
+                <Menu size={22} />
               </button>
               <button
                 className="mobile-only"
@@ -344,6 +379,12 @@ function App() {
 
             <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
               <button
+                onClick={handleExportLeads}
+                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                📥 Exportar
+              </button>
+              <button
                 onClick={fetchLeads}
                 style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
               >
@@ -351,7 +392,12 @@ function App() {
               </button>
               <div className="search-bar">
                 <Search size={18} color="var(--text-muted)" />
-                <input type="text" placeholder="Buscar..." />
+                <input
+                  type="text"
+                  placeholder="Buscar Lead..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
             </div>
           </header>
@@ -459,10 +505,10 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {leads.length === 0 ? (
-                      <tr><td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum lead cadastrado. Clique em "Adicionar Lead" para começar.</td></tr>
+                    {filteredLeads.length === 0 ? (
+                      <tr><td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum lead encontrado.</td></tr>
                     ) : (
-                      leads.map(lead => (
+                      filteredLeads.map(lead => (
                         <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-soft)', transition: 'background 0.15s' }}
                           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
@@ -538,17 +584,17 @@ function App() {
           <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
             <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
-            
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               {dialog.type !== 'alert' && (
-                <button 
+                <button
                   onClick={dialog.onCancel}
                   style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
                 >
                   Cancelar
                 </button>
               )}
-              <button 
+              <button
                 onClick={() => dialog.onConfirm()}
                 style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
               >

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, GripVertical, Play, Pause } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, Activity } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance, FollowupStep, FollowupStepMessage } from '../lib/supabase';
 
@@ -20,7 +20,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'profile' | 'usuarios' | 'dados' | 'clientes'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs'>('whatsapp');
 
     // Estados de Instâncias WhatsApp
     const [instances, setInstances] = useState<Instance[]>([]);
@@ -1185,7 +1185,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         await configureInstanceWebhookAndSettings(evoUrl, newClientEvo.trim(), instanceToken);
 
                         // Salvar chave global no banco para pré-preencher sempre
-                        supabase.rpc('save_evo_global_key', { p_key: evoGlobalKey }).then(() => {});
+                        supabase.rpc('save_evo_global_key', { p_key: evoGlobalKey }).then(() => { });
                     }
                 } else {
                     const errBody = await evoRes.text();
@@ -1386,6 +1386,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'clientes' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'clientes' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'clientes' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                         >
                             <Building2 size={18} /> Franquias / Clientes
+                        </button>
+                    )}
+                    {authUser.role === 'master' && (
+                        <button
+                            onClick={() => setActiveSubTab('logs')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'logs' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'logs' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'logs' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        >
+                            <Activity size={18} /> Logs do Webhook
                         </button>
                     )}
                     {authUser.role === 'master' && (
@@ -1961,12 +1969,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                     <span style={{
                                                                         fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase',
                                                                         color: msg.message_type === 'text' ? 'var(--accent)' :
-                                                                               msg.message_type === 'audio' ? '#f59e0b' :
-                                                                               msg.message_type === 'video' ? '#ef4444' : '#10b981',
+                                                                            msg.message_type === 'audio' ? '#f59e0b' :
+                                                                                msg.message_type === 'video' ? '#ef4444' : '#10b981',
                                                                         padding: '3px 8px', borderRadius: '6px',
                                                                         backgroundColor: msg.message_type === 'text' ? 'var(--accent-soft)' :
-                                                                                         msg.message_type === 'audio' ? '#fef3c7' :
-                                                                                         msg.message_type === 'video' ? '#fef2f2' : '#f0fdf4'
+                                                                            msg.message_type === 'audio' ? '#fef3c7' :
+                                                                                msg.message_type === 'video' ? '#fef2f2' : '#f0fdf4'
                                                                     }}>
                                                                         {msg.message_type === 'text' && '📝 Texto'}
                                                                         {msg.message_type === 'audio' && '🎙 Áudio PTT'}
@@ -2882,9 +2890,24 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     </div>
                 </div>
             )}
+            {activeSubTab === 'logs' && (
+                <div className="glass-card" style={{ padding: '2rem' }}>
+                    <div style={{ marginBottom: '2rem' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '4px' }}>Logs de Execução (Webhook)</h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Monitore as comunicações entre o N8N e a Evolution API.</p>
+                    </div>
+
+                    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
+                        <div style={{ marginBottom: '1rem', color: 'var(--accent)' }}><Activity size={48} /></div>
+                        <h4 style={{ fontWeight: '700', marginBottom: '8px' }}>Monitoramento em Tempo Real</h4>
+                        <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: '400px', margin: '0 auto' }}>
+                            A tabela de logs do sistema está sendo inicializada. Uma vez ativa, você verá aqui falhas de entrega, payloads e erros de processamento da IA.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
-
 };
 
 export default SettingsView;
