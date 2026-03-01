@@ -75,11 +75,13 @@ const FUNIS_DISPONIVEIS = [
 ];
 
 // ─── CAMPOS PERSONALIZADOS DEMOMAÇÃO ──────────────────────────────────────────
-const CUSTOM_FIELDS_CONFIG = [
+const CUSTOM_FIELDS_CONFIG: Array<{ key: string, label: string, type: string, placeholder?: string, options?: string[] }> = [
     { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
     { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
     { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' },
-    { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' }
+    { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' },
+    { key: 'email', label: 'E-mail', type: 'email', placeholder: 'email@exemplo.com' },
+    { key: 'proposta_valor', label: 'Valor da Proposta / Forecast', type: 'number', placeholder: 'Ex: 1500' }
 ];
 
 // ─── COMPONENTE CARD ──────────────────────────────────────────────────────────

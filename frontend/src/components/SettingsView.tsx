@@ -146,7 +146,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [newClientEmail, setNewClientEmail] = useState('');
     const [newClientPassword, setNewClientPassword] = useState('');
     const [newClientEvo, setNewClientEvo] = useState('');
-    const [newClientEvoKey, setNewClientEvoKey] = useState('');
+    const [newClientEvoKey, setNewClientEvoKey] = useState(() => {
+        try { return localStorage.getItem('sp3_evo_global_key') || ''; } catch { return ''; }
+    });
     const [showCreateClient, setShowCreateClient] = useState(false);
     const [isCreatingClient, setIsCreatingClient] = useState(false);
     const [createClientError, setCreateClientError] = useState<string | null>(null);
@@ -507,6 +509,43 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
+    const configureInstanceWebhookAndSettings = async (apiUrl: string, instanceName: string, apiKey: string) => {
+        // Configurar webhook para o n8n
+        try {
+            await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+                body: JSON.stringify({
+                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                    webhookByEvents: false,
+                    webhookBase64: true,
+                    events: ['MESSAGES_UPSERT']
+                })
+            });
+        } catch (whErr) {
+            console.warn('Webhook config (non-critical):', whErr);
+        }
+
+        // Configurar settings da instância (base64 para mídia)
+        try {
+            await fetch(`${apiUrl}/settings/set/${instanceName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+                body: JSON.stringify({
+                    rejectCall: true,
+                    msgCall: 'Não posso atender ligações. Por favor, envie uma mensagem de texto.',
+                    groupsIgnore: true,
+                    alwaysOnline: false,
+                    readMessages: true,
+                    readStatus: false,
+                    syncFullHistory: false
+                })
+            });
+        } catch (settingsErr) {
+            console.warn('Instance settings config (non-critical):', settingsErr);
+        }
+    };
+
     const ensureInstanceExists = async (instance: Instance): Promise<boolean> => {
         try {
             // Verificar se instância já existe
@@ -539,6 +578,30 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 const errBody = await createRes.text();
                 throw new Error(`Falha ao criar instancia (${createRes.status}): ${errBody}`);
             }
+
+            // Após recriar a instância, configurar webhook e settings
+            const createData = await createRes.json();
+            const newApiKey = createData?.hash || createData?.token || createData?.instance?.apikey || instance.evo_api_key;
+
+            await configureInstanceWebhookAndSettings(instance.evo_api_url, instance.instance_name, newApiKey);
+
+            // Atualizar a API key no banco caso tenha mudado
+            if (newApiKey && newApiKey !== instance.evo_api_key) {
+                // Tentar update direto primeiro (funciona se RLS permite)
+                const { error: updateErr } = await supabase
+                    .from('sp3_instances')
+                    .update({ evo_api_key: newApiKey })
+                    .eq('id', instance.id);
+
+                // Se RLS bloqueou, usar RPC SECURITY DEFINER como fallback
+                if (updateErr) {
+                    await supabase.rpc('update_instance_evo_credentials', {
+                        p_instance_name: instance.instance_name,
+                        p_evo_api_key: newApiKey
+                    });
+                }
+            }
+
             return true;
         } catch (err: any) {
             console.error('Erro ao verificar/criar instancia:', err);
@@ -813,7 +876,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setCreateClientError(null);
 
         // RPC cria tudo: auth user (auto-confirmado), empresa, sp3_users, sp3_instances, followup_settings
-        const { data: rpcData, error: rpcError } = await supabase.rpc('create_new_tenant', {
+        const { error: rpcError } = await supabase.rpc('create_new_tenant', {
             p_company_name: newClientName.trim(),
             p_evo_instance: newClientEvo.trim(),
             p_admin_email: newClientEmail.trim(),
@@ -847,33 +910,20 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     const evoData = await evoRes.json();
                     // Salvar o token da instância e configurar webhook
                     const instanceToken = evoData?.hash || evoData?.token || evoData?.instance?.apikey || '';
-                    const companyId = rpcData?.company_id;
 
-                    if (instanceToken && companyId) {
-                        await supabase
-                            .from('sp3_instances')
-                            .update({
-                                evo_api_key: instanceToken,
-                                evo_api_url: evoUrl
-                            })
-                            .eq('company_id', companyId)
-                            .eq('instance_name', newClientEvo.trim());
+                    if (instanceToken) {
+                        // Usar RPC SECURITY DEFINER para bypassar RLS (update direto é bloqueado)
+                        await supabase.rpc('update_instance_evo_credentials', {
+                            p_instance_name: newClientEvo.trim(),
+                            p_evo_api_url: evoUrl,
+                            p_evo_api_key: instanceToken
+                        });
 
-                        // Configurar webhook para o n8n
-                        try {
-                            await fetch(`${evoUrl}/webhook/set/${newClientEvo.trim()}`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
-                                body: JSON.stringify({
-                                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
-                                    webhookByEvents: false,
-                                    webhookBase64: false,
-                                    events: ['MESSAGES_UPSERT']
-                                })
-                            });
-                        } catch (whErr) {
-                            console.warn('Webhook config (non-critical):', whErr);
-                        }
+                        // Configurar webhook e settings da instância
+                        await configureInstanceWebhookAndSettings(evoUrl, newClientEvo.trim(), instanceToken);
+
+                        // Salvar chave global no localStorage para pré-preencher na próxima vez
+                        try { localStorage.setItem('sp3_evo_global_key', evoGlobalKey); } catch {}
                     }
                 } else {
                     const errBody = await evoRes.text();
