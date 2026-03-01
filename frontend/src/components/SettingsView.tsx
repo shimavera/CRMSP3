@@ -272,6 +272,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             if (steps && steps.length > 0) {
                 const mapped: FollowupStep[] = steps.map((s: any) => ({
                     ...s,
+                    delay_unit: s.delay_unit || 'days',
                     messages: (s.sp3_followup_step_messages || [])
                         .sort((a: any, b: any) => a.sort_order - b.sort_order)
                 }));
@@ -316,6 +317,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             company_id: authUser.company_id,
                             step_number: step.step_number,
                             delay_days: step.delay_days,
+                            delay_unit: step.delay_unit || 'days',
                             active: step.active,
                         })
                         .select('id')
@@ -325,7 +327,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 } else {
                     await supabase
                         .from('sp3_followup_steps')
-                        .update({ step_number: step.step_number, delay_days: step.delay_days, active: step.active, updated_at: new Date().toISOString() })
+                        .update({ step_number: step.step_number, delay_days: step.delay_days, delay_unit: step.delay_unit || 'days', active: step.active, updated_at: new Date().toISOString() })
                         .eq('id', stepId);
                 }
 
@@ -415,6 +417,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             company_id: authUser.company_id,
             step_number: nextNum,
             delay_days: 1,
+            delay_unit: 'days' as const,
             active: true,
             messages: [{ sort_order: 0, message_type: 'text', text_content: '' }],
         };
@@ -1876,7 +1879,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         return (
                                             <div key={step.id || stepIdx} style={{
                                                 border: '1px solid', borderColor: isExpanded ? 'var(--accent)' : 'var(--border-soft)',
-                                                borderRadius: '14px', overflow: 'hidden', transition: 'all 0.25s ease',
+                                                borderRadius: '14px', overflow: 'visible', transition: 'all 0.25s ease',
                                                 background: isExpanded ? '#fafbff' : 'white'
                                             }}>
                                                 {/* Header da Etapa (sempre visível) */}
@@ -1902,7 +1905,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                         <input
                                                             type="number"
                                                             min={0}
-                                                            max={365}
+                                                            max={step.delay_unit === 'minutes' ? 9999 : step.delay_unit === 'hours' ? 999 : 365}
                                                             value={step.delay_days}
                                                             onChange={(e) => {
                                                                 const updated = [...followupSteps];
@@ -1915,9 +1918,25 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                 fontSize: '0.8rem', fontWeight: '700'
                                                             }}
                                                         />
-                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                                            {step.delay_days === 1 ? 'dia' : 'dias'}
-                                                        </span>
+                                                        <select
+                                                            value={step.delay_unit || 'days'}
+                                                            onChange={(e) => {
+                                                                const updated = [...followupSteps];
+                                                                updated[stepIdx].delay_unit = e.target.value as 'minutes' | 'hours' | 'days';
+                                                                setFollowupSteps(updated);
+                                                            }}
+                                                            style={{
+                                                                padding: '5px 8px', borderRadius: '8px',
+                                                                border: '1px solid var(--border-soft)',
+                                                                fontSize: '0.75rem', fontWeight: '600',
+                                                                color: 'var(--text-muted)', background: 'white',
+                                                                cursor: 'pointer', outline: 'none'
+                                                            }}
+                                                        >
+                                                            <option value="minutes">min</option>
+                                                            <option value="hours">horas</option>
+                                                            <option value="days">dias</option>
+                                                        </select>
                                                     </div>
 
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
