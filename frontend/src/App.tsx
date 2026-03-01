@@ -405,7 +405,7 @@ function App() {
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
 
           <div style={{ textAlign: 'center', marginTop: '1rem', opacity: 0.5, fontSize: '0.65rem', fontWeight: 'bold' }}>
-            V13 - 01/03 - 19:10
+            V14 - 01/03 - 19:35
           </div>
         </div>
       </aside>
