@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2 } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance } from '../lib/supabase';
 
@@ -19,7 +19,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'profile' | 'usuarios' | 'dados'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'profile' | 'usuarios' | 'dados' | 'clientes'>('whatsapp');
 
     // Estados de Instâncias WhatsApp
     const [instances, setInstances] = useState<Instance[]>([]);
@@ -89,6 +89,18 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [newQuickMessageTitle, setNewQuickMessageTitle] = useState('');
     const [newQuickMessageContent, setNewQuickMessageContent] = useState('');
     const [isSavingQuickMessage, setIsSavingQuickMessage] = useState(false);
+
+    // Estados de Clientes SaaS
+    const [saasClientsList, setSaasClientsList] = useState<any[]>([]);
+    const [isLoadingSaas, setIsLoadingSaas] = useState(false);
+    const [newClientName, setNewClientName] = useState('');
+    const [newClientEmail, setNewClientEmail] = useState('');
+    const [newClientPassword, setNewClientPassword] = useState('');
+    const [newClientEvo, setNewClientEvo] = useState('');
+    const [showCreateClient, setShowCreateClient] = useState(false);
+    const [isCreatingClient, setIsCreatingClient] = useState(false);
+    const [createClientError, setCreateClientError] = useState<string | null>(null);
+    const [createClientSuccess, setCreateClientSuccess] = useState(false);
 
     const fetchFollowupConfig = async () => {
         try {
@@ -576,6 +588,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         try {
             await supabase.from('sp3_instances')
                 .update({ is_active: false })
+                .eq('company_id', authUser.company_id)
                 .neq('id', instance.id);
 
             await supabase.from('sp3_instances')
@@ -655,6 +668,54 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsCreatingUser(false);
     };
 
+    const fetchSaasClients = async () => {
+        setIsLoadingSaas(true);
+        const { data, error } = await supabase.rpc('get_all_tenants');
+        if (data && !error) {
+            setSaasClientsList(data);
+        }
+        setIsLoadingSaas(false);
+    };
+
+    const handleCreateClient = async () => {
+        if (!newClientName.trim() || !newClientEmail.trim() || !newClientPassword.trim() || !newClientEvo.trim()) return;
+        setIsCreatingClient(true);
+        setCreateClientError(null);
+
+        const { data: { session: masterSession } } = await supabase.auth.getSession();
+        if (!masterSession) { setIsCreatingClient(false); return; }
+
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email: newClientEmail.trim(), password: newClientPassword });
+        await supabase.auth.setSession({ access_token: masterSession.access_token, refresh_token: masterSession.refresh_token });
+
+        if (authError || !authData?.user) {
+            setCreateClientError(authError?.message || 'Erro ao criar usuário para o novo cliente.');
+            setIsCreatingClient(false);
+            return;
+        }
+
+        const { error: rpcError } = await supabase.rpc('create_new_tenant', {
+            p_company_name: newClientName.trim(),
+            p_evo_instance: newClientEvo.trim(),
+            p_admin_id: authData.user.id,
+            p_admin_email: newClientEmail.trim()
+        });
+
+        if (rpcError) {
+            setCreateClientError('Erro: ' + rpcError.message);
+        } else {
+            setCreateClientSuccess(true);
+            setNewClientName('');
+            setNewClientEmail('');
+            setNewClientPassword('');
+            setNewClientEvo('');
+            setShowCreateClient(false);
+            await fetchSaasClients();
+            setTimeout(() => setCreateClientSuccess(false), 3000);
+        }
+        setIsCreatingClient(false);
+    };
+
     const handleDeleteUser = async (userId: string) => {
         if (!window.confirm('Remover este usuário do sistema? Ele não conseguirá mais acessar o CRM.')) return;
         await supabase.from('sp3_users').delete().eq('id', userId);
@@ -670,7 +731,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             const { error } = await supabase
                 .from('n8n_chat_histories')
                 .delete()
-                .neq('id', 0); // Deleta todos
+                .eq('company_id', authUser.company_id);
 
             if (error) throw error;
             alert('Histórico de conversas apagado com sucesso! As próximas mensagens iniciarão uma nova conversa do zero.');
@@ -683,14 +744,25 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     useEffect(() => {
-        fetchInstances();
-        fetchPromptHistory();
-        fetchFollowupConfig();
-        fetchVideos();
-        fetchQuickMessages();
-        if (authUser.role === 'master') fetchUsers();
-        return () => stopConnectionPolling();
+        fetchInstances(); // Always fetch instances on mount
+        return () => stopConnectionPolling(); // Cleanup for connection polling
     }, []);
+
+    useEffect(() => {
+        if (activeSubTab === 'usuarios') {
+            fetchUsers();
+        } else if (activeSubTab === 'ia') {
+            fetchPromptHistory();
+        } else if (activeSubTab === 'followup') {
+            fetchFollowupConfig();
+        } else if (activeSubTab === 'videos') {
+            fetchVideos();
+        } else if (activeSubTab === 'quickmessages') {
+            fetchQuickMessages();
+        } else if (activeSubTab === 'clientes') {
+            fetchSaasClients();
+        }
+    }, [activeSubTab]);
 
     return (
         <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '2rem' }}>
@@ -740,6 +812,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'usuarios' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'usuarios' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'usuarios' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                         >
                             <Users size={18} /> Usuários
+                        </button>
+                    )}
+                    {authUser.role === 'master' && (
+                        <button
+                            onClick={() => setActiveSubTab('clientes')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'clientes' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'clientes' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'clientes' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        >
+                            <Building2 size={18} /> Franquias / Clientes
                         </button>
                     )}
                     {authUser.role === 'master' && (
@@ -1631,6 +1711,99 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     {isResettingChats ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                                     {isResettingChats ? 'Apagando...' : 'Apagar Todo o Histórico'}
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* TAB CLIENTES SASS */}
+                {activeSubTab === 'clientes' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Gerenciar Clientes SaaS</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Apenas usuários da franquia Master possuem acesso a essa tela.</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowCreateClient(!showCreateClient)}
+                                    style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: showCreateClient ? '#f1f5f9' : 'var(--accent)', color: showCreateClient ? 'var(--text-secondary)' : 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                >
+                                    {showCreateClient ? <><X size={16} /> Cancelar</> : <><Plus size={16} /> Novo Cliente</>}
+                                </button>
+                            </div>
+
+                            {showCreateClient && (
+                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', marginBottom: '1.5rem' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome da Empresa</label>
+                                            <input value={newClientName} onChange={(e) => setNewClientName(e.target.value)} placeholder="Ex: Odonto Clean" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome da Instância (Evolution)</label>
+                                            <input value={newClientEvo} onChange={(e) => setNewClientEvo(e.target.value)} placeholder="Ex: odonto_clean" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>E-mail do Dono (Admin)</label>
+                                            <input value={newClientEmail} onChange={(e) => setNewClientEmail(e.target.value)} type="email" placeholder="dono@odontoclean.com" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Senha Inicial</label>
+                                            <input value={newClientPassword} onChange={(e) => setNewClientPassword(e.target.value)} type="text" placeholder="Senha Forte" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
+                                        </div>
+                                    </div>
+
+                                    {createClientError && <p style={{ color: '#b91c1c', fontSize: '0.85rem', marginBottom: '1rem' }}>{createClientError}</p>}
+                                    {createClientSuccess && <p style={{ color: '#15803d', fontSize: '0.85rem', marginBottom: '1rem', background: '#dcfce7', padding: '8px', borderRadius: '8px' }}>Cliente criado com sucesso! O acesso mestre dele já está liberado.</p>}
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                        <button onClick={handleCreateClient} disabled={isCreatingClient} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: 'white', fontWeight: '700', cursor: isCreatingClient ? 'not-allowed' : 'pointer' }}>
+                                            {isCreatingClient ? <Loader2 size={16} className="animate-spin" /> : 'Criar Conta Mestre e Empresa'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ overflowX: 'auto', background: 'white', borderRadius: '16px', border: '1px solid var(--border-soft)' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                    <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border-soft)' }}>
+                                        <tr>
+                                            <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Empresa</th>
+                                            <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Instância (Evo)</th>
+                                            <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ativa</th>
+                                            <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Cadastro</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {isLoadingSaas ? (
+                                            <tr>
+                                                <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                                    <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto', marginBottom: '8px' }} />
+                                                    Carregando clientes...
+                                                </td>
+                                            </tr>
+                                        ) : saasClientsList.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum cliente SaaS encontrado.</td>
+                                            </tr>
+                                        ) : (
+                                            saasClientsList.map(empresa => (
+                                                <tr key={empresa.id} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                                    <td style={{ padding: '14px 16px', fontWeight: '600' }}>{empresa.name}</td>
+                                                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{empresa.evo_instance_name}</td>
+                                                    <td style={{ padding: '14px 16px' }}>
+                                                        <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: empresa.active ? '#dcfce7' : '#fee2e2', color: empresa.active ? '#15803d' : '#b91c1c', fontWeight: '700', textTransform: 'uppercase' }}>
+                                                            {empresa.active ? 'Ativa' : 'Desativada'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                                        {new Date(empresa.created_at).toLocaleDateString('pt-BR')}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

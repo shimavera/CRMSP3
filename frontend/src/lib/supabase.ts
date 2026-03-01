@@ -27,6 +27,7 @@ export type UserProfile = {
 
 export type SocialProofVideo = {
   id: number;
+  company_id?: string;
   titulo: string;
   descricao: string;
   contexto: string;
@@ -38,6 +39,7 @@ export type SocialProofVideo = {
 
 export type QuickMessage = {
   id: string;
+  company_id?: string;
   title: string;
   content: string;
   created_at?: string;
@@ -60,6 +62,7 @@ export type Instance = {
 
 export type Lead = {
   id: number;
+  company_id?: string;
   nome?: string;
   telefone: string;
   created_at?: string;
