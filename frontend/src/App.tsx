@@ -298,8 +298,15 @@ function App() {
     await supabase.auth.signOut();
   };
 
-  // Normaliza telefone: remove tudo exceto dígitos (formato Evolution API)
-  const normalizePhone = (raw: string): string => raw.replace(/\D/g, '');
+  // Normaliza telefone: remove tudo exceto dígitos + adiciona 9º dígito BR se ausente
+  const normalizePhone = (raw: string): string => {
+    let phone = raw.replace(/\D/g, '');
+    // Celular BR: 55 + DD(2) + 8 dígitos = 12 → inserir 9 após o DDD
+    if (phone.length === 12 && phone.startsWith('55')) {
+      phone = phone.slice(0, 4) + '9' + phone.slice(4);
+    }
+    return phone;
+  };
 
   const handleSaveLead = async () => {
     const phone = normalizePhone(newLeadTelefone);
