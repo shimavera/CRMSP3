@@ -196,7 +196,8 @@ function App() {
         .from('sp3chat')
         .select('*')
         .eq('company_id', authUser.company_id)
-        .order('id', { ascending: false });
+        .order('id', { ascending: false })
+        .limit(2000);
 
       const { data, error } = await query;
 

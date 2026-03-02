@@ -30,7 +30,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [, setError] = useState<string | null>(null);
     const [inputValue, setInputValue] = useState('');
     const [isSending, setIsSending] = useState(false);
-    const [lastMessagesDates, setLastMessagesDates] = useState<Record<string, string>>({});
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
@@ -236,28 +235,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     }, [selectedLead?.id]);
 
-    // 3. BUSCAR DATAS DAS ÚLTIMAS MENSAGENS PARA ORDENAÇÃO INICIAL
-    const fetchLastMessageDates = async () => {
-        const { data, error } = await supabase
-            .from('n8n_chat_histories')
-            .select('session_id, created_at')
-            .eq('company_id', authUser.company_id)
-            .order('created_at', { ascending: false });
 
-        if (!error && data) {
-            const dates: Record<string, string> = {};
-            data.forEach(m => {
-                if (!dates[m.session_id]) {
-                    dates[m.session_id] = m.created_at || '';
-                }
-            });
-            setLastMessagesDates(dates);
-        }
-    };
-
-    useEffect(() => {
-        fetchLastMessageDates();
-    }, [leads]);
 
     useEffect(() => {
         const fetchQuickMessages = async () => {
@@ -343,10 +321,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 filter: `company_id=eq.${authUser.company_id}`
             }, (payload) => {
                 const newMsg = payload.new as any;
-                setLastMessagesDates(prev => ({
-                    ...prev,
-                    [newMsg.session_id]: newMsg.created_at || new Date().toISOString()
-                }));
 
                 let isHuman = false;
                 try {
@@ -420,14 +394,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         };
     }, []);
 
-    // ORDENAÇÃO DINÂMICA
+    // ORDENAÇÃO DINÂMICA (Performance Otimizada)
     const sortedLeads = useMemo(() => {
         return [...leads].sort((a, b) => {
-            const dateA = new Date(lastMessagesDates[a.telefone] || 0).getTime();
-            const dateB = new Date(lastMessagesDates[b.telefone] || 0).getTime();
+            const dateA = new Date(a.last_interaction_at || a.stage_updated_at || a.created_at || 0).getTime();
+            const dateB = new Date(b.last_interaction_at || b.stage_updated_at || b.created_at || 0).getTime();
             return dateB - dateA;
         });
-    }, [leads, lastMessagesDates]);
+    }, [leads]);
 
     const fetchMessages = async () => {
         if (!selectedLead) return;
@@ -436,14 +410,15 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             .select('*')
             .eq('company_id', authUser.company_id)
             .eq('session_id', selectedLead.telefone)
-            .order('id', { ascending: true });
+            .order('id', { ascending: false }) // ORDENA DESC DEPOIS INVERTE
+            .limit(150);
 
         if (error) {
             setError(`Erro: ${error.message}`);
             setMessages([]);
         } else {
             setError(null);
-            setMessages((data || []).map(parseMessage));
+            setMessages((data || []).reverse().map(parseMessage)); // Inverter para chronological order
         }
     };
 
