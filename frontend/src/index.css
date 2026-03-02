@@ -119,23 +119,20 @@
 }
 
 .logo-text {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
   white-space: nowrap;
   max-width: 150px;
   opacity: 1;
-  margin-left: 14px;
+  margin-left: 10px;
   display: inline-block;
   pointer-events: none;
-  /* Evita que o texto interfira no evento de mouse */
 }
 
 .logo-container:hover .logo-text {
   max-width: 0;
   opacity: 0;
   margin-left: 0;
-  transform: translateX(-10px);
-  /* Suaviza a entrada */
 }
 
 .logo-container:hover .logo-icon-wrapper {
