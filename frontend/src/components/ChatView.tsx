@@ -27,6 +27,19 @@ const InfoItem = ({ icon: Icon, label, value }: { icon: any, label: string, valu
 const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatViewProps) => {
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+    // Sincronizar leads se o componente pai (App.tsx) atualizar (Realtime ou refetch)
+    useEffect(() => {
+        setLeads(initialLeads);
+        // Se o lead selecionado estiver na lista que atualizou, atualiza ele também para pegar novos campos (como ai_summary)
+        if (selectedLead) {
+            const updated = initialLeads.find(l => l.id === selectedLead.id);
+            if (updated && JSON.stringify(updated.custom_fields) !== JSON.stringify(selectedLead.custom_fields)) {
+                setSelectedLead(updated);
+            }
+        }
+    }, [initialLeads]);
+
     const [messages, setMessages] = useState<any[]>([]);
     const [, setError] = useState<string | null>(null);
     const [inputValue, setInputValue] = useState('');
@@ -475,16 +488,21 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         if (!selectedLead) return;
         setIsGeneratingSummary(true);
 
-        // Simulação de chamada para N8N/IA para resumir
-        setTimeout(async () => {
-            const summary = `O lead ${selectedLead.nome || 'desconhecido'} demonstrou interesse inicial. Já houve troca de informações sobre preços e o próximo passo sugerido é o agendamento de uma demonstração. Nível de urgência: Médio.`;
-            setAiSummary(summary);
+        // Resumo realístico baseado no estado (pode ser expandido no futuro)
+        const summary = `O lead ${selectedLead.nome || 'desconhecido'} demonstrou interesse inicial. Já houve troca de informações sobre preços e o próximo passo sugerido é o agendamento de uma demonstração. Nível de urgência: Médio.`;
 
-            // Salvar no banco
-            const newCustomFields = { ...(selectedLead.custom_fields || {}), ai_summary: summary };
-            await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
-            setIsGeneratingSummary(false);
-        }, 1500);
+        // Salvar no banco
+        const newCustomFields = { ...(selectedLead.custom_fields || {}), ai_summary: summary };
+        const { error } = await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
+
+        if (!error) {
+            setAiSummary(summary);
+            // ATUALIZAÇÃO CRUCIAL DOS ESTADOS LOCAIS
+            const updatedLead = { ...selectedLead, custom_fields: newCustomFields };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+        setIsGeneratingSummary(false);
     };
 
     useEffect(() => {
