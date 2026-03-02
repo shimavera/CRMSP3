@@ -82,6 +82,7 @@ export type Lead = {
   followup_stage?: number;
   followup_locked?: boolean;
   last_outbound_at?: string;
+  last_interaction_at?: string;
   observacoes?: string;
   // Novos recursos
   tasks?: { id: string; title: string; due_date: string; completed: boolean }[];
