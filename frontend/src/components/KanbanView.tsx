@@ -125,11 +125,13 @@ const LeadCard = (props: {
                         border: '1px solid var(--border)',
                         borderLeft: `4px solid ${stageColor}`,
                         opacity: 1,
-                        transform: snapshot.isDragging ? 'scale(1.02) translateY(-2px)' : 'scale(1)',
-                        transition: 'box-shadow 0.2s, transform 0.2s',
+                        transition: 'box-shadow 0.2s, background-color 0.2s',
                         position: 'relative',
                         userSelect: 'none',
                         ...provided.draggableProps.style,
+                        // Forçamos o transform do dnd apenas se estiver arrastando, para evitar o "vôo"
+                        transform: snapshot.isDragging ? provided.draggableProps.style?.transform : undefined,
+                        zIndex: snapshot.isDragging ? 9999 : 1,
                     }}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
