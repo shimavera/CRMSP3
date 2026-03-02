@@ -10,6 +10,9 @@ import {
 import { format, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import type { DropResult } from '@hello-pangea/dnd';
+
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
 
 type Stage =
@@ -93,12 +96,10 @@ const LeadCard = (props: {
     onMove: (leadId: number, newStage: Stage | string) => void;
     onDelete: (leadId: number) => void;
     onClick: (lead: Lead) => void;
-    isDragging: boolean;
-    onDragStart: () => void;
-    onDragEnd: () => void;
     currentPipeline?: any[];
+    index: number;
 }) => {
-    const { lead, stageColor, onMove, onDelete, onClick, isDragging, onDragStart, onDragEnd, currentPipeline } = props;
+    const { lead, stageColor, onMove, onDelete, onClick, currentPipeline, index } = props;
     const [showMenu, setShowMenu] = useState(false);
     const daysInStage = lead.stage_updated_at
         ? Math.floor((Date.now() - new Date(lead.stage_updated_at).getTime()) / 86400000)
@@ -107,147 +108,152 @@ const LeadCard = (props: {
     const pendingTasks = lead.tasks?.filter(t => !t.completed).length || 0;
 
     return (
-        <div
-            draggable
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            onClick={() => onClick(lead)}
-            style={{
-                backgroundColor: 'var(--bg-secondary)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
-                marginBottom: '10px',
-                boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm), 0 0 0 1px rgba(0,0,0,0.02)',
-                cursor: isDragging ? 'grabbing' : 'grab',
-                border: '1px solid var(--border)',
-                borderLeft: `4px solid ${stageColor}`,
-                opacity: isDragging ? 0.8 : 1,
-                transform: isDragging ? 'scale(1.02) translateY(-2px)' : 'scale(1)',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                position: 'relative',
-                userSelect: 'none',
-            }}
-        >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {lead.nome || 'Lead s/ nome'}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
-                        {lead.telefone}
-                    </div>
-                </div>
-                <button
-                    onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px', flexShrink: 0 }}
-                >
-                    <MoreHorizontal size={16} />
-                </button>
-            </div>
-
-            {/* Tags */}
-            <div style={{ display: 'flex', gap: '4px', marginTop: '10px', flexWrap: 'wrap' }}>
-                {lead.created_at && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: '600' }}>
-                        📥 Entrou em {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                    </span>
-                )}
-                {lead.followup_stage != null && lead.followup_stage > 0 && (
-                    <span style={{
-                        fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px',
-                        backgroundColor: lead.followup_stage >= 3 ? '#fca5a5' : '#fee2e2',
-                        color: '#991b1b', fontWeight: '800'
-                    }}>
-                        {lead.followup_stage >= 3 ? '🚨' : '⏱'} {lead.followup_stage}º Follow-up
-                    </span>
-                )}
-                {lead.followup_locked && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '800' }}>
-                        🔒 F.UP Travado
-                    </span>
-                )}
-                {lead.meeting_status === 'scheduled' && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#b45309', fontWeight: '600' }}>
-                        📅 Reunião marcada
-                    </span>
-                )}
-                {lead.meeting_status === 'completed' && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#d1fae5', color: '#065f46', fontWeight: '600' }}>
-                        ✅ Reunião feita
-                    </span>
-                )}
-                {lead.proposal_status === 'sent' && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#ffedd5', color: '#9a3412', fontWeight: '600' }}>
-                        📄 Proposta enviada
-                    </span>
-                )}
-                {lead.ia_active && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#ede9fe', color: '#5b21b6', fontWeight: '600' }}>
-                        🤖 IA ativa
-                    </span>
-                )}
-                {pendingTasks > 0 && (
-                    <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <CheckSquare size={10} /> {pendingTasks} Tarefa{pendingTasks > 1 ? 's' : ''}
-                    </span>
-                )}
-            </div>
-
-            {/* Tempo no estágio */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: daysInStage >= 5 ? '4px 8px' : '0', background: daysInStage >= 5 ? '#fff1f2' : 'transparent', borderRadius: '8px', width: 'fit-content' }}>
-                <Clock size={11} color={daysInStage >= 3 ? '#ef4444' : '#94a3b8'} />
-                <span style={{ fontSize: '0.65rem', color: daysInStage >= 3 ? '#ef4444' : '#94a3b8', fontWeight: daysInStage >= 5 ? '800' : '500' }}>
-                    {daysInStage === 0 ? 'Atualizado hoje' : `${daysInStage}d parado`}
-                </span>
-                {daysInStage >= 5 && <AlertCircle size={10} color="#ef4444" style={{ animation: 'bounce 1s infinite' }} />}
-            </div>
-
-            {/* Menu de ações rápidas */}
-            {showMenu && (
+        <Draggable draggableId={lead.id.toString()} index={index}>
+            {(provided, snapshot) => (
                 <div
-                    onClick={(e) => e.stopPropagation()}
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    {...provided.dragHandleProps}
+                    onClick={() => onClick(lead)}
                     style={{
-                        position: 'absolute', top: '36px', right: '8px', zIndex: 100,
-                        backgroundColor: 'white', borderRadius: '10px',
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)', padding: '6px',
-                        minWidth: '180px', border: '1px solid #f1f5f9'
+                        backgroundColor: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '16px',
+                        marginBottom: '10px',
+                        boxShadow: snapshot.isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm), 0 0 0 1px rgba(0,0,0,0.02)',
+                        cursor: snapshot.isDragging ? 'grabbing' : 'grab',
+                        border: '1px solid var(--border)',
+                        borderLeft: `4px solid ${stageColor}`,
+                        opacity: 1,
+                        transform: snapshot.isDragging ? 'scale(1.02) translateY(-2px)' : 'scale(1)',
+                        transition: 'box-shadow 0.2s, transform 0.2s',
+                        position: 'relative',
+                        userSelect: 'none',
+                        ...provided.draggableProps.style,
                     }}
                 >
-                    <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>Mover para</div>
-                    {(currentPipeline || []).filter((p: any) => p.stage !== lead.stage).map((p: any) => (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {lead.nome || 'Lead s/ nome'}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                                {lead.telefone}
+                            </div>
+                        </div>
                         <button
-                            key={p.stage}
-                            onClick={() => { onMove(lead.id, p.stage); setShowMenu(false); }}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                width: '100%', padding: '6px 8px', background: 'none',
-                                border: 'none', cursor: 'pointer', borderRadius: '6px',
-                                fontSize: '0.78rem', color: '#374151', textAlign: 'left'
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                            onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px', flexShrink: 0 }}
                         >
-                            <ArrowRight size={12} color={p.color} />
-                            {p.stage}
+                            <MoreHorizontal size={16} />
                         </button>
-                    ))}
-                    <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
-                    <button
-                        onClick={() => { onDelete(lead.id); setShowMenu(false); }}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '8px',
-                            width: '100%', padding: '6px 8px', background: 'none',
-                            border: 'none', cursor: 'pointer', borderRadius: '6px',
-                            fontSize: '0.78rem', color: '#ef4444', textAlign: 'left'
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fef2f2')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                        <Trash2 size={12} /> Remover lead
-                    </button>
+                    </div>
+
+                    {/* Tags */}
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '10px', flexWrap: 'wrap' }}>
+                        {lead.created_at && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: '600' }}>
+                                📥 Entrou em {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                            </span>
+                        )}
+                        {lead.followup_stage != null && lead.followup_stage > 0 && (
+                            <span style={{
+                                fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px',
+                                backgroundColor: lead.followup_stage >= 3 ? '#fca5a5' : '#fee2e2',
+                                color: '#991b1b', fontWeight: '800'
+                            }}>
+                                {lead.followup_stage >= 3 ? '🚨' : '⏱'} {lead.followup_stage}º Follow-up
+                            </span>
+                        )}
+                        {lead.followup_locked && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '800' }}>
+                                🔒 F.UP Travado
+                            </span>
+                        )}
+                        {lead.meeting_status === 'scheduled' && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#b45309', fontWeight: '600' }}>
+                                📅 Reunião marcada
+                            </span>
+                        )}
+                        {lead.meeting_status === 'completed' && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#d1fae5', color: '#065f46', fontWeight: '600' }}>
+                                ✅ Reunião feita
+                            </span>
+                        )}
+                        {lead.proposal_status === 'sent' && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#ffedd5', color: '#9a3412', fontWeight: '600' }}>
+                                📄 Proposta enviada
+                            </span>
+                        )}
+                        {lead.ia_active && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#ede9fe', color: '#5b21b6', fontWeight: '600' }}>
+                                🤖 IA ativa
+                            </span>
+                        )}
+                        {pendingTasks > 0 && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <CheckSquare size={10} /> {pendingTasks} Tarefa{pendingTasks > 1 ? 's' : ''}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Tempo no estágio */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: daysInStage >= 5 ? '4px 8px' : '0', background: daysInStage >= 5 ? '#fff1f2' : 'transparent', borderRadius: '8px', width: 'fit-content' }}>
+                        <Clock size={11} color={daysInStage >= 3 ? '#ef4444' : '#94a3b8'} />
+                        <span style={{ fontSize: '0.65rem', color: daysInStage >= 3 ? '#ef4444' : '#94a3b8', fontWeight: daysInStage >= 5 ? '800' : '500' }}>
+                            {daysInStage === 0 ? 'Atualizado hoje' : `${daysInStage}d parado`}
+                        </span>
+                        {daysInStage >= 5 && <AlertCircle size={10} color="#ef4444" style={{ animation: 'bounce 1s infinite' }} />}
+                    </div>
+
+                    {/* Menu de ações rápidas */}
+                    {showMenu && (
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                position: 'absolute', top: '36px', right: '8px', zIndex: 100,
+                                backgroundColor: 'white', borderRadius: '10px',
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', padding: '6px',
+                                minWidth: '180px', border: '1px solid #f1f5f9'
+                            }}
+                        >
+                            <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>Mover para</div>
+                            {(currentPipeline || []).filter((p: any) => p.stage !== lead.stage).map((p: any) => (
+                                <button
+                                    key={p.stage}
+                                    onClick={() => { onMove(lead.id, p.stage); setShowMenu(false); }}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                        width: '100%', padding: '6px 8px', background: 'none',
+                                        border: 'none', cursor: 'pointer', borderRadius: '6px',
+                                        fontSize: '0.78rem', color: '#374151', textAlign: 'left'
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                >
+                                    <ArrowRight size={12} color={p.color} />
+                                    {p.stage}
+                                </button>
+                            ))}
+                            <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
+                            <button
+                                onClick={() => { onDelete(lead.id); setShowMenu(false); }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    width: '100%', padding: '6px 8px', background: 'none',
+                                    border: 'none', cursor: 'pointer', borderRadius: '6px',
+                                    fontSize: '0.78rem', color: '#ef4444', textAlign: 'left'
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fef2f2')}
+                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                            >
+                                <Trash2 size={12} /> Remover lead
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
-        </div>
+        </Draggable>
     );
 };
 
@@ -504,8 +510,6 @@ const KanbanView = () => {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-    const [draggingId, setDraggingId] = useState<number | null>(null);
-    const [dragOverStage, setDragOverStage] = useState<Stage | string | null>(null);
     const [showMetrics, setShowMetrics] = useState(true);
 
     // Funil State
@@ -573,13 +577,20 @@ const KanbanView = () => {
         await supabase.from('sp3chat').update({ stage: null }).eq('id', leadId);
     };
 
-    // ── Drag and Drop ────────────────────────────────────────────────────────
-    const handleDrop = (stage: Stage | string) => {
-        if (draggingId !== null && dragOverStage !== null) {
-            moveCard(draggingId, stage);
+    // ── Drag and Drop (@hello-pangea/dnd) ────────────────────────────────────────────────────────
+    const onDragEnd = (result: DropResult) => {
+        const { destination, source, draggableId } = result;
+
+        if (!destination) return; // Fora droppable
+
+        if (
+            destination.droppableId === source.droppableId &&
+            destination.index === source.index
+        ) {
+            return; // Mesmo lugar
         }
-        setDraggingId(null);
-        setDragOverStage(null);
+
+        moveCard(Number(draggableId), destination.droppableId);
     };
 
     // Filtros de data
@@ -704,73 +715,69 @@ const KanbanView = () => {
             {showMetrics && <MetricsBar leads={filteredLeads.filter(l => currentPipeline.some(cp => cp.stage === (l.stage || 'Novo Lead')))} />}
 
             {/* Board */}
-            <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', flex: 1, paddingBottom: '1rem' }}>
-                {currentPipeline.map(col => {
-                    const colLeads = filteredLeads.filter(l => (l.stage || 'Novo Lead') === col.stage);
-                    const isOver = dragOverStage === col.stage;
+            <DragDropContext onDragEnd={onDragEnd}>
+                <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', flex: 1, paddingBottom: '1rem' }}>
+                    {currentPipeline.map(col => {
+                        const colLeads = filteredLeads.filter(l => (l.stage || 'Novo Lead') === col.stage);
 
-                    return (
-                        <div
-                            key={col.stage}
-                            onDragOver={(e) => { e.preventDefault(); setDragOverStage(col.stage); }}
-                            onDragLeave={() => setDragOverStage(null)}
-                            onDrop={() => handleDrop(col.stage)}
-                            style={{
-                                minWidth: '240px',
-                                width: '240px',
-                                backgroundColor: isOver ? col.bg : '#f8fafc',
-                                borderRadius: '12px',
-                                padding: '12px',
-                                border: isOver ? `2px dashed ${col.color}` : '2px solid transparent',
-                                transition: 'all 0.2s ease',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                maxHeight: '100%',
-                            }}
-                        >
-                            {/* Header da coluna */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: `2px solid ${col.color}20` }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${col.color}30` }}>
-                                        <col.icon size={14} color={col.color} />
-                                    </div>
-                                    <div>
-                                        <div style={{ fontWeight: '800', fontSize: '0.78rem', color: '#1e293b' }}>{col.stage}</div>
-                                        <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{col.description}</div>
-                                    </div>
-                                </div>
-                                <span style={{ backgroundColor: col.bg, color: col.color, fontWeight: '800', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '20px', border: `1px solid ${col.color}30` }}>
-                                    {colLeads.length}
-                                </span>
-                            </div>
+                        return (
+                            <Droppable droppableId={col.stage} key={col.stage}>
+                                {(provided, snapshot) => (
+                                    <div
+                                        ref={provided.innerRef}
+                                        {...provided.droppableProps}
+                                        style={{
+                                            minWidth: '240px',
+                                            width: '240px',
+                                            backgroundColor: snapshot.isDraggingOver ? col.bg : '#f8fafc',
+                                            borderRadius: '12px',
+                                            padding: '12px',
+                                            border: snapshot.isDraggingOver ? `2px dashed ${col.color}` : '2px solid transparent',
+                                            transition: 'background-color 0.2s ease, border 0.2s ease',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            maxHeight: '100%',
+                                        }}
+                                    >
+                                        {/* Header da coluna */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: `2px solid ${col.color}20` }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${col.color}30` }}>
+                                                    <col.icon size={14} color={col.color} />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: '800', fontSize: '0.78rem', color: '#1e293b' }}>{col.stage}</div>
+                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{col.description}</div>
+                                                </div>
+                                            </div>
+                                            <span style={{ backgroundColor: col.bg, color: col.color, fontWeight: '800', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '20px', border: `1px solid ${col.color}30` }}>
+                                                {colLeads.length}
+                                            </span>
+                                        </div>
 
-                            {/* Cards */}
-                            <div style={{ flex: 1, overflowY: 'auto' }}>
-                                {colLeads.length === 0 ? (
-                                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#cbd5e1', fontSize: '0.75rem' }}>
-                                        Solte um lead aqui
+                                        {/* Cards */}
+                                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                                            {colLeads.map((lead, index) => (
+                                                <LeadCard
+                                                    key={lead.id.toString()}
+                                                    index={index}
+                                                    lead={lead}
+                                                    stageColor={col.color}
+                                                    onMove={moveCard}
+                                                    onDelete={deleteCard}
+                                                    onClick={setSelectedLead}
+                                                    currentPipeline={currentPipeline}
+                                                />
+                                            ))}
+                                            {provided.placeholder}
+                                        </div>
                                     </div>
-                                ) : (
-                                    colLeads.map(lead => (
-                                        <LeadCard
-                                            key={lead.id}
-                                            lead={lead}
-                                            stageColor={col.color}
-                                            onMove={moveCard}
-                                            onDelete={deleteCard}
-                                            onClick={setSelectedLead}
-                                            isDragging={draggingId === lead.id}
-                                            onDragStart={() => setDraggingId(lead.id)}
-                                            onDragEnd={() => { setDraggingId(null); setDragOverStage(null); }}
-                                            currentPipeline={currentPipeline}
-                                        />
-                                    ))
                                 )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+                            </Droppable>
+                        );
+                    })}
+                </div>
+            </DragDropContext>
 
             {/* Modal */}
             {selectedLead && (
