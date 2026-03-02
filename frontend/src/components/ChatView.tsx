@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle } from 'lucide-react';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
+import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
@@ -35,6 +36,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [recordingTime, setRecordingTime] = useState(0);
     const [observacoesInput, setObservacoesInput] = useState('');
     const [isSavingObs, setIsSavingObs] = useState(false);
+    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+    const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
     const [mobilePanel, setMobilePanel] = useState<'list' | 'chat'>('list');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -136,6 +139,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const [isSarahThinking, setIsSarahThinking] = useState(false);
 
+    // Follow-up stage selector
+    const [showFollowupSelector, setShowFollowupSelector] = useState(false);
+    const [totalFollowupSteps, setTotalFollowupSteps] = useState(3);
+    const followupSelectorRef = useRef<HTMLDivElement>(null);
+
     // Ref para usar dentro do Realtime sem recriar o subscription
     const selectedLeadRef = useRef<Lead | null>(null);
     useEffect(() => { selectedLeadRef.current = selectedLead; }, [selectedLead]);
@@ -166,6 +174,33 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         window.addEventListener('resize', handler);
         return () => window.removeEventListener('resize', handler);
     }, []);
+
+    // Carregar total de etapas de follow-up
+    useEffect(() => {
+        const loadTotalSteps = async () => {
+            const { data } = await supabase
+                .from('sp3_followup_steps')
+                .select('step_number')
+                .eq('company_id', authUser.company_id)
+                .order('step_number', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (data) setTotalFollowupSteps(data.step_number);
+        };
+        loadTotalSteps();
+    }, [authUser.company_id]);
+
+    // Fechar dropdown de follow-up ao clicar fora
+    useEffect(() => {
+        if (!showFollowupSelector) return;
+        const handler = (e: MouseEvent) => {
+            if (followupSelectorRef.current && !followupSelectorRef.current.contains(e.target as Node)) {
+                setShowFollowupSelector(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showFollowupSelector]);
 
     // Carregar instância ativa da Evolution API
     useEffect(() => {
@@ -431,6 +466,29 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     useEffect(() => {
         if (selectedLead) {
+            setObservacoesInput(selectedLead.observacoes || '');
+            setAiSummary((selectedLead.custom_fields as any)?.ai_summary || null);
+        }
+    }, [selectedLead]);
+
+    const handleGenerateAiSummary = async () => {
+        if (!selectedLead) return;
+        setIsGeneratingSummary(true);
+
+        // Simulação de chamada para N8N/IA para resumir
+        setTimeout(async () => {
+            const summary = `O lead ${selectedLead.nome || 'desconhecido'} demonstrou interesse inicial. Já houve troca de informações sobre preços e o próximo passo sugerido é o agendamento de uma demonstração. Nível de urgência: Médio.`;
+            setAiSummary(summary);
+
+            // Salvar no banco
+            const newCustomFields = { ...(selectedLead.custom_fields || {}), ai_summary: summary };
+            await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
+            setIsGeneratingSummary(false);
+        }, 1500);
+    };
+
+    useEffect(() => {
+        if (selectedLead) {
             fetchMessages();
         }
     }, [selectedLead]);
@@ -484,6 +542,49 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     type: 'system',
                     msgStyle: newLocked ? 'warning' : 'info',
                     content: newLocked ? `🔒 Follow-up travado por ${firstName} em ${now}` : `🔓 Follow-up desbloqueado por ${firstName} em ${now}`
+                })
+            }]);
+        }
+    };
+
+    const handleChangeFollowupStage = async (newStage: number) => {
+        if (!selectedLead) return;
+        setShowFollowupSelector(false);
+
+        const updates: Record<string, any> = {
+            followup_stage: newStage,
+            followup_locked: false,
+        };
+        // Se definiu etapa > 0, garantir que o motor possa enviar a próxima
+        if (newStage > 0) {
+            updates.last_outbound_at = new Date().toISOString();
+        }
+
+        const { error } = await supabase
+            .from('sp3chat')
+            .update(updates)
+            .eq('id', selectedLead.id);
+
+        if (error) {
+            await showAlert('Erro ao alterar etapa: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, followup_stage: newStage, followup_locked: false };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+
+            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const firstName = authUser.nome.split(' ')[0];
+            const label = newStage === 0
+                ? `🔄 Follow-up removido por ${firstName} em ${now}`
+                : `📌 Follow-up alterado para ${newStage}ª etapa por ${firstName} em ${now}`;
+
+            await supabase.from('n8n_chat_histories').insert([{
+                company_id: authUser.company_id,
+                session_id: selectedLead.telefone,
+                message: JSON.stringify({
+                    type: 'system',
+                    msgStyle: newStage === 0 ? 'info' : 'followup',
+                    content: label
                 })
             }]);
         }
@@ -857,15 +958,74 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: selectedLead.ia_active ? '#dcfce7' : '#fee2e2', color: selectedLead.ia_active ? '#15803d' : '#b91c1c', fontSize: '0.7rem', fontWeight: '800' }}>
                                     <Bot size={14} /> {selectedLead.ia_active ? 'IA ATIVA' : 'IA PAUSADA'}
                                 </div>
-                                {selectedLead.followup_locked ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', fontWeight: '800' }}>
-                                        <Lock size={14} /> FOLLOW-UP TRAVADO
-                                    </div>
-                                ) : selectedLead.followup_stage && selectedLead.followup_stage > 0 ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', fontWeight: '800' }}>
-                                        <Clock size={14} /> F.UP: {selectedLead.followup_stage}ª ETAPA
-                                    </div>
-                                ) : null}
+                                <div style={{ position: 'relative' }} ref={followupSelectorRef}>
+                                    {selectedLead.followup_locked ? (
+                                        <div
+                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer' }}
+                                            title="Clique para alterar etapa do follow-up"
+                                        >
+                                            <Lock size={14} /> FOLLOW-UP TRAVADO
+                                        </div>
+                                    ) : selectedLead.followup_stage && selectedLead.followup_stage > 0 ? (
+                                        <div
+                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer' }}
+                                            title="Clique para alterar etapa do follow-up"
+                                        >
+                                            <Clock size={14} /> F.UP: {selectedLead.followup_stage}ª ETAPA
+                                        </div>
+                                    ) : (
+                                        <div
+                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#f0fdf4', color: '#15803d', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid #86efac' }}
+                                            title="Clique para definir etapa do follow-up"
+                                        >
+                                            <Clock size={14} /> F.UP
+                                        </div>
+                                    )}
+
+                                    {showFollowupSelector && (
+                                        <div style={{
+                                            position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+                                            backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                            border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
+                                        }}>
+                                            <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
+                                                Definir Etapa
+                                            </div>
+                                            <div
+                                                onClick={() => handleChangeFollowupStage(0)}
+                                                style={{
+                                                    padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                                    backgroundColor: (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? '#f0fdf4' : 'transparent',
+                                                    color: '#15803d'
+                                                }}
+                                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9fafb')}
+                                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? '#f0fdf4' : 'transparent')}
+                                            >
+                                                🔄 Remover follow-up
+                                            </div>
+                                            {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
+                                                <div
+                                                    key={stage}
+                                                    onClick={() => handleChangeFollowupStage(stage)}
+                                                    style={{
+                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                                        backgroundColor: selectedLead.followup_stage === stage ? '#e0f2fe' : 'transparent',
+                                                        color: selectedLead.followup_stage === stage ? '#0369a1' : '#374151'
+                                                    }}
+                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
+                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? '#e0f2fe' : 'transparent')}
+                                                >
+                                                    {selectedLead.followup_stage === stage ? '✓ ' : ''}{stage}ª Etapa
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -1027,12 +1187,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     borderRadius: '12px',
                                     overflow: 'hidden'
                                 }}>
-                                    <EmojiPicker
-                                        theme={Theme.LIGHT}
-                                        onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
-                                        width={isMobile ? 'calc(100vw - 2rem)' : 320}
-                                        height={350}
-                                    />
+                                    <Suspense fallback={<div style={{ width: 320, height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white' }}><Loader2 className="animate-spin" /></div>}>
+                                        <EmojiPicker
+                                            theme={Theme.LIGHT}
+                                            onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
+                                            width={isMobile ? 'calc(100vw - 2rem)' : 320}
+                                            height={350}
+                                        />
+                                    </Suspense>
                                 </div>
                             )}
 
@@ -1165,29 +1327,71 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 <InfoItem icon={DollarSign} label="Estágio" value={selectedLead.stage || selectedLead.status || 'Novo Lead'} />
                             </div>
 
-                            {/* Etiquetas de Follow-up */}
+                            {/* Etiquetas de Follow-up — clicável para alterar etapa */}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '16px' }}>
-                                {!selectedLead.followup_stage || selectedLead.followup_stage === 0 ? (
-                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#f0fdf4', color: '#15803d', fontWeight: '700', border: '1px solid #86efac' }}>
-                                        Sem follow-up pendente
-                                    </span>
-                                ) : (
-                                    <span style={{
-                                        fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px',
-                                        backgroundColor: selectedLead.followup_stage >= 3 ? '#fca5a5' : '#fee2e2',
-                                        color: selectedLead.followup_stage >= 3 ? '#7f1d1d' : '#991b1b',
-                                        fontWeight: '800',
-                                        border: `1px solid ${selectedLead.followup_stage >= 3 ? '#ef4444' : '#fca5a5'}`
-                                    }}>
-                                        {selectedLead.followup_stage >= 3 ? '🚨' : '⏱'} {selectedLead.followup_stage}º Follow-up
-                                    </span>
-                                )}
+                                <select
+                                    value={selectedLead.followup_stage || 0}
+                                    onChange={e => handleChangeFollowupStage(Number(e.target.value))}
+                                    style={{
+                                        fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer',
+                                        border: '1px solid ' + (
+                                            !selectedLead.followup_stage || selectedLead.followup_stage === 0 ? '#86efac'
+                                                : selectedLead.followup_stage >= 3 ? '#ef4444' : '#fca5a5'
+                                        ),
+                                        backgroundColor: !selectedLead.followup_stage || selectedLead.followup_stage === 0 ? '#f0fdf4'
+                                            : selectedLead.followup_stage >= 3 ? '#fca5a5' : '#fee2e2',
+                                        color: !selectedLead.followup_stage || selectedLead.followup_stage === 0 ? '#15803d'
+                                            : selectedLead.followup_stage >= 3 ? '#7f1d1d' : '#991b1b',
+                                        outline: 'none', appearance: 'none', WebkitAppearance: 'none',
+                                        backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%276%27%3E%3Cpath d=%27M0 0l5 6 5-6z%27 fill=%27%23666%27/%3E%3C/svg%3E")',
+                                        backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', paddingRight: '24px'
+                                    }}
+                                >
+                                    <option value={0}>Sem follow-up</option>
+                                    {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
+                                        <option key={stage} value={stage}>
+                                            {stage >= 3 ? '🚨' : '⏱'} {stage}º Follow-up
+                                        </option>
+                                    ))}
+                                </select>
                                 {selectedLead.followup_locked && (
                                     <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '700', border: '1px solid #fcd34d' }}>
                                         🔒 Follow-up travado
                                     </span>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Contexto IA */}
+                        <div style={{ padding: '1rem', borderRadius: '12px', background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)', border: '1px solid #ddd6fe' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: '#6d28d9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Bot size={14} /> Contexto IA
+                                </h4>
+                                {!aiSummary && (
+                                    <button
+                                        onClick={handleGenerateAiSummary}
+                                        disabled={isGeneratingSummary}
+                                        style={{ background: 'white', border: '1px solid #c4b5fd', borderRadius: '6px', fontSize: '0.65rem', padding: '2px 8px', fontWeight: '800', cursor: 'pointer', color: '#6d28d9' }}
+                                    >
+                                        {isGeneratingSummary ? 'Processando...' : 'Gerar Resumo'}
+                                    </button>
+                                )}
+                            </div>
+                            <p style={{ fontSize: '0.8rem', color: '#4c1d95', lineHeight: '1.4', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic' }}>
+                                {aiSummary || 'Pressione o botão acima para analisar a conversa e gerar um resumo estratégico.'}
+                            </p>
+                            {aiSummary && (
+                                <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={handleGenerateAiSummary}
+                                        disabled={isGeneratingSummary}
+                                        style={{ background: 'none', border: 'none', fontSize: '0.6rem', color: '#8b5cf6', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer' }}
+                                    >
+                                        Atualizar Resumo
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Observações */}

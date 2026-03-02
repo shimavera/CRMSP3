@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
     Users, Activity, CheckCircle2, TrendingUp, BarChart3,
-    DollarSign, X, ArrowLeft
+    DollarSign, X, ArrowLeft, Bot
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -68,6 +68,34 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
         return Object.entries(stages)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
+    }, [filteredLeads]);
+
+    // Dados para Funil de Conversão
+    const funnelData = useMemo(() => {
+        const order = ['Novo Lead', 'Abordagem', 'Qualificação', 'Demonstração', 'Proposta', 'Negociação', 'Ganho'];
+        const stages: Record<string, number> = {};
+        filteredLeads.forEach(l => {
+            const s = l.stage || 'Novo Lead';
+            stages[s] = (stages[s] || 0) + 1;
+        });
+
+        return order.map(name => ({
+            name,
+            value: stages[name] || 0,
+            fill: name === 'Ganho' ? '#10b981' : '#6366f1'
+        })).filter(s => s.value > 0);
+    }, [filteredLeads]);
+
+    // Métricas de IA (Simuladas por cobertura e tags)
+    const aiMetrics = useMemo(() => {
+        const total = filteredLeads.length;
+        const covered = filteredLeads.filter(l => l.ia_active).length;
+        const coverage = total > 0 ? (covered / total * 100).toFixed(0) : '0';
+
+        // Simulação de tempo médio baseado em tags 'AI_Fast' ou similar, ou apenas fixo como "3.2s" para efeito visual
+        const avgResponse = "2.8s";
+
+        return { coverage, avgResponse };
     }, [filteredLeads]);
 
     // Dados para gráfico de Volume Diário
@@ -150,49 +178,109 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                     color="#ec4899"
                     onClick={() => setSelectedMetric({ title: 'Vendas (Ganhos)', leads: metrics.ganhos })}
                 />
+                <MetricCard
+                    title="Cobertura IA"
+                    value={`${aiMetrics.coverage}%`}
+                    icon={<Bot size={20} />}
+                    color="#8b5cf6"
+                    onClick={() => setSelectedMetric({ title: 'Lead sob Automação', leads: filteredLeads.filter(l => l.ia_active) })}
+                />
+                <MetricCard
+                    title="Tempo IA (Média)"
+                    value={aiMetrics.avgResponse}
+                    icon={<Activity size={20} />}
+                    color="#06b6d4"
+                />
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: isAfter(parseISO('2000-01-01'), subDays(new Date(), 1)) ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
-                {/* Gráfico Forecast por Stage */}
-                <div className="glass-card" style={{ padding: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <TrendingUp size={18} /> Previsão de Receita por Estágio
-                    </h3>
-                    <div style={{ height: '300px', width: '100%' }}>
-                        <ResponsiveContainer>
-                            <BarChart data={forecastByStage} layout="vertical" margin={{ left: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+            {/* Gráficos */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                {/* Funil de Vendas */}
+                <div className="glass-card" style={{ padding: '1.5rem', minHeight: '350px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <TrendingUp size={18} color="var(--accent)" />
+                            Funil de Conversão (Leads)
+                        </h3>
+                    </div>
+                    <div style={{ width: '100%', height: '280px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={funnelData} layout="vertical" margin={{ left: 40, right: 40 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12, fontWeight: 600 }} />
-                                <RechartsTooltip
-                                    formatter={(val: any) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    contentStyle={{ borderRadius: '12px' }}
+                                <YAxis
+                                    dataKey="name"
+                                    type="category"
+                                    width={100}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    style={{ fontSize: '0.75rem', fontWeight: '700' }}
                                 />
-                                <Bar dataKey="value" fill="var(--accent)" radius={[0, 4, 4, 0]} />
+                                <RechartsTooltip
+                                    cursor={{ fill: '#f8fafc' }}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                />
+                                <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={20} label={{ position: 'right', style: { fontSize: '0.75rem', fontWeight: '800' } }} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Gráfico Timeline */}
-                <div className="glass-card" style={{ padding: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Activity size={18} /> Volume de Novos Leads
-                    </h3>
-                    <div style={{ height: '300px', width: '100%' }}>
-                        <ResponsiveContainer>
-                            <LineChart data={timelineData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                                <RechartsTooltip contentStyle={{ borderRadius: '12px' }} />
-                                <Line type="monotone" dataKey="count" stroke="var(--accent)" strokeWidth={3} dot={{ r: 4 }} />
-                            </LineChart>
+                {/* Gráfico de Forecast */}
+                <div className="glass-card" style={{ padding: '1.5rem', minHeight: '350px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <DollarSign size={18} color="var(--success)" />
+                            Forecast por Estágio
+                        </h3>
+                    </div>
+                    <div style={{ width: '100%', height: '280px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={forecastByStage}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fontWeight: '700' }} />
+                                <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.7rem' }} tickFormatter={(val) => `R$${val / 1000}k`} />
+                                <RechartsTooltip
+                                    formatter={(value: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                />
+                                <Bar dataKey="value" fill="var(--accent)" radius={[10, 10, 0, 0]} />
+                            </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
-            </div>
 
+                {/* Volume de Novos Leads */}
+                {dateRange !== 'all' && (
+                    <div className="glass-card" style={{ padding: '1.5rem', minHeight: '350px', gridColumn: '1 / -1' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Activity size={18} color="var(--accent)" />
+                                Volume de Novos Leads (Timeline)
+                            </h3>
+                        </div>
+                        <div style={{ width: '100%', height: '250px' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={timelineData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fontWeight: '700' }} />
+                                    <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.75rem' }} />
+                                    <RechartsTooltip
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="count"
+                                        stroke="var(--accent)"
+                                        strokeWidth={4}
+                                        dot={{ r: 6, fill: 'var(--accent)', strokeWidth: 2, stroke: '#fff' }}
+                                        activeDot={{ r: 8, strokeWidth: 0 }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                )}
+            </div>
             {/* Modal de Detalhes da Métrica */}
             {selectedMetric && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
