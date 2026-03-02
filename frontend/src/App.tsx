@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
   Users,
   MessageSquare,
@@ -14,13 +14,16 @@ import {
   Bot,
   Menu,
   Edit2,
-  Trash2
+  Trash2,
+  Sun,
+  Moon
 } from 'lucide-react';
-import ChatView from './components/ChatView';
-import KanbanView from './components/KanbanView';
-import SettingsView from './components/SettingsView';
-import LoginView from './components/LoginView';
-import DashboardView from './components/DashboardView';
+// Lazy Load Componentes
+const LazyChatView = lazy(() => import('./components/ChatView'));
+const LazyKanbanView = lazy(() => import('./components/KanbanView'));
+const LazySettingsView = lazy(() => import('./components/SettingsView'));
+const LazyLoginView = lazy(() => import('./components/LoginView'));
+const LazyDashboardView = lazy(() => import('./components/DashboardView'));
 import { supabase } from './lib/supabase';
 import type { Lead, UserProfile } from './lib/supabase';
 
@@ -55,6 +58,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [openChatWithPhone, setOpenChatWithPhone] = useState<string | null>(null);
@@ -191,6 +196,7 @@ function App() {
   // ─── DADOS ──────────────────────────────────────────────────────────────────
   const fetchLeads = async () => {
     if (!authUser) return;
+    setLeadsLoading(true);
     try {
       let query = supabase
         .from('sp3chat')
@@ -210,6 +216,8 @@ function App() {
       }
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLeadsLoading(false);
     }
   };
 
@@ -261,6 +269,16 @@ function App() {
     };
   }, [authUser]);
 
+  useEffect(() => {
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
   // ─── GUARD DE TAB POR PERMISSÃO ─────────────────────────────────────────────
   const setTabSafe = (tab: string) => {
     if (!authUser) return;
@@ -270,29 +288,18 @@ function App() {
   };
 
   // ─── LOADING ────────────────────────────────────────────────────────────────
-  if (authLoading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #001A4D 0%, #003399 50%, #0052CC 100%)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-            <div style={{ padding: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', backdropFilter: 'blur(10px)' }}>
-              <img
-                src="/favicon.png"
-                alt="SP3 Symbol"
-                style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '14px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)' }}
-              />
-            </div>
-          </div>
-          <Loader2 size={28} className="animate-spin" style={{ color: '#ffffff', margin: '0 auto' }} />
-        </div>
-      </div>
-    );
-  }
+  if (authLoading) return (
+    <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', gap: '16px' }}>
+      <Loader2 className="animate-spin" size={48} color="var(--accent)" />
+      <span style={{ fontWeight: '800', color: 'var(--text-primary)', fontSize: '1.1rem' }}>Sincronizando SP3 CRMSP3...</span>
+    </div>
+  );
 
-  // ─── LOGIN ──────────────────────────────────────────────────────────────────
-  if (!authUser) {
-    return <LoginView />;
-  }
+  if (!authUser) return (
+    <Suspense fallback={null}>
+      <LazyLoginView />
+    </Suspense>
+  );
 
   // ─── APP PRINCIPAL ───────────────────────────────────────────────────────────
   const handleLogout = async () => {
@@ -488,6 +495,13 @@ function App() {
 
             <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
               <button
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+              >
+                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <button
                 onClick={handleExportLeads}
                 style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
@@ -523,30 +537,42 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'dashboard' && authUser.permissions.dashboard && (
-          <DashboardView
-            leads={leads}
-            onOpenChat={(phone: string) => handleOpenChatFromLeads(phone)}
-          />
-        )}
+        <Suspense fallback={
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px' }}>
+            <Loader2 className="animate-spin" size={32} color="var(--accent)" />
+            <span style={{ fontWeight: '700', color: 'var(--text-muted)' }}>Iniciando módulo...</span>
+          </div>
+        }>
+          {activeTab === 'dashboard' && authUser.permissions.dashboard && (
+            <LazyDashboardView
+              leads={leads}
+              onOpenChat={(phone: string) => handleOpenChatFromLeads(phone)}
+            />
+          )}
 
-        {activeTab === 'chats' && authUser.permissions.chats && (
-          <ChatView
-            initialLeads={leads}
-            authUser={authUser}
-            openPhone={openChatWithPhone}
-            onPhoneOpened={() => setOpenChatWithPhone(null)}
-          />
-        )}
-        {activeTab === 'kanban' && authUser.permissions.kanban && <KanbanView />}
-        {activeTab === 'settings' && authUser.permissions.settings && <SettingsView authUser={authUser} />}
+          {activeTab === 'chats' && authUser.permissions.chats && (
+            <LazyChatView
+              initialLeads={leads}
+              authUser={authUser}
+              openPhone={openChatWithPhone}
+              onPhoneOpened={() => setOpenChatWithPhone(null)}
+            />
+          )}
 
+          {activeTab === 'kanban' && authUser.permissions.kanban && (
+            <LazyKanbanView />
+          )}
+
+          {activeTab === 'settings' && authUser.permissions.settings && (
+            <LazySettingsView authUser={authUser} />
+          )}
+        </Suspense>
         {activeTab === 'leads' && authUser.permissions.leads && (
           <div className="fade-in">
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Base de Leads</h3>
+                <h3 style={{ fontWeight: '900', fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}><Users size={22} color="var(--accent)" /> Toda Base</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '2px' }}>{leads.length} leads cadastrados</p>
               </div>
               <button
@@ -618,7 +644,17 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredLeads.length === 0 ? (
+                    {leadsLoading ? (
+                      Array.from({ length: 8 }).map((_, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                          <td style={{ padding: '14px 16px' }}><div className="skeleton" style={{ height: '34px', width: '180px', borderRadius: '8px' }} /></td>
+                          <td style={{ padding: '14px 16px' }}><div className="skeleton" style={{ height: '20px', width: '100px' }} /></td>
+                          <td style={{ padding: '14px 16px' }}><div className="skeleton" style={{ height: '24px', width: '80px', borderRadius: '20px' }} /></td>
+                          <td style={{ padding: '14px 16px' }}><div className="skeleton" style={{ height: '20px', width: '100px' }} /></td>
+                          <td style={{ padding: '14px 16px' }}><div className="skeleton" style={{ height: '32px', width: '80px', borderRadius: '8px' }} /></td>
+                        </tr>
+                      ))
+                    ) : filteredLeads.length === 0 ? (
                       <tr><td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum lead encontrado.</td></tr>
                     ) : (
                       filteredLeads.map(lead => (
