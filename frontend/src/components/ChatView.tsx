@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle, XCircle } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday } from 'date-fns';
@@ -71,6 +71,20 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const showAlert = (message: string) => new Promise<void>((resolve) => {
         setDialog({ type: 'alert', title: 'Aviso', message, onConfirm: () => { setDialog(null); resolve(); }, onCancel: () => { setDialog(null); resolve(); } });
     });
+
+    const [showCloseChatModal, setShowCloseChatModal] = useState(false);
+    const [closingReasons, setClosingReasons] = useState<string[]>(['Sem resposta', 'Muito caro', 'Sem interesse', 'Concorrente']);
+    const [selectedCloseReason, setSelectedCloseReason] = useState<string>('');
+
+    useEffect(() => {
+        const fetchReasons = async () => {
+            const { data } = await supabase.from('sp3_companies').select('closing_reasons').eq('id', authUser.company_id).single();
+            if (data?.closing_reasons && data.closing_reasons.length > 0) {
+                setClosingReasons(data.closing_reasons);
+            }
+        };
+        fetchReasons();
+    }, [authUser.company_id]);
 
 
     const handleSaveName = async () => {
@@ -151,31 +165,29 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
     };
 
-    const handleCloseConversation = async () => {
+    const handleCloseConversation = () => {
         if (!selectedLead) return;
-        setDialog({
-            type: 'prompt',
-            title: 'Fechar Conversa',
-            message: 'Qual o motivo do fechamento?',
-            placeholder: 'Ex: Preço alto, não respondeu, etc.',
-            onConfirm: async (reason?: string) => {
-                setDialog(null);
-                const updates = {
-                    closed: true,
-                    closed_reason: reason || 'Sem motivo informado',
-                    stage: 'Perdido' // or Fechado, let's just mark it as Perdido for generic closing
-                };
-                const { error } = await supabase.from('sp3chat').update(updates).eq('id', selectedLead.id);
-                if (!error) {
-                    const updatedLead = { ...selectedLead, ...updates };
-                    setSelectedLead(updatedLead);
-                    setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-                } else {
-                    await showAlert('Erro ao fechar conversa: ' + error.message);
-                }
-            },
-            onCancel: () => setDialog(null)
-        });
+        setSelectedCloseReason(closingReasons[0] || 'Outro');
+        setShowCloseChatModal(true);
+    };
+
+    const confirmCloseConversation = async () => {
+        if (!selectedLead) return;
+
+        setShowCloseChatModal(false);
+        const updates = {
+            closed: true,
+            closed_reason: selectedCloseReason || 'Sem motivo informado',
+            stage: 'Perdido' // or Fechado, let's just mark it as Perdido for generic closing
+        };
+        const { error } = await supabase.from('sp3chat').update(updates).eq('id', selectedLead.id);
+        if (!error) {
+            const updatedLead = { ...selectedLead, ...updates };
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+            setSelectedLead(null);
+        } else {
+            await showAlert('Erro ao fechar conversa: ' + error.message);
+        }
     };
 
     const [isSarahThinking, setIsSarahThinking] = useState(false);
@@ -1745,25 +1757,35 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 {selectedLead.followup_locked ? 'Desbloquear Follow-up' : 'Travar Follow-up'}
                             </button>
 
-                            <button
-                                onClick={handleCloseConversation}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px',
-                                    borderRadius: '12px',
-                                    border: 'none',
-                                    backgroundColor: '#fee2e2',
-                                    color: '#b91c1c',
-                                    fontWeight: '700',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                <X size={18} /> Fechar Conversa
-                            </button>
+                            {selectedLead.closed ? (
+                                <div style={{
+                                    width: '100%', padding: '12px', borderRadius: '12px',
+                                    backgroundColor: '#f3f4f6', color: '#4b5563', fontWeight: '700',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}>
+                                    <XCircle size={18} /> Fechado: {selectedLead.closed_reason || 'Sem motivo'}
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleCloseConversation}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px',
+                                        borderRadius: '12px',
+                                        border: 'none',
+                                        backgroundColor: '#fee2e2',
+                                        color: '#b91c1c',
+                                        fontWeight: '700',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <X size={18} /> Fechar Conversa
+                                </button>
+                            )}
 
                             <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: selectedLead.ia_active ? '#f0fdf4' : '#fff7ed', border: '1px solid ' + (selectedLead.ia_active ? '#dcfce7' : '#ffedd5') }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -1783,48 +1805,83 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 )}
             </div>}
 
-            {dialog && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
-                        <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
-
-                        {dialog.type === 'prompt' && (
-                            <input
-                                autoFocus
-                                type="text"
-                                placeholder={dialog.placeholder}
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '20px', boxSizing: 'border-box', fontSize: '0.95rem' }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') dialog.onConfirm((e.target as HTMLInputElement).value);
-                                }}
-                                onChange={(e) => {
-                                    // temporary store the value
-                                    (dialog as any).inputValue = e.target.value;
-                                }}
-                            />
-                        )}
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            {dialog.type !== 'alert' && (
-                                <button
-                                    onClick={dialog.onCancel}
-                                    style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
-                                >
-                                    Cancelar
-                                </button>
-                            )}
+            {showCloseChatModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', width: '90%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>Fechar Conversa</h3>
+                        <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                            Por qual motivo você está fechando esta conversa?
+                        </p>
+                        <select
+                            value={selectedCloseReason}
+                            onChange={(e) => setSelectedCloseReason(e.target.value)}
+                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '20px', fontSize: '0.95rem', outline: 'none' }}
+                        >
+                            {closingReasons.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                             <button
-                                onClick={() => dialog.onConfirm((dialog as any).inputValue)}
-                                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                                onClick={() => setShowCloseChatModal(false)}
+                                style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '600' }}
                             >
-                                OK
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmCloseConversation}
+                                style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                                Confirmar
                             </button>
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+
+            {
+                dialog && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
+                            <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+
+                            {dialog.type === 'prompt' && (
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder={dialog.placeholder}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '20px', boxSizing: 'border-box', fontSize: '0.95rem' }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') dialog.onConfirm((e.target as HTMLInputElement).value);
+                                    }}
+                                    onChange={(e) => {
+                                        // temporary store the value
+                                        (dialog as any).inputValue = e.target.value;
+                                    }}
+                                />
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                {dialog.type !== 'alert' && (
+                                    <button
+                                        onClick={dialog.onCancel}
+                                        style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => dialog.onConfirm((dialog as any).inputValue)}
+                                    style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                                >
+                                    OK
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 

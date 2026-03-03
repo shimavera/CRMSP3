@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, Activity, Square } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, Activity, Square, LayoutDashboard } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance, FollowupStep, FollowupStepMessage } from '../lib/supabase';
 
@@ -20,7 +20,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs'>('whatsapp');
+    const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'kanban' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs'>('whatsapp');
 
     // Estados de Instâncias WhatsApp
     const [instances, setInstances] = useState<Instance[]>([]);
@@ -177,6 +177,40 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [editClientName, setEditClientName] = useState('');
     const [editClientEvo, setEditClientEvo] = useState('');
     const [togglingClientId, setTogglingClientId] = useState<string | null>(null);
+
+    // --- KANBAN CONFIG ---
+    const [closingReasons, setClosingReasons] = useState<string[]>([]);
+    const [newClosingReason, setNewClosingReason] = useState('');
+    const [isSavingReasons, setIsSavingReasons] = useState(false);
+
+    const fetchClosingReasons = async () => {
+        try {
+            const { data } = await supabase.from('sp3_companies').select('closing_reasons').eq('id', authUser.company_id).single();
+            if (data?.closing_reasons) setClosingReasons(data.closing_reasons);
+        } catch (err) {
+            console.error('Erro ao buscar closing_reasons:', err);
+        }
+    };
+
+    const handleAddClosingReason = async () => {
+        const val = newClosingReason.trim();
+        if (!val || closingReasons.includes(val)) return;
+        setIsSavingReasons(true);
+        const updated = [...closingReasons, val];
+        await supabase.from('sp3_companies').update({ closing_reasons: updated }).eq('id', authUser.company_id);
+        setClosingReasons(updated);
+        setNewClosingReason('');
+        setIsSavingReasons(false);
+    };
+
+    const handleRemoveClosingReason = async (reason: string) => {
+        if (!await showConfirm(`Remover motivo "${reason}"?`)) return;
+        setIsSavingReasons(true);
+        const updated = closingReasons.filter(r => r !== reason);
+        await supabase.from('sp3_companies').update({ closing_reasons: updated }).eq('id', authUser.company_id);
+        setClosingReasons(updated);
+        setIsSavingReasons(false);
+    };
 
     // --- DIALOG MODAL STATE ---
     const [dialog, setDialog] = useState<{
@@ -1431,6 +1465,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     useEffect(() => {
         fetchInstances(); // Always fetch instances on mount
+        fetchClosingReasons();
 
         // Pré-preencher chave global da Evolution API do banco (se não tem no localStorage)
         if (!evoGlobalKey && authUser.role === 'master') {
@@ -1507,6 +1542,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'quickmessages' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'quickmessages' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'quickmessages' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
                         <MessageSquareText size={18} /> Mensagens Rápidas
+                    </button>
+                    <button
+                        onClick={() => setActiveSubTab('kanban')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'kanban' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'kanban' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'kanban' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                    >
+                        <LayoutDashboard size={18} /> Kanban & Pipeline
                     </button>
                     <button
                         onClick={() => setActiveSubTab('profile')}
@@ -2787,6 +2828,65 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+                {activeSubTab === 'kanban' && (
+                    <div className="glass-card" style={{ padding: '2rem' }}>
+                        <div style={{ marginBottom: '2rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <LayoutDashboard size={20} style={{ color: 'var(--accent)' }} />
+                                Configurações do Kanban
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                Gerencie os motivos pelos quais uma conversa ou lead é fechado/perdido.
+                            </p>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '700', marginBottom: '12px', color: 'var(--text-primary)' }}>Motivos de Fechamento</h4>
+                                <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Novo motivo (ex: Preço alto, Fechou com concorrente)"
+                                        value={newClosingReason}
+                                        onChange={e => setNewClosingReason(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleAddClosingReason()}
+                                        style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem' }}
+                                    />
+                                    <button
+                                        onClick={handleAddClosingReason}
+                                        disabled={!newClosingReason.trim() || isSavingReasons}
+                                        style={{ padding: '0 20px', borderRadius: '10px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: (!newClosingReason.trim() || isSavingReasons) ? 0.5 : 1 }}
+                                    >
+                                        {isSavingReasons ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                                        Adicionar
+                                    </button>
+                                </div>
+
+                                {closingReasons.length === 0 ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid var(--border-soft)' }}>
+                                        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Nenhum motivo cadastrado. Os usuários verão apenas "Outro".</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {closingReasons.map(reason => (
+                                            <div key={reason} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '10px', backgroundColor: 'white', border: '1px solid var(--border-soft)' }}>
+                                                <span style={{ fontSize: '0.9rem', fontWeight: '500', color: 'var(--text-primary)' }}>{reason}</span>
+                                                <button
+                                                    onClick={() => handleRemoveClosingReason(reason)}
+                                                    disabled={isSavingReasons}
+                                                    style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                                                    title="Remover"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
