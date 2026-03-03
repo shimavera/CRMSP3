@@ -742,8 +742,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setStatus('loading');
         setEvoError(null);
         try {
-            const apiUrl = instance.evo_api_url || instances.find(i => i.evo_api_url)?.evo_api_url || 'https://evo.sp3company.shop';
-            const apiKey = instance.evo_api_key || instances.find(i => i.evo_api_key)?.evo_api_key || '';
+            const { apiUrl, apiKey } = await resolveEvoCredentials(instance);
 
             if (!apiKey) {
                 setStatus('disconnected');
@@ -822,19 +821,54 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
-    const ensureInstanceExists = async (instance: Instance): Promise<boolean> => {
-        try {
-            // Fallback para instâncias sem evo_api_url configurada
-            const apiUrl = instance.evo_api_url || instances.find(i => i.evo_api_url)?.evo_api_url || 'https://evo.sp3company.shop';
-            const apiKey = instance.evo_api_key || instances.find(i => i.evo_api_key)?.evo_api_key || '';
+    // Busca credenciais Evolution API — consulta banco diretamente se state não tem
+    const resolveEvoCredentials = async (instance: Instance): Promise<{ apiUrl: string; apiKey: string }> => {
+        if (instance.evo_api_url && instance.evo_api_key) {
+            return { apiUrl: instance.evo_api_url, apiKey: instance.evo_api_key };
+        }
 
-            if (!apiKey) throw new Error('Nenhuma API key da Evolution configurada. Verifique a instância principal.');
+        // Tentar do state local
+        const fromState = instances.find(i => i.evo_api_url && i.evo_api_key && i.id !== instance.id);
+        if (fromState?.evo_api_url && fromState?.evo_api_key) {
+            return { apiUrl: fromState.evo_api_url, apiKey: fromState.evo_api_key };
+        }
+
+        // Consultar Supabase diretamente (state pode estar desatualizado)
+        const { data } = await supabase
+            .from('sp3_instances')
+            .select('evo_api_url, evo_api_key')
+            .eq('company_id', authUser.company_id)
+            .not('evo_api_url', 'is', null)
+            .not('evo_api_key', 'is', null)
+            .neq('evo_api_key', '')
+            .limit(1)
+            .maybeSingle();
+
+        if (data?.evo_api_url && data?.evo_api_key) {
+            return { apiUrl: data.evo_api_url, apiKey: data.evo_api_key };
+        }
+
+        return { apiUrl: 'https://evo.sp3company.shop', apiKey: '' };
+    };
+
+    const ensureInstanceExists = async (instance: Instance): Promise<{ ok: boolean; apiUrl: string; apiKey: string }> => {
+        try {
+            const { apiUrl, apiKey } = await resolveEvoCredentials(instance);
+
+            console.log('[EVO] resolveEvoCredentials:', { apiUrl, apiKey: apiKey ? '***' + apiKey.slice(-6) : '(vazio)', instanceName: instance.instance_name });
+
+            if (!apiKey) {
+                throw new Error('Nenhuma API key da Evolution configurada. Verifique as credenciais da instância "WhatsApp Principal".');
+            }
 
             // Salvar credenciais herdadas no banco se estavam vazias
             if (!instance.evo_api_url || !instance.evo_api_key) {
                 await supabase.from('sp3_instances')
                     .update({ evo_api_url: apiUrl, evo_api_key: apiKey })
                     .eq('id', instance.id);
+                // Atualizar state local
+                setActiveInstance(prev => prev?.id === instance.id ? { ...prev, evo_api_url: apiUrl, evo_api_key: apiKey } : prev);
+                setInstances(prev => prev.map(i => i.id === instance.id ? { ...i, evo_api_url: apiUrl, evo_api_key: apiKey } : i));
             }
 
             // Verificar se instância já existe
@@ -843,10 +877,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 { headers: { 'apikey': apiKey } }
             );
 
-            if (checkRes.ok) return true;
+            if (checkRes.ok) return { ok: true, apiUrl, apiKey };
 
             // Qualquer erro = tentar criar a instância
-            console.log(`Instance check returned ${checkRes.status}, tentando criar...`);
+            console.log(`[EVO] Instance check returned ${checkRes.status}, tentando criar...`);
             const createRes = await fetch(
                 `${apiUrl}/instance/create`,
                 {
@@ -868,34 +902,34 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 throw new Error(`Falha ao criar instancia (${createRes.status}): ${errBody}`);
             }
 
-            // Após recriar a instância, configurar webhook e settings
+            // Após criar a instância, configurar webhook e settings
             const createData = await createRes.json();
             const newApiKey = createData?.hash || createData?.token || createData?.instance?.apikey || apiKey;
 
             await configureInstanceWebhookAndSettings(apiUrl, instance.instance_name, newApiKey);
 
-            // Atualizar a API key no banco caso tenha mudado
+            // Atualizar a API key da instância no banco
             if (newApiKey && newApiKey !== apiKey) {
-                // Tentar update direto primeiro (funciona se RLS permite)
                 const { error: updateErr } = await supabase
                     .from('sp3_instances')
-                    .update({ evo_api_key: newApiKey })
+                    .update({ evo_api_key: newApiKey, evo_api_url: apiUrl })
                     .eq('id', instance.id);
 
-                // Se RLS bloqueou, usar RPC SECURITY DEFINER como fallback
                 if (updateErr) {
                     await supabase.rpc('update_instance_evo_credentials', {
                         p_instance_name: instance.instance_name,
+                        p_evo_api_url: apiUrl,
                         p_evo_api_key: newApiKey
                     });
                 }
+                setActiveInstance(prev => prev?.id === instance.id ? { ...prev, evo_api_url: apiUrl, evo_api_key: newApiKey } : prev);
             }
 
-            return true;
+            return { ok: true, apiUrl, apiKey: newApiKey || apiKey };
         } catch (err: any) {
-            console.error('Erro ao verificar/criar instancia:', err);
+            console.error('[EVO] Erro ao verificar/criar instancia:', err);
             setEvoError(err.message);
-            return false;
+            return { ok: false, apiUrl: '', apiKey: '' };
         }
     };
 
@@ -906,14 +940,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setQrCode(null);
 
         try {
-            const exists = await ensureInstanceExists(activeInstance);
-            if (!exists) {
-                throw new Error('Nao foi possivel criar/verificar a instancia na Evolution API.');
+            const result = await ensureInstanceExists(activeInstance);
+            if (!result.ok) {
+                // ensureInstanceExists já setou setEvoError com o erro real
+                return;
             }
 
             const response = await fetch(
-                `${activeInstance.evo_api_url}/instance/connect/${activeInstance.instance_name}`,
-                { headers: { 'apikey': activeInstance.evo_api_key } }
+                `${result.apiUrl}/instance/connect/${activeInstance.instance_name}`,
+                { headers: { 'apikey': result.apiKey } }
             );
 
             if (!response.ok) {
