@@ -77,6 +77,7 @@ export type Lead = {
   meeting_link?: string;
   meeting_status?: string;   // scheduled | no_show | completed
   proposal_status?: string;  // sent | accepted | rejected
+  closed?: boolean;
   closed_reason?: string;
   stage_updated_at?: string;
   followup_stage?: number;
@@ -165,4 +166,114 @@ export type InstagramPost = {
   thumbnail_url?: string;
   permalink: string;
   timestamp: string;
+};
+
+// ===== Flow Builder Visual =====
+
+export type FlowNodeType = 'trigger' | 'send_message' | 'wait_delay' | 'condition' | 'action' | 'end';
+
+export type FlowMessageItem = {
+  message_type: 'text' | 'audio' | 'image' | 'video';
+  text_content?: string;
+  media_url?: string;
+  media_name?: string;
+  media_mime?: string;
+  caption?: string;
+  delay_between_ms?: number;
+};
+
+export type TriggerNodeData = {
+  label: string;
+  triggerType: 'manual' | 'stage_change' | 'new_lead';
+  config: Record<string, string>;
+};
+
+export type SendMessageNodeData = {
+  label: string;
+  messages: FlowMessageItem[];
+};
+
+export type WaitDelayNodeData = {
+  label: string;
+  delay_value: number;
+  delay_unit: 'minutes' | 'hours' | 'days';
+};
+
+export type ConditionNodeData = {
+  label: string;
+  condition_type: 'lead_responded' | 'field_check' | 'stage_check' | 'custom_field_check';
+  config: {
+    field?: string;
+    operator?: 'equals' | 'not_equals' | 'contains' | 'exists';
+    value?: string;
+    stage?: string;
+  };
+};
+
+export type ActionNodeData = {
+  label: string;
+  action_type: 'move_stage' | 'update_field' | 'lock_followup' | 'unlock_followup' | 'close_conversation';
+  config: {
+    stage?: string;
+    field?: string;
+    value?: string;
+    reason?: string;
+  };
+};
+
+export type EndNodeData = {
+  label: string;
+  outcome: 'success' | 'neutral' | 'failed';
+};
+
+export type FlowNodeData = TriggerNodeData | SendMessageNodeData | WaitDelayNodeData | ConditionNodeData | ActionNodeData | EndNodeData;
+
+export type FlowNode = {
+  id: string;
+  type: FlowNodeType;
+  position: { x: number; y: number };
+  data: FlowNodeData;
+};
+
+export type FlowEdge = {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  label?: string;
+  animated?: boolean;
+};
+
+export type FlowData = {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+};
+
+export type FlowDefinition = {
+  id: number;
+  company_id?: string;
+  name: string;
+  description?: string;
+  trigger_type: 'manual' | 'stage_change' | 'new_lead';
+  trigger_config: Record<string, string>;
+  flow_data: FlowData;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type FlowExecution = {
+  id: number;
+  company_id?: string;
+  flow_id: number;
+  lead_id: number;
+  status: 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  current_node_id: string;
+  next_run_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  pause_reason?: string;
+  execution_log: Array<{ node_id: string; action: string; timestamp: string; result?: string }>;
+  created_at?: string;
+  updated_at?: string;
 };

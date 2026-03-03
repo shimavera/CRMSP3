@@ -1634,7 +1634,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                             {/* Status Card */}
                             {activeInstance ? (
-                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                         <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: status === 'connected' ? '#ecfdf5' : '#fff1f2', color: status === 'connected' ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {status === 'connected' ? <CheckCircle size={28} /> : <XCircle size={28} />}
@@ -1790,7 +1790,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                                 {/* Formulário Nova Instância */}
                                 {showCreateInstance && (
-                                    <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', marginBottom: '1.5rem' }}>
+                                    <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', marginBottom: '1.5rem' }}>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                             <div>
                                                 <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome de Exibição</label>
@@ -1831,7 +1831,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 {/* Lista de Instâncias */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {instances.map(inst => (
-                                        <div key={inst.id} style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: inst.is_active ? '#f0f9ff' : '#f8fafc', border: `1px solid ${inst.is_active ? '#bae6fd' : 'var(--border-soft)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div key={inst.id} style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: inst.is_active ? '#f0f9ff' : 'var(--bg-tertiary)', border: `1px solid ${inst.is_active ? '#bae6fd' : 'var(--border-soft)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: inst.connection_status === 'connected' ? '#10b981' : '#ef4444' }} />
                                                 <div>
@@ -1881,31 +1881,31 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 {/* Equipe */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome(s) da Equipe</label>
-                                    <input value={aiEquipe} onChange={(e) => setAiEquipe(e.target.value)} placeholder="Ex: Mário e Luigi" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', fontSize: '0.9rem' }} />
+                                    <input value={aiEquipe} onChange={(e) => setAiEquipe(e.target.value)} placeholder="Ex: Mário e Luigi" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
                                 </div>
 
                                 {/* Dentistas */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dentistas e Especialidades (Odontologia)</label>
-                                    <input value={aiDentistas} onChange={(e) => setAiDentistas(e.target.value)} placeholder="Ex: Dra. Ana (Ortodontia), Dr. João (Implantodontia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', fontSize: '0.9rem' }} />
+                                    <input value={aiDentistas} onChange={(e) => setAiDentistas(e.target.value)} placeholder="Ex: Dra. Ana (Ortodontia), Dr. João (Implantodontia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
                                 </div>
 
                                 {/* Médicos */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Médicos e Especialidades (Medicina)</label>
-                                    <input value={aiMedicos} onChange={(e) => setAiMedicos(e.target.value)} placeholder="Ex: Dr. Pedro (Dermatologia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', fontSize: '0.9rem' }} />
+                                    <input value={aiMedicos} onChange={(e) => setAiMedicos(e.target.value)} placeholder="Ex: Dr. Pedro (Dermatologia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
                                 </div>
 
                                 {/* Horários de Atendimento */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dias e Horários de Atendimento</label>
-                                    <input value={aiHorarios} onChange={(e) => setAiHorarios(e.target.value)} placeholder="Ex: Segunda à Sexta das 8h as 18h" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', fontSize: '0.9rem' }} />
+                                    <input value={aiHorarios} onChange={(e) => setAiHorarios(e.target.value)} placeholder="Ex: Segunda à Sexta das 8h as 18h" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
                                 </div>
 
                                 {/* Serviços */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>O que a Clínica faz (Procedimentos, Serviços)</label>
-                                    <textarea value={aiServicos} onChange={(e) => setAiServicos(e.target.value)} placeholder="Ex: Limpeza, Clareamento, Restauração, Lente de Contato, Harmonização Facial..." rows={3} style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', fontSize: '0.9rem', resize: 'vertical', fontFamily: 'inherit' }} />
+                                    <textarea value={aiServicos} onChange={(e) => setAiServicos(e.target.value)} placeholder="Ex: Limpeza, Clareamento, Restauração, Lente de Contato, Harmonização Facial..." rows={3} style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem', resize: 'vertical', fontFamily: 'inherit' }} />
                                 </div>
 
                                 {/* Base Prompt */}
@@ -1917,7 +1917,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         placeholder="A Sarah é uma assistente da clínica..."
                                         style={{
                                             border: '1px solid var(--border-soft)',
-                                            backgroundColor: '#f8fafc',
+                                            backgroundColor: 'var(--bg-tertiary)',
                                             fontSize: '0.95rem',
                                             lineHeight: '1.6',
                                             fontFamily: 'inherit',
@@ -1975,7 +1975,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         style={{
                                             padding: '12px',
                                             borderRadius: '12px',
-                                            background: i === 0 ? 'var(--accent-soft)' : '#f8fafc',
+                                            background: i === 0 ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
                                             border: '1px solid',
                                             borderColor: i === 0 ? 'var(--accent-soft)' : 'var(--border-soft)',
                                             cursor: 'pointer'
@@ -2022,7 +2022,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 type="time"
                                                 value={followupConfig.start_time}
                                                 onChange={(e) => setFollowupConfig({ ...followupConfig, start_time: e.target.value })}
-                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
+                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', outline: 'none' }}
                                             />
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -2031,7 +2031,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 type="time"
                                                 value={followupConfig.end_time}
                                                 onChange={(e) => setFollowupConfig({ ...followupConfig, end_time: e.target.value })}
-                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc', outline: 'none' }}
+                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', outline: 'none' }}
                                             />
                                         </div>
                                     </div>
@@ -2076,7 +2076,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             padding: '10px 14px',
                                             borderRadius: '10px',
                                             border: '1px solid var(--border-soft)',
-                                            backgroundColor: '#f8fafc',
+                                            backgroundColor: 'var(--bg-tertiary)',
                                             fontSize: '0.9rem',
                                             lineHeight: '1.5',
                                             fontFamily: 'inherit',
@@ -2270,7 +2270,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                             placeholder="Digite a mensagem de follow-up..."
                                                                             style={{
                                                                                 padding: '10px 14px', borderRadius: '10px',
-                                                                                border: '1px solid var(--border-soft)', backgroundColor: '#f8fafc',
+                                                                                border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)',
                                                                                 fontSize: '0.85rem', lineHeight: '1.5',
                                                                                 fontFamily: 'inherit', resize: 'vertical', outline: 'none'
                                                                             }}
@@ -2282,7 +2282,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                                     onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
                                                                                     style={{
                                                                                         padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem',
-                                                                                        border: '1px solid var(--border-soft)', background: '#f8fafc',
+                                                                                        border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)',
                                                                                         color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600'
                                                                                     }}
                                                                                 >
@@ -2399,13 +2399,13 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                                         placeholder="Legenda (opcional)..."
                                                                                         style={{
                                                                                             padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)',
-                                                                                            backgroundColor: '#f8fafc', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
+                                                                                            backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
                                                                                         }}
                                                                                     />
                                                                                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                                                                         {FOLLOWUP_VARIABLES.map(v => (
                                                                                             <button key={v.token} onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
-                                                                                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
+                                                                                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
                                                                                                 + {v.label}
                                                                                             </button>
                                                                                         ))}
@@ -2459,13 +2459,13 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                                         placeholder="Legenda (opcional)..."
                                                                                         style={{
                                                                                             padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)',
-                                                                                            backgroundColor: '#f8fafc', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
+                                                                                            backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
                                                                                         }}
                                                                                     />
                                                                                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                                                                         {FOLLOWUP_VARIABLES.map(v => (
                                                                                             <button key={v.token} onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
-                                                                                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
+                                                                                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
                                                                                                 + {v.label}
                                                                                             </button>
                                                                                         ))}
@@ -2541,7 +2541,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                                 cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: opt.color,
                                                                                 textAlign: 'left'
                                                                             }}
-                                                                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                                                                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
                                                                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                                                                         >
                                                                             {opt.icon} {opt.label}
@@ -2563,7 +2563,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 
                             {/* Variáveis disponíveis */}
-                            <div style={{ marginTop: '1.5rem', padding: '12px 16px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)' }}>
+                            <div style={{ marginTop: '1.5rem', padding: '12px 16px', borderRadius: '10px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)' }}>
                                 <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Variáveis disponíveis nas mensagens:</span>
                                 <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
                                     {FOLLOWUP_VARIABLES.map(v => (
@@ -2613,7 +2613,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                             {/* Formulário de Upload */}
                             {showAddVideo && (
-                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                             <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Título</label>
@@ -2705,7 +2705,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {videos.map(video => (
-                                        <div key={video.id} style={{ display: 'flex', gap: '16px', padding: '16px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', opacity: video.active ? 1 : 0.5 }}>
+                                        <div key={video.id} style={{ display: 'flex', gap: '16px', padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', opacity: video.active ? 1 : 0.5 }}>
                                             <video
                                                 src={video.url}
                                                 style={{ width: '140px', height: '100px', objectFit: 'cover', borderRadius: '8px', backgroundColor: '#000', flexShrink: 0 }}
@@ -2764,7 +2764,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                             {/* Formulário de Nova Mensagem Rápida */}
                             {showAddQuickMessage && (
-                                <div style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <div style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '16px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                         <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Título / Atalho (Ex: boas_vindas)</label>
                                         <input
@@ -2810,7 +2810,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {quickMessages.map(msg => (
-                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', padding: '16px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)' }}>
+                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                     <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--accent)' }}>/{msg.title}</span>
@@ -2866,7 +2866,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 </div>
 
                                 {closingReasons.length === 0 ? (
-                                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid var(--border-soft)' }}>
+                                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px solid var(--border-soft)' }}>
                                         <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Nenhum motivo cadastrado. Os usuários verão apenas "Outro".</p>
                                     </div>
                                 ) : (
@@ -2897,15 +2897,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome de Exibição</label>
-                                <input type="text" readOnly value={authUser.nome} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
+                                <input type="text" readOnly value={authUser.nome} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cargo</label>
-                                <input type="text" readOnly value={authUser.role === 'master' ? 'Master' : 'Operador'} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
+                                <input type="text" readOnly value={authUser.role === 'master' ? 'Master' : 'Operador'} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</label>
-                                <input type="text" readOnly value={authUser.email} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: '#f8fafc', outline: 'none' }} />
+                                <input type="text" readOnly value={authUser.email} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
                             </div>
                         </div>
                     </div>
@@ -2921,7 +2921,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {usersList.map(u => (
-                                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)' }}>
+                                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: u.role === 'master' ? 'var(--accent)' : '#e2e8f0', color: u.role === 'master' ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.9rem' }}>
                                                     {u.nome[0].toUpperCase()}
@@ -3093,7 +3093,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
 
                             {showCreateClient && (
-                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: '#f8fafc', border: '1px solid var(--border-soft)', marginBottom: '1.5rem' }}>
+                                <div style={{ padding: '1.5rem', borderRadius: '16px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', marginBottom: '1.5rem' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
                                         <div>
                                             <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome da Empresa</label>
@@ -3131,7 +3131,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                             <div style={{ overflowX: 'auto', background: 'white', borderRadius: '16px', border: '1px solid var(--border-soft)' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                    <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border-soft)' }}>
+                                    <thead style={{ backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-soft)' }}>
                                         <tr>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Empresa</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Instância (Evo)</th>
@@ -3268,7 +3268,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Monitore as comunicações entre o N8N e o servidor de mensagens.</p>
                     </div>
 
-                    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
+                    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
                         <div style={{ marginBottom: '1rem', color: 'var(--accent)' }}><Activity size={48} /></div>
                         <h4 style={{ fontWeight: '700', marginBottom: '8px' }}>Monitoramento em Tempo Real</h4>
                         <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: '400px', margin: '0 auto' }}>

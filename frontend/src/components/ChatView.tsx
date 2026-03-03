@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle, XCircle } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
-import type { Lead, UserProfile, QuickMessage } from '../lib/supabase';
+import type { Lead, UserProfile, QuickMessage, FlowDefinition, FlowExecution } from '../lib/supabase';
 
 interface ChatViewProps {
     initialLeads: Lead[];
@@ -191,6 +191,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     const [isSarahThinking, setIsSarahThinking] = useState(false);
+
+    // Visual Flows
+    const [companyFlows, setCompanyFlows] = useState<FlowDefinition[]>([]);
+    const [activeFlowExec, setActiveFlowExec] = useState<(FlowExecution & { flow_name?: string }) | null>(null);
+    const [showFlowSelector, setShowFlowSelector] = useState(false);
+    const [isStartingFlow, setIsStartingFlow] = useState(false);
 
     // Follow-up stage selector
     const [showFollowupSelector, setShowFollowupSelector] = useState(false);
@@ -677,6 +683,117 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     };
 
+    // ─── Visual Flows: fetch available flows + active execution ─────────────
+    useEffect(() => {
+        if (!authUser.company_id) return;
+        supabase
+            .from('sp3_flows')
+            .select('id, name, trigger_type, is_active')
+            .eq('company_id', authUser.company_id)
+            .eq('is_active', true)
+            .eq('trigger_type', 'manual')
+            .then(({ data }) => { if (data) setCompanyFlows(data as FlowDefinition[]); });
+    }, [authUser.company_id]);
+
+    useEffect(() => {
+        if (!selectedLead || !authUser.company_id) { setActiveFlowExec(null); return; }
+        supabase
+            .from('sp3_flow_executions')
+            .select('*, sp3_flows(name)')
+            .eq('lead_id', selectedLead.id)
+            .in('status', ['running', 'paused'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .then(({ data }) => {
+                if (data && data.length > 0) {
+                    const exec = data[0] as any;
+                    setActiveFlowExec({ ...exec, flow_name: exec.sp3_flows?.name });
+                } else {
+                    setActiveFlowExec(null);
+                }
+            });
+    }, [selectedLead?.id, authUser.company_id]);
+
+    const handleStartFlow = async (flowId: number) => {
+        if (!selectedLead || !authUser.company_id) return;
+        setIsStartingFlow(true);
+        setShowFlowSelector(false);
+
+        const flow = companyFlows.find(f => f.id === flowId);
+        if (!flow) { setIsStartingFlow(false); return; }
+
+        // Get the trigger node ID from the flow
+        const { data: flowFull } = await supabase
+            .from('sp3_flows')
+            .select('flow_data')
+            .eq('id', flowId)
+            .single();
+
+        const triggerNode = (flowFull?.flow_data as any)?.nodes?.find((n: any) => n.type === 'trigger');
+        if (!triggerNode) {
+            await showAlert('Fluxo sem nó de gatilho configurado');
+            setIsStartingFlow(false);
+            return;
+        }
+
+        const { data: exec, error } = await supabase
+            .from('sp3_flow_executions')
+            .insert({
+                company_id: authUser.company_id,
+                flow_id: flowId,
+                lead_id: selectedLead.id,
+                current_node_id: triggerNode.id,
+                next_run_at: new Date().toISOString(),
+                status: 'running',
+            })
+            .select()
+            .single();
+
+        if (!error && exec) {
+            setActiveFlowExec({ ...(exec as FlowExecution), flow_name: flow.name });
+            // Log system message
+            const firstName = authUser.nome.split(' ')[0];
+            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            await supabase.from('n8n_chat_histories').insert([{
+                company_id: authUser.company_id,
+                session_id: selectedLead.telefone,
+                message: JSON.stringify({
+                    type: 'system',
+                    msgStyle: 'info',
+                    content: `🔄 Fluxo "${flow.name}" iniciado por ${firstName} em ${now}`
+                })
+            }]);
+        } else {
+            await showAlert('Erro ao iniciar fluxo: ' + (error?.message || 'desconhecido'));
+        }
+        setIsStartingFlow(false);
+    };
+
+    const handleCancelFlow = async () => {
+        if (!activeFlowExec || !selectedLead) return;
+        const { error } = await supabase
+            .from('sp3_flow_executions')
+            .update({ status: 'cancelled', completed_at: new Date().toISOString() })
+            .eq('id', activeFlowExec.id);
+
+        if (!error) {
+            const firstName = authUser.nome.split(' ')[0];
+            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            await supabase.from('n8n_chat_histories').insert([{
+                company_id: authUser.company_id,
+                session_id: selectedLead.telefone,
+                message: JSON.stringify({
+                    type: 'system',
+                    msgStyle: 'warning',
+                    content: `⏹ Fluxo "${activeFlowExec.flow_name}" cancelado por ${firstName} em ${now}`
+                })
+            }]);
+            setActiveFlowExec(null);
+        } else {
+            await showAlert('Erro ao cancelar fluxo: ' + error.message);
+        }
+    };
+
     const handleChangeStage = async (newStage: string) => {
         if (!selectedLead) return;
         setShowStageSelector(false);
@@ -1106,6 +1223,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: selectedLead.ia_active ? '#dcfce7' : '#fee2e2', color: selectedLead.ia_active ? '#15803d' : '#b91c1c', fontSize: '0.7rem', fontWeight: '800' }}>
                                     <Bot size={14} /> {selectedLead.ia_active ? 'IA ATIVA' : 'IA PAUSADA'}
                                 </div>
+                                {activeFlowExec && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#eef2ff', color: '#4338ca', fontSize: '0.7rem', fontWeight: '800' }}>
+                                        <GitBranch size={14} /> FLUXO ATIVO
+                                    </div>
+                                )}
                                 <div style={{ position: 'relative' }} ref={followupSelectorRef}>
                                     {selectedLead.followup_locked ? (
                                         <div
@@ -1436,7 +1558,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             zIndex: 2000,
                                             border: '1px solid var(--border-soft)'
                                         }}>
-                                            <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-soft)', backgroundColor: '#f8fafc' }}>
+                                            <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)' }}>
                                                 Mensagens Rápidas
                                             </div>
                                             {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
@@ -1594,7 +1716,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     padding: '10px 12px',
                                     borderRadius: '10px',
                                     border: '1px solid var(--border-soft)',
-                                    backgroundColor: '#f8fafc',
+                                    backgroundColor: 'var(--bg-tertiary)',
                                     fontSize: '0.82rem',
                                     lineHeight: '1.5',
                                     fontFamily: 'inherit',
@@ -1662,7 +1784,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Lembretes & Tarefas</h4>
 
                             {/* Nova Tarefa */}
-                            <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                            <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
                                 <input type="text" placeholder="Ex: Ligar para confirmar..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
                                 <input type="datetime-local" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
                                 <button
@@ -1684,7 +1806,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         const isDueToday = !task.completed && isToday(new Date(task.due_date));
 
                                         return (
-                                            <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px', borderRadius: '8px', backgroundColor: task.completed ? '#f8fafc' : 'white', border: `1px solid ${task.completed ? '#e2e8f0' : (isOverdue ? '#fca5a5' : '#e2e8f0')}`, opacity: task.completed ? 0.7 : 1 }}>
+                                            <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px', borderRadius: '8px', backgroundColor: task.completed ? 'var(--bg-tertiary)' : 'white', border: `1px solid ${task.completed ? '#e2e8f0' : (isOverdue ? '#fca5a5' : '#e2e8f0')}`, opacity: task.completed ? 0.7 : 1 }}>
                                                 <button
                                                     onClick={() => handleToggleTask(task.id)}
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: task.completed ? '#10b981' : '#94a3b8', display: 'flex', alignItems: 'center' }}
@@ -1756,6 +1878,93 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 {selectedLead.followup_locked ? <Unlock size={18} /> : <Lock size={18} />}
                                 {selectedLead.followup_locked ? 'Desbloquear Follow-up' : 'Travar Follow-up'}
                             </button>
+
+                            {/* Fluxo Visual */}
+                            {activeFlowExec ? (
+                                <div style={{
+                                    width: '100%', padding: '12px', borderRadius: '12px',
+                                    backgroundColor: '#eef2ff', border: '1px solid #c7d2fe',
+                                    display: 'flex', flexDirection: 'column', gap: '8px',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <GitBranch size={16} style={{ color: '#6366f1' }} />
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#4338ca' }}>
+                                            Fluxo Ativo
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.6rem', padding: '2px 8px', borderRadius: '20px',
+                                            backgroundColor: activeFlowExec.status === 'running' ? '#dcfce7' : '#fef3c7',
+                                            color: activeFlowExec.status === 'running' ? '#15803d' : '#92400e',
+                                            fontWeight: '700',
+                                        }}>
+                                            {activeFlowExec.status === 'running' ? 'Executando' : 'Pausado'}
+                                        </span>
+                                    </div>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#1e1b4b' }}>
+                                        {activeFlowExec.flow_name || `Fluxo #${activeFlowExec.flow_id}`}
+                                    </span>
+                                    {activeFlowExec.next_run_at && (
+                                        <span style={{ fontSize: '0.65rem', color: '#6366f1' }}>
+                                            Próx. ação: {new Date(activeFlowExec.next_run_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={handleCancelFlow}
+                                        style={{
+                                            padding: '6px', borderRadius: '8px', border: '1px solid #fca5a5',
+                                            backgroundColor: 'transparent', color: '#ef4444',
+                                            fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                                        }}
+                                    >
+                                        <StopCircle size={14} /> Cancelar Fluxo
+                                    </button>
+                                </div>
+                            ) : companyFlows.length > 0 ? (
+                                <div style={{ position: 'relative' }}>
+                                    <button
+                                        onClick={() => setShowFlowSelector(!showFlowSelector)}
+                                        disabled={isStartingFlow}
+                                        style={{
+                                            width: '100%', padding: '12px', borderRadius: '12px',
+                                            border: 'none', backgroundColor: '#eef2ff', color: '#4338ca',
+                                            fontWeight: '700', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', gap: '8px', cursor: 'pointer',
+                                        }}
+                                    >
+                                        {isStartingFlow ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
+                                        Iniciar Fluxo Visual
+                                    </button>
+                                    {showFlowSelector && (
+                                        <div style={{
+                                            position: 'absolute', bottom: '100%', left: 0, right: 0,
+                                            marginBottom: '6px', backgroundColor: 'white', borderRadius: '12px',
+                                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb',
+                                            zIndex: 999, overflow: 'hidden',
+                                        }}>
+                                            <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
+                                                Selecione um fluxo
+                                            </div>
+                                            {companyFlows.map(flow => (
+                                                <div
+                                                    key={flow.id}
+                                                    onClick={() => handleStartFlow(flow.id)}
+                                                    style={{
+                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem',
+                                                        fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px',
+                                                        color: '#374151',
+                                                    }}
+                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
+                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                >
+                                                    <GitBranch size={14} style={{ color: '#6366f1' }} />
+                                                    {flow.name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : null}
 
                             {selectedLead.closed ? (
                                 <div style={{
