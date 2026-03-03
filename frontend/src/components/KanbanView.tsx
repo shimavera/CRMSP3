@@ -229,7 +229,7 @@ const LeadCard = (props: {
                             onClick={(e) => e.stopPropagation()}
                             style={{
                                 position: 'absolute', top: '36px', right: '8px', zIndex: 100,
-                                backgroundColor: 'white', borderRadius: '10px',
+                                background: 'var(--bg-secondary)', borderRadius: '10px',
                                 boxShadow: '0 8px 24px rgba(0,0,0,0.15)', padding: '6px',
                                 minWidth: '180px', border: '1px solid #f1f5f9'
                             }}
@@ -312,7 +312,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
 
     return (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-            <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '2rem', width: '480px', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: '16px', padding: '2rem', width: '480px', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <div>
                         <h3 style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b' }}>{lead.nome || 'Lead s/ nome'}</h3>
@@ -392,7 +392,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                                     <select
                                         value={form.custom_fields[field.key] || ''}
                                         onChange={e => setForm(f => ({ ...f, custom_fields: { ...f.custom_fields, [field.key]: e.target.value } }))}
-                                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', backgroundColor: 'white' }}
+                                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', background: 'var(--bg-secondary)' }}
                                     >
                                         <option value="">-- Selecione --</option>
                                         {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -702,7 +702,7 @@ const KanbanView = () => {
                         </button>
 
                         {showFilterOptions && (
-                            <div style={{ position: 'absolute', top: '100%', right: '0', marginTop: '8px', zIndex: 100, backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', border: '1px solid var(--border)', width: '320px', padding: '16px' }}>
+                            <div style={{ position: 'absolute', top: '100%', right: '0', marginTop: '8px', zIndex: 100, background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', border: '1px solid var(--border)', width: '320px', padding: '16px' }}>
                                 <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>Filtrar por data</h4>
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>

@@ -1,4 +1,4 @@
-import { useCallback, useRef, type DragEvent } from 'react';
+import { useCallback, useEffect, useRef, type DragEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -40,6 +40,7 @@ interface FlowCanvasProps {
   onNodesChange: (nodes: Node[]) => void;
   onEdgesChange: (edges: Edge[]) => void;
   onNodeSelect: (nodeId: string | null) => void;
+  updateNodeDataRef?: React.RefObject<((nodeId: string, data: Record<string, unknown>) => void) | null>;
   isDark: boolean;
 }
 
@@ -49,11 +50,21 @@ export default function FlowCanvas({
   onNodesChange: onNodesChangeProp,
   onEdgesChange: onEdgesChangeProp,
   onNodeSelect,
+  updateNodeDataRef,
   isDark,
 }: FlowCanvasProps) {
   const reactFlowRef = useRef<{ screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number } } | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Expose node data updater to parent via ref
+  useEffect(() => {
+    if (updateNodeDataRef) {
+      (updateNodeDataRef as React.MutableRefObject<((nodeId: string, data: Record<string, unknown>) => void) | null>).current = (nodeId: string, data: Record<string, unknown>) => {
+        setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: data as Node['data'] } : n));
+      };
+    }
+  }, [setNodes, updateNodeDataRef]);
 
   // Connect edges
   const onConnect = useCallback((params: Connection) => {

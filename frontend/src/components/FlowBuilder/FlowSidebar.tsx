@@ -2,6 +2,7 @@ import { type DragEvent } from 'react';
 import {
   Plus, Play, MessageSquare, Clock, GitBranch, Zap, Flag,
   Trash2, Copy, ToggleLeft, ToggleRight, ChevronRight, Loader2,
+  Bookmark, BookmarkCheck, Download,
 } from 'lucide-react';
 import type { FlowDefinition } from '../../lib/supabase';
 import type { FlowNodeType } from './utils/flowTypes';
@@ -19,24 +20,32 @@ const PALETTE_ICONS: Record<FlowNodeType, typeof Play> = {
 
 interface FlowSidebarProps {
   flows: FlowDefinition[];
+  templates: FlowDefinition[];
   selectedFlowId: number | null;
   onSelectFlow: (id: number) => void;
   onCreateFlow: () => void;
   onDeleteFlow: (id: number) => void;
   onDuplicateFlow: (id: number) => void;
   onToggleActive: (id: number, active: boolean) => void;
+  onMarkAsTemplate: (id: number) => void;
+  onUseTemplate: (id: number) => void;
+  isMaster: boolean;
   isLoading: boolean;
   isDark: boolean;
 }
 
 export default function FlowSidebar({
   flows,
+  templates,
   selectedFlowId,
   onSelectFlow,
   onCreateFlow,
   onDeleteFlow,
   onDuplicateFlow,
   onToggleActive,
+  onMarkAsTemplate,
+  onUseTemplate,
+  isMaster,
   isLoading,
   isDark,
 }: FlowSidebarProps) {
@@ -44,6 +53,20 @@ export default function FlowSidebar({
   const onDragStart = (event: DragEvent, nodeType: FlowNodeType) => {
     event.dataTransfer.setData('application/reactflow', nodeType);
     event.dataTransfer.effectAllowed = 'move';
+  };
+
+  const actionBtnStyle: React.CSSProperties = {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '6px',
+    borderRadius: '6px',
+    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+    backgroundColor: 'transparent',
+    color: isDark ? '#888' : '#64748b',
+    fontSize: '0.65rem',
+    cursor: 'pointer',
   };
 
   return (
@@ -61,6 +84,8 @@ export default function FlowSidebar({
       <div style={{
         padding: '16px',
         borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+        overflowY: 'auto',
+        flex: '0 1 auto',
       }}>
         <div style={{
           display: 'flex',
@@ -112,53 +137,21 @@ export default function FlowSidebar({
             <br />Clique em "Novo" para começar.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '280px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {flows.map(flow => (
-              <div
+              <FlowListItem
                 key={flow.id}
+                flow={flow}
+                isSelected={selectedFlowId === flow.id}
+                isDark={isDark}
                 onClick={() => onSelectFlow(flow.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  backgroundColor: selectedFlowId === flow.id
-                    ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)')
-                    : 'transparent',
-                  border: selectedFlowId === flow.id
-                    ? '1px solid var(--accent)'
-                    : `1px solid transparent`,
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: flow.is_active ? '#10b981' : '#64748b',
-                  flexShrink: 0,
-                }} />
-                <span style={{
-                  fontSize: '0.72rem',
-                  fontWeight: selectedFlowId === flow.id ? 600 : 500,
-                  color: isDark ? '#e0e0e0' : '#1a1a2e',
-                  flex: 1,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {flow.name}
-                </span>
-                <ChevronRight size={12} style={{ color: isDark ? '#555' : '#94a3b8', flexShrink: 0 }} />
-              </div>
+              />
             ))}
           </div>
         )}
 
         {/* Actions for selected flow */}
-        {selectedFlowId && (
+        {selectedFlowId && flows.find(f => f.id === selectedFlowId) && (
           <div style={{
             display: 'flex',
             gap: '4px',
@@ -175,18 +168,8 @@ export default function FlowSidebar({
                     onClick={() => onToggleActive(flow.id, !flow.is_active)}
                     title={flow.is_active ? 'Desativar' : 'Ativar'}
                     style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      padding: '6px',
-                      borderRadius: '6px',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-                      backgroundColor: 'transparent',
+                      ...actionBtnStyle,
                       color: flow.is_active ? '#10b981' : (isDark ? '#888' : '#64748b'),
-                      fontSize: '0.65rem',
-                      cursor: 'pointer',
                     }}
                   >
                     {flow.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
@@ -194,37 +177,29 @@ export default function FlowSidebar({
                   <button
                     onClick={() => onDuplicateFlow(flow.id)}
                     title="Duplicar"
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '6px',
-                      borderRadius: '6px',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-                      backgroundColor: 'transparent',
-                      color: isDark ? '#888' : '#64748b',
-                      fontSize: '0.65rem',
-                      cursor: 'pointer',
-                    }}
+                    style={actionBtnStyle}
                   >
                     <Copy size={14} />
                   </button>
+                  {isMaster && (
+                    <button
+                      onClick={() => onMarkAsTemplate(flow.id)}
+                      title="Salvar como Template"
+                      style={{
+                        ...actionBtnStyle,
+                        color: '#f59e0b',
+                      }}
+                    >
+                      <Bookmark size={14} />
+                    </button>
+                  )}
                   <button
                     onClick={() => onDeleteFlow(flow.id)}
                     title="Excluir"
                     style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '6px',
-                      borderRadius: '6px',
+                      ...actionBtnStyle,
                       border: '1px solid rgba(239,68,68,0.3)',
-                      backgroundColor: 'transparent',
                       color: '#ef4444',
-                      fontSize: '0.65rem',
-                      cursor: 'pointer',
                     }}
                   >
                     <Trash2 size={14} />
@@ -232,6 +207,102 @@ export default function FlowSidebar({
                 </>
               );
             })()}
+          </div>
+        )}
+
+        {/* Templates Section */}
+        {templates.length > 0 && (
+          <div style={{ marginTop: '16px' }}>
+            <span style={{
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              color: '#f59e0b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginBottom: '8px',
+            }}>
+              <BookmarkCheck size={12} /> Modelos
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {templates.map(tmpl => (
+                <div
+                  key={tmpl.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: `1px dashed ${isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.4)'}`,
+                    backgroundColor: isDark ? 'rgba(245,158,11,0.05)' : 'rgba(245,158,11,0.03)',
+                    cursor: isMaster ? 'pointer' : 'default',
+                  }}
+                  onClick={() => isMaster && onSelectFlow(tmpl.id)}
+                >
+                  <BookmarkCheck size={12} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                  <span style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 500,
+                    color: isDark ? '#e0e0e0' : '#1a1a2e',
+                    flex: 1,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    {tmpl.name}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onUseTemplate(tmpl.id); }}
+                    title="Usar este modelo"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      padding: '3px 6px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      backgroundColor: '#f59e0b',
+                      color: '#fff',
+                      fontSize: '0.58rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Download size={10} /> Usar
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Remove from template (master only) */}
+            {isMaster && selectedFlowId && templates.find(t => t.id === selectedFlowId) && (
+              <div style={{ marginTop: '6px' }}>
+                <button
+                  onClick={() => onMarkAsTemplate(selectedFlowId)}
+                  title="Remover dos modelos"
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                    backgroundColor: 'transparent',
+                    color: isDark ? '#888' : '#64748b',
+                    fontSize: '0.62rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Bookmark size={12} /> Remover dos modelos
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -308,6 +379,55 @@ export default function FlowSidebar({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Sub-component for flow list items
+function FlowListItem({ flow, isSelected, isDark, onClick }: {
+  flow: FlowDefinition;
+  isSelected: boolean;
+  isDark: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '8px 10px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        backgroundColor: isSelected
+          ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)')
+          : 'transparent',
+        border: isSelected
+          ? '1px solid var(--accent)'
+          : '1px solid transparent',
+        transition: 'all 0.15s',
+      }}
+    >
+      <div style={{
+        width: '6px',
+        height: '6px',
+        borderRadius: '50%',
+        backgroundColor: flow.is_active ? '#10b981' : '#64748b',
+        flexShrink: 0,
+      }} />
+      <span style={{
+        fontSize: '0.72rem',
+        fontWeight: isSelected ? 600 : 500,
+        color: isDark ? '#e0e0e0' : '#1a1a2e',
+        flex: 1,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}>
+        {flow.name}
+      </span>
+      <ChevronRight size={12} style={{ color: isDark ? '#555' : '#94a3b8', flexShrink: 0 }} />
     </div>
   );
 }

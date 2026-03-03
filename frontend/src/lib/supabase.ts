@@ -84,6 +84,7 @@ export type Lead = {
   followup_locked?: boolean;
   last_outbound_at?: string;
   last_interaction_at?: string;
+  instance_name?: string;
   observacoes?: string;
   // Novos recursos
   tasks?: { id: string; title: string; due_date: string; completed: boolean }[];
@@ -184,7 +185,7 @@ export type FlowMessageItem = {
 
 export type TriggerNodeData = {
   label: string;
-  triggerType: 'manual' | 'stage_change' | 'new_lead';
+  triggerType: 'manual' | 'stage_change' | 'new_lead' | 'no_response_timeout' | 'external_lead';
   config: Record<string, string>;
 };
 
@@ -254,10 +255,12 @@ export type FlowDefinition = {
   company_id?: string;
   name: string;
   description?: string;
-  trigger_type: 'manual' | 'stage_change' | 'new_lead';
+  trigger_type: 'manual' | 'stage_change' | 'new_lead' | 'no_response_timeout' | 'external_lead';
   trigger_config: Record<string, string>;
   flow_data: FlowData;
   is_active: boolean;
+  is_template: boolean;
+  template_source_id?: number | null;
   created_at?: string;
   updated_at?: string;
 };

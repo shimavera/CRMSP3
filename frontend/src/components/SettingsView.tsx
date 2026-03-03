@@ -126,6 +126,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [isSavingFollowup, setIsSavingFollowup] = useState(false);
     const [followupSuccess, setFollowupSuccess] = useState(false);
 
+    // Toggle visual flows
+    const [useVisualFlows, setUseVisualFlows] = useState(false);
+
     // Estados do Step Builder (Follow-up dinâmico)
     const [followupSteps, setFollowupSteps] = useState<FollowupStep[]>([]);
     const [isLoadingSteps, setIsLoadingSteps] = useState(false);
@@ -261,6 +264,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     msg_2: data.msg_2 || 'Ainda por aí? Se preferir, podemos marcar um papo rápido para eu tirar suas dúvidas! 📲',
                     msg_3: data.msg_3 || 'Vi que as coisas devem estar corridas! Vou deixar nosso link de agenda aqui para quando você puder. 🤝'
                 });
+                setUseVisualFlows(data.use_visual_flows || false);
             }
         } catch (err) {
             console.error('Erro ao carregar follow-up:', err);
@@ -1603,7 +1607,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 </div>
                                 <button
                                     onClick={() => activeInstance && checkInstanceStatus(activeInstance)}
-                                    style={{ padding: '8px', borderRadius: '50%', border: '1px solid var(--border-soft)', background: 'white', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                                    style={{ padding: '8px', borderRadius: '50%', border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--text-secondary)' }}
                                 >
                                     <RefreshCw size={18} className={status === 'loading' ? 'animate-spin' : ''} />
                                 </button>
@@ -1621,7 +1625,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             const inst = instances.find(i => i.id === e.target.value);
                                             if (inst) handleSetActiveInstance(inst);
                                         }}
-                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'white', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer' }}
+                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer' }}
                                     >
                                         {instances.map(inst => (
                                             <option key={inst.id} value={inst.id}>
@@ -1655,7 +1659,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     {status === 'connected' ? (
                                         <button
                                             onClick={handleLogout}
-                                            style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
+                                            style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #fee2e2', background: 'var(--bg-secondary)', color: '#ef4444', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
                                         >
                                             Desconectar
                                         </button>
@@ -1696,7 +1700,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                         localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
                                                     }}
                                                     placeholder="Cole a Global API Key aqui"
-                                                    style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace', backgroundColor: 'white' }}
+                                                    style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace', background: 'var(--bg-secondary)' }}
                                                 />
                                                 <button
                                                     onClick={() => setShowEvoGlobalKey(!showEvoGlobalKey)}
@@ -1846,7 +1850,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 {!inst.is_active && (
                                                     <button
                                                         onClick={() => handleSetActiveInstance(inst)}
-                                                        style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'white', color: 'var(--text-secondary)', fontWeight: '600', fontSize: '0.75rem', cursor: 'pointer' }}
+                                                        style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontWeight: '600', fontSize: '0.75rem', cursor: 'pointer' }}
                                                     >
                                                         Ativar
                                                     </button>
@@ -1854,7 +1858,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 {!inst.is_active && (
                                                     <button
                                                         onClick={() => handleDeleteInstance(inst)}
-                                                        style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', cursor: 'pointer' }}
+                                                        style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'var(--bg-secondary)', color: '#ef4444', cursor: 'pointer' }}
                                                     >
                                                         <Trash2 size={14} />
                                                     </button>
@@ -2088,7 +2092,75 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
                         </div>
 
-                        {/* SEÇÃO 2: Follow-up Automático — Step Builder */}
+                        {/* SEÇÃO: Modo de Follow-up */}
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <h3 style={{ fontSize: '1.15rem', fontWeight: '800', marginBottom: '0.5rem' }}>Modo de Follow-up</h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                                Escolha como gerenciar seus follow-ups automáticos.
+                            </p>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                {/* Opção: Modo Simples */}
+                                <div
+                                    onClick={async () => {
+                                        setUseVisualFlows(false);
+                                        await supabase.from('sp3_followup_settings').update({ use_visual_flows: false }).eq('company_id', authUser.company_id);
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '16px', borderRadius: '12px', cursor: 'pointer',
+                                        border: !useVisualFlows ? '2px solid var(--accent)' : '2px solid var(--border-soft)',
+                                        backgroundColor: !useVisualFlows ? 'rgba(99,102,241,0.05)' : 'transparent',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                                        Etapas Lineares
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                        Configure etapas sequenciais (1, 2, 3...) com tempo de espera entre cada uma. Mais simples e direto.
+                                    </div>
+                                    {!useVisualFlows && (
+                                        <div style={{ marginTop: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)' }}>Ativo</div>
+                                    )}
+                                </div>
+                                {/* Opção: Modo Visual */}
+                                <div
+                                    onClick={async () => {
+                                        setUseVisualFlows(true);
+                                        await supabase.from('sp3_followup_settings').update({ use_visual_flows: true }).eq('company_id', authUser.company_id);
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '16px', borderRadius: '12px', cursor: 'pointer',
+                                        border: useVisualFlows ? '2px solid var(--accent)' : '2px solid var(--border-soft)',
+                                        backgroundColor: useVisualFlows ? 'rgba(99,102,241,0.05)' : 'transparent',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                                        Flow Builder Visual
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                        Monte fluxos visuais com condições, ramificações e múltiplos caminhos. Mais flexível e poderoso.
+                                    </div>
+                                    {useVisualFlows && (
+                                        <div style={{ marginTop: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)' }}>Ativo</div>
+                                    )}
+                                </div>
+                            </div>
+                            {useVisualFlows && (
+                                <div style={{
+                                    marginTop: '12px', padding: '12px 16px', borderRadius: '10px',
+                                    backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                }}>
+                                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                        Gerencie seus fluxos visuais na página <strong>Fluxos</strong> no menu lateral.
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* SEÇÃO 2: Follow-up Automático — Step Builder (visível apenas no modo simples) */}
+                        {!useVisualFlows && (
                         <div className="glass-card" style={{ padding: '2rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                 <div>
@@ -2177,7 +2249,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                                 padding: '5px 8px', borderRadius: '8px',
                                                                 border: '1px solid var(--border-soft)',
                                                                 fontSize: '0.75rem', fontWeight: '600',
-                                                                color: 'var(--text-muted)', background: 'white',
+                                                                color: 'var(--text-muted)', background: 'var(--bg-secondary)',
                                                                 cursor: 'pointer', outline: 'none'
                                                             }}
                                                         >
@@ -2228,7 +2300,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                             <div key={msgIdx} style={{
                                                                 marginTop: msgIdx === 0 ? '14px' : 0,
                                                                 padding: '14px', borderRadius: '12px',
-                                                                backgroundColor: 'white', border: '1px solid var(--border-soft)',
+                                                                background: 'var(--bg-secondary)', border: '1px solid var(--border-soft)',
                                                                 position: 'relative'
                                                             }}>
                                                                 {/* Header da mensagem */}
@@ -2523,7 +2595,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                             {showMsgTypeMenu === stepIdx && (
                                                                 <div style={{
                                                                     position: 'absolute', top: '100%', left: 0, marginTop: '4px',
-                                                                    background: 'white', borderRadius: '10px', border: '1px solid var(--border-soft)',
+                                                                    background: 'var(--bg-secondary)', borderRadius: '10px', border: '1px solid var(--border-soft)',
                                                                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, overflow: 'hidden', minWidth: '180px'
                                                                 }}>
                                                                     {[
@@ -2592,6 +2664,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 </button>
                             </div>
                         </div>
+                        )}
                     </div>
                 )}
 
@@ -2630,7 +2703,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             <select
                                                 value={newVideoContexto}
                                                 onChange={(e) => setNewVideoContexto(e.target.value)}
-                                                style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem', backgroundColor: 'white' }}
+                                                style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', outline: 'none', fontSize: '0.9rem', background: 'var(--bg-secondary)' }}
                                             >
                                                 <option value="Depoimento">Depoimento</option>
                                                 <option value="Resultado">Resultado</option>
@@ -2655,7 +2728,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Arquivo de Vídeo</label>
                                         <div
                                             onClick={() => videoFileRef.current?.click()}
-                                            style={{ padding: '1.5rem', borderRadius: '12px', border: '2px dashed var(--border-soft)', backgroundColor: 'white', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+                                            style={{ padding: '1.5rem', borderRadius: '12px', border: '2px dashed var(--border-soft)', background: 'var(--bg-secondary)', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
                                         >
                                             {newVideoFile ? (
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -2726,14 +2799,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 <button
                                                     onClick={() => handleToggleVideo(video)}
                                                     title={video.active ? 'Desativar' : 'Ativar'}
-                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'white', cursor: 'pointer', color: video.active ? '#f97316' : '#16a34a', display: 'flex', alignItems: 'center' }}
+                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', cursor: 'pointer', color: video.active ? '#f97316' : '#16a34a', display: 'flex', alignItems: 'center' }}
                                                 >
                                                     {video.active ? <PowerOff size={14} /> : <Power size={14} />}
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteVideo(video)}
                                                     title="Excluir"
-                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'var(--bg-secondary)', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
@@ -2819,7 +2892,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 <button
                                                     onClick={() => handleDeleteQuickMessage(msg.id)}
                                                     title="Excluir"
-                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+                                                    style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'var(--bg-secondary)', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
@@ -2872,7 +2945,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {closingReasons.map(reason => (
-                                            <div key={reason} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '10px', backgroundColor: 'white', border: '1px solid var(--border-soft)' }}>
+                                            <div key={reason} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-soft)' }}>
                                                 <span style={{ fontSize: '0.9rem', fontWeight: '500', color: 'var(--text-primary)' }}>{reason}</span>
                                                 <button
                                                     onClick={() => handleRemoveClosingReason(reason)}
@@ -2942,7 +3015,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 {u.role !== 'master' && (
                                                     <button
                                                         onClick={() => handleDeleteUser(u.id)}
-                                                        style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                        style={{ padding: '6px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'var(--bg-secondary)', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                                                         title="Remover usuário"
                                                     >
                                                         <Trash2 size={14} />
@@ -3129,7 +3202,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 </div>
                             )}
 
-                            <div style={{ overflowX: 'auto', background: 'white', borderRadius: '16px', border: '1px solid var(--border-soft)' }}>
+                            <div style={{ overflowX: 'auto', background: 'var(--bg-secondary)', borderRadius: '16px', border: '1px solid var(--border-soft)' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                     <thead style={{ backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-soft)' }}>
                                         <tr>
