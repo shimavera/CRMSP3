@@ -1426,6 +1426,17 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     useEffect(() => {
         fetchInstances(); // Always fetch instances on mount
+
+        // Pré-preencher chave global da Evolution API do banco (se não tem no localStorage)
+        if (!evoGlobalKey && authUser.role === 'master') {
+            supabase.rpc('get_evo_global_key').then(({ data }) => {
+                if (data) {
+                    setEvoGlobalKey(data);
+                    localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, data);
+                }
+            });
+        }
+
         return () => stopConnectionPolling(); // Cleanup for connection polling
     }, []);
 
@@ -1443,9 +1454,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             fetchQuickMessages();
         } else if (activeSubTab === 'clientes') {
             fetchSaasClients();
-            // Buscar chave global Evolution do banco
+            // Buscar chave global Evolution do banco e sincronizar ambos states
             supabase.rpc('get_evo_global_key').then(({ data }) => {
-                if (data) setNewClientEvoKey(data);
+                if (data) {
+                    setNewClientEvoKey(data);
+                    if (!evoGlobalKey) {
+                        setEvoGlobalKey(data);
+                        localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, data);
+                    }
+                }
             });
         }
     }, [activeSubTab]);
