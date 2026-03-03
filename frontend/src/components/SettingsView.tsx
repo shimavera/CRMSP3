@@ -792,16 +792,19 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const configureInstanceWebhookAndSettings = async (apiUrl: string, instanceName: string, apiKey: string) => {
-        // Configurar webhook para o n8n
+        // Configurar webhook para o n8n (Evolution API v2 format)
         try {
             await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
-                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
-                    webhookByEvents: false,
-                    webhookBase64: true,
-                    events: ['MESSAGES_UPSERT']
+                    webhook: {
+                        enabled: true,
+                        url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                        webhookByEvents: false,
+                        webhookBase64: true,
+                        events: ['MESSAGES_UPSERT']
+                    }
                 })
             });
         } catch (whErr) {
@@ -880,6 +883,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             );
 
             if (checkRes.ok) {
+                // Sempre configurar webhook (pode estar faltando em instâncias existentes)
+                await configureInstanceWebhookAndSettings(apiUrl, instance.instance_name, checkKey);
                 return { ok: true, apiUrl, apiKey: checkKey };
             }
 
