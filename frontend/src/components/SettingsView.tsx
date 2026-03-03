@@ -1615,10 +1615,42 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 </div>
                             )}
 
-                            {/* Erro */}
+                            {/* Erro + campo inline para chave global se necessário */}
                             {evoError && (
-                                <div style={{ marginTop: '1rem', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', fontSize: '0.85rem' }}>
-                                    <strong>Erro:</strong> {evoError}
+                                <div style={{ marginTop: '1rem', padding: '16px', borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2' }}>
+                                    <div style={{ color: '#b91c1c', fontSize: '0.85rem', marginBottom: evoError.includes('Chave Global') ? '12px' : 0 }}>
+                                        <strong>Erro:</strong> {evoError}
+                                    </div>
+                                    {evoError.includes('Chave Global') && authUser.role === 'master' && (
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <div style={{ flex: 1, position: 'relative' }}>
+                                                <input
+                                                    type={showEvoGlobalKey ? 'text' : 'password'}
+                                                    value={evoGlobalKey}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setEvoGlobalKey(val);
+                                                        localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
+                                                    }}
+                                                    placeholder="Cole a Global API Key da Evolution aqui"
+                                                    style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace', backgroundColor: 'white' }}
+                                                />
+                                                <button
+                                                    onClick={() => setShowEvoGlobalKey(!showEvoGlobalKey)}
+                                                    style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}
+                                                >
+                                                    {showEvoGlobalKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                </button>
+                                            </div>
+                                            <button
+                                                onClick={() => { setEvoError(null); getQrCode(); }}
+                                                disabled={!evoGlobalKey}
+                                                style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: evoGlobalKey ? 'var(--accent)' : '#e5e7eb', color: evoGlobalKey ? 'white' : '#9ca3af', fontWeight: '700', fontSize: '0.8rem', cursor: evoGlobalKey ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                                            >
+                                                Tentar Novamente
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
