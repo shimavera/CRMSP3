@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
-  X, Plus, Trash2, Upload, Variable,
+  X, Plus, Trash2, Upload, Variable, Loader2,
   Play, MessageSquare, Clock, GitBranch, Zap, Flag,
 } from 'lucide-react';
 import type {
@@ -159,7 +159,7 @@ export default function NodeConfigPanel({
         </div>
 
         {/* Type-specific config */}
-        {nodeType === 'trigger' && <TriggerConfig data={nodeData as unknown as TriggerNodeData} update={update} selectStyle={selectStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} isDark={isDark} />}
+        {nodeType === 'trigger' && <TriggerConfig data={nodeData as unknown as TriggerNodeData} update={update} inputStyle={inputStyle} selectStyle={selectStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} isDark={isDark} />}
         {nodeType === 'send_message' && <SendMessageConfig data={nodeData as unknown as SendMessageNodeData} update={update} inputStyle={inputStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} isDark={isDark} companyId={companyId} />}
         {nodeType === 'wait_delay' && <WaitDelayConfig data={nodeData as unknown as WaitDelayNodeData} update={update} inputStyle={inputStyle} selectStyle={selectStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} />}
         {nodeType === 'condition' && <ConditionConfig data={nodeData as unknown as ConditionNodeData} update={update} inputStyle={inputStyle} selectStyle={selectStyle} labelStyle={labelStyle} sectionStyle={sectionStyle} />}
@@ -208,7 +208,7 @@ interface ConfigProps {
   companyId?: string;
 }
 
-function TriggerConfig({ data, update, selectStyle, labelStyle, sectionStyle }: { data: TriggerNodeData; update: (p: Record<string, unknown>) => void } & Omit<ConfigProps, 'inputStyle'> & { selectStyle: React.CSSProperties }) {
+function TriggerConfig({ data, update, selectStyle, labelStyle, sectionStyle, inputStyle }: { data: TriggerNodeData; update: (p: Record<string, unknown>) => void } & ConfigProps & { selectStyle: React.CSSProperties }) {
   return (
     <>
       <div style={sectionStyle}>
@@ -221,8 +221,21 @@ function TriggerConfig({ data, update, selectStyle, labelStyle, sectionStyle }: 
           <option value="manual">Manual</option>
           <option value="stage_change">Mudança de Stage</option>
           <option value="new_lead">Novo Lead</option>
+          <option value="no_response_timeout">Lead Não Respondeu</option>
+          <option value="external_lead">Lead do Site (Formulário)</option>
         </select>
       </div>
+      {data.triggerType === 'external_lead' && (
+        <div style={{ ...sectionStyle, padding: '8px 10px', borderRadius: '8px', backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+          <div style={{ fontSize: '0.65rem', color: '#6366f1', fontWeight: 600, marginBottom: '4px' }}>Como funciona</div>
+          <div style={{ fontSize: '0.6rem', color: '#64748b', lineHeight: '1.5' }}>
+            Quando um lead preenche o formulário no site e cai na tabela leads_sp3, o sistema automaticamente:
+            <br />1. Cria o lead no CRM (Kanban)
+            <br />2. Inicia este fluxo
+            <br />3. Envia a primeira mensagem via WhatsApp
+          </div>
+        </div>
+      )}
       {data.triggerType === 'stage_change' && (
         <>
           <div style={sectionStyle}>
@@ -249,12 +262,42 @@ function TriggerConfig({ data, update, selectStyle, labelStyle, sectionStyle }: 
           </div>
         </>
       )}
+      {data.triggerType === 'no_response_timeout' && (
+        <>
+          <div style={sectionStyle}>
+            <label style={labelStyle}>Tempo sem resposta</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                style={{ ...inputStyle, width: '80px' }}
+                type="number"
+                min={1}
+                value={data.config?.timeout_value || '30'}
+                onChange={e => update({ config: { ...data.config, timeout_value: e.target.value } })}
+              />
+              <select
+                style={{ ...selectStyle, flex: 1 }}
+                value={data.config?.timeout_unit || 'minutes'}
+                onChange={e => update({ config: { ...data.config, timeout_unit: e.target.value } })}
+              >
+                <option value="minutes">Minuto(s)</option>
+                <option value="hours">Hora(s)</option>
+                <option value="days">Dia(s)</option>
+              </select>
+            </div>
+            <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '4px' }}>
+              O fluxo inicia quando o lead não responde após este tempo desde a última mensagem enviada.
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }
 
 function SendMessageConfig({ data, update, inputStyle, labelStyle, sectionStyle, isDark, companyId }: { data: SendMessageNodeData; update: (p: Record<string, unknown>) => void } & ConfigProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const msgs = data.messages || [];
 
   const updateMessage = (idx: number, partial: Partial<FlowMessageItem>) => {
@@ -273,16 +316,35 @@ function SendMessageConfig({ data, update, inputStyle, labelStyle, sectionStyle,
 
   const handleMediaUpload = async (file: File, idx: number) => {
     if (!companyId) return;
-    const ext = file.name.split('.').pop();
-    const path = `${companyId}/flow-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('followup-media').upload(path, file);
-    if (error) return;
-    const { data: urlData } = supabase.storage.from('followup-media').getPublicUrl(path);
-    updateMessage(idx, {
-      media_url: urlData.publicUrl,
-      media_name: file.name,
-      media_mime: file.type,
-    });
+    // Validar tamanho (16MB WhatsApp limit)
+    if (file.size > 16 * 1024 * 1024) {
+      setUploadError('Arquivo muito grande (máx. 16MB)');
+      setTimeout(() => setUploadError(null), 3000);
+      return;
+    }
+    setUploadingIdx(idx);
+    setUploadError(null);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${companyId}/flow-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('followup-media').upload(path, file, { contentType: file.type });
+      if (error) {
+        setUploadError(error.message || 'Erro no upload');
+        setTimeout(() => setUploadError(null), 3000);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('followup-media').getPublicUrl(path);
+      updateMessage(idx, {
+        media_url: urlData.publicUrl,
+        media_name: file.name,
+        media_mime: file.type,
+      });
+    } catch {
+      setUploadError('Erro inesperado no upload');
+      setTimeout(() => setUploadError(null), 3000);
+    } finally {
+      setUploadingIdx(null);
+    }
   };
 
   const insertVariable = (idx: number, token: string) => {
@@ -370,6 +432,7 @@ function SendMessageConfig({ data, update, inputStyle, labelStyle, sectionStyle,
                 </div>
               ) : (
                 <button
+                  disabled={uploadingIdx === idx}
                   onClick={() => {
                     const input = document.createElement('input');
                     input.type = 'file';
@@ -390,15 +453,24 @@ function SendMessageConfig({ data, update, inputStyle, labelStyle, sectionStyle,
                     backgroundColor: 'transparent',
                     color: isDark ? '#888' : '#94a3b8',
                     fontSize: '0.7rem',
-                    cursor: 'pointer',
+                    cursor: uploadingIdx === idx ? 'wait' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
+                    opacity: uploadingIdx === idx ? 0.6 : 1,
                   }}
                 >
-                  <Upload size={14} /> Enviar {msg.message_type === 'audio' ? 'Áudio' : msg.message_type === 'image' ? 'Imagem' : 'Vídeo'}
+                  {uploadingIdx === idx
+                    ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Enviando...</>
+                    : <><Upload size={14} /> Enviar {msg.message_type === 'audio' ? 'Áudio' : msg.message_type === 'image' ? 'Imagem' : 'Vídeo'}</>
+                  }
                 </button>
+              )}
+              {uploadError && (
+                <div style={{ fontSize: '0.62rem', color: '#ef4444', marginTop: '4px', fontWeight: 500 }}>
+                  {uploadError}
+                </div>
               )}
               {(msg.message_type === 'image' || msg.message_type === 'video') && (
                 <div style={{ marginTop: '6px' }}>

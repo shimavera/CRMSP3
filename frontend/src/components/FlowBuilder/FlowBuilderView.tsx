@@ -26,13 +26,20 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
 
   // Current working nodes/edges
   const nodesRef = useRef<Node[]>([]);
+  const canvasUpdateNodeRef = useRef<((nodeId: string, data: Record<string, unknown>) => void) | null>(null);
   const edgesRef = useRef<Edge[]>([]);
 
   const companyId = authUser.company_id;
+  const isMaster = authUser.role === 'master';
   const selectedFlow = flows.find(f => f.id === selectedFlowId);
+
+  // Separar fluxos normais de templates
+  const regularFlows = flows.filter(f => !f.is_template);
+  const templateFlows = flows.filter(f => f.is_template);
 
   // Load flows
   useEffect(() => {
@@ -86,9 +93,10 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
     nodesRef.current = nodesRef.current.map(n =>
       n.id === nodeId ? { ...n, data: newData as Node['data'] } : n
     );
+    // Update canvas internal state so node visuals reflect the change
+    canvasUpdateNodeRef.current?.(nodeId, newData);
     setIsDirty(true);
-    // Force re-render of canvas
-    setSelectedNodeId(prev => prev);
+    setDataVersion(v => v + 1);
   }, []);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
@@ -256,13 +264,61 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
     }
   };
 
+  const handleMarkAsTemplate = async (id: number) => {
+    const flow = flows.find(f => f.id === id);
+    if (!flow) return;
+    const newVal = !flow.is_template;
+
+    const { error } = await supabase
+      .from('sp3_flows')
+      .update({ is_template: newVal, is_active: newVal ? false : flow.is_active })
+      .eq('id', id);
+
+    if (!error) {
+      setFlows(prev => prev.map(f =>
+        f.id === id ? { ...f, is_template: newVal, is_active: newVal ? false : f.is_active } : f
+      ));
+      showToast('success', newVal ? 'Marcado como template' : 'Removido dos templates');
+    }
+  };
+
+  const handleUseTemplate = async (id: number) => {
+    const flow = flows.find(f => f.id === id);
+    if (!flow || !companyId) return;
+
+    const { data, error } = await supabase
+      .from('sp3_flows')
+      .insert({
+        company_id: companyId,
+        name: `${flow.name}`,
+        flow_data: flow.flow_data,
+        trigger_type: flow.trigger_type,
+        trigger_config: flow.trigger_config,
+        is_active: false,
+        is_template: false,
+        template_source_id: flow.id,
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      const newFlow = data as FlowDefinition;
+      setFlows(prev => [newFlow, ...prev]);
+      setSelectedFlowId(newFlow.id);
+      showToast('success', 'Fluxo criado a partir do template');
+    } else {
+      showToast('error', 'Erro ao usar template');
+    }
+  };
+
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Selected node data for config panel
+  // Selected node data for config panel (dataVersion forces re-read from ref after updates)
   const selectedNode = selectedNodeId ? nodesRef.current.find(n => n.id === selectedNodeId) : null;
+  void dataVersion;
 
   return (
     <div style={{
@@ -274,13 +330,17 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
     }}>
       {/* Left Sidebar */}
       <FlowSidebar
-        flows={flows}
+        flows={regularFlows}
+        templates={templateFlows}
         selectedFlowId={selectedFlowId}
         onSelectFlow={setSelectedFlowId}
         onCreateFlow={handleCreateFlow}
         onDeleteFlow={handleDeleteFlow}
         onDuplicateFlow={handleDuplicateFlow}
         onToggleActive={handleToggleActive}
+        onMarkAsTemplate={handleMarkAsTemplate}
+        onUseTemplate={handleUseTemplate}
+        isMaster={isMaster}
         isLoading={isLoading}
         isDark={isDarkMode}
       />
@@ -416,6 +476,7 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
                   onNodesChange={handleNodesChange}
                   onEdgesChange={handleEdgesChange}
                   onNodeSelect={handleNodeSelect}
+                  updateNodeDataRef={canvasUpdateNodeRef}
                   isDark={isDarkMode}
                 />
               </ReactFlowProvider>
