@@ -1190,7 +1190,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f2f5', zIndex: 10 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 {isMobile && (
-                                    <button onClick={() => setMobilePanel('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#667781', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                                    <button onClick={() => setMobilePanel('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px', display: 'flex', alignItems: 'center' }}>
                                         <ArrowLeft size={22} />
                                     </button>
                                 )}
@@ -1216,7 +1216,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             {selectedLead.nome || selectedLead.telefone}
                                         </h4>
                                     )}
-                                    <span style={{ fontSize: '0.75rem', color: '#667781' }}>{selectedLead.telefone}</span>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{selectedLead.telefone}</span>
                                 </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1258,7 +1258,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     {showFollowupSelector && (
                                         <div style={{
                                             position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                            backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                            background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
                                             border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
                                         }}>
                                             <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
@@ -1309,7 +1309,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     {showStageSelector && (
                                         <div style={{
                                             position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                            backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                            background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
                                             border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
                                         }}>
                                             <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
@@ -1352,7 +1352,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                     msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
                                                         msg.msgStyle === 'info' ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
                                                             msg.msgStyle === 'followup' ? { color: '#7c3aed', backgroundColor: '#ede9fe', border: '1px solid #c4b5fd' } :
-                                                                { color: '#667781', backgroundColor: 'rgba(255,255,255,0.9)' })
+                                                                { color: 'var(--text-secondary)', backgroundColor: 'rgba(255,255,255,0.9)' })
                                         }}>
                                             {msg.text}
                                         </span>
@@ -1374,8 +1374,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             fontWeight: '700', fontSize: '0.75rem',
-                                            backgroundColor: msg.type === 'human' ? '#e2e8f0' : (msg.sentByCRM ? '#bfdbfe' : '#bbf7d0'),
-                                            color: msg.type === 'human' ? '#475569' : (msg.sentByCRM ? '#1d4ed8' : '#15803d')
+                                            backgroundColor: msg.type === 'human' ? 'var(--chat-icon-bg-user)' : (msg.sentByCRM ? 'var(--chat-icon-bg-crm)' : 'var(--chat-icon-bg-bot)'),
+                                            color: msg.type === 'human' ? 'var(--chat-icon-text-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
                                         }}>
                                             {msg.type === 'human'
                                                 ? (selectedLead.nome || 'C')[0].toUpperCase()
@@ -1390,7 +1390,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                 paddingLeft: msg.type === 'human' ? '4px' : '0',
                                                 paddingRight: msg.type === 'human' ? '0' : '4px',
                                                 textAlign: msg.type === 'human' ? 'left' : 'right',
-                                                color: msg.type === 'human' ? '#667781' : (msg.sentByCRM ? '#1d4ed8' : '#15803d')
+                                                color: msg.type === 'human' ? 'var(--chat-name-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
                                             }}>
                                                 {msg.type === 'human'
                                                     ? (selectedLead.nome || selectedLead.telefone)
@@ -1404,12 +1404,13 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             </div>
 
                                             {/* Balão */}
-                                            <div style={{
+                                            <div className="chat-bubble-custom" style={{
                                                 position: 'relative',
                                                 padding: msg.isImage ? '4px 4px 20px 4px' : '8px 12px 18px 12px',
                                                 borderRadius: msg.type === 'human' ? '0 8px 8px 8px' : '8px 0 8px 8px',
                                                 fontSize: '0.92rem',
-                                                backgroundColor: msg.type === 'human' ? 'white' : (msg.sentByCRM ? '#dbeafe' : '#dcf8c6'),
+                                                backgroundColor: msg.type === 'human' ? 'var(--chat-bg-user)' : (msg.sentByCRM ? 'var(--chat-bg-crm)' : 'var(--chat-bg-bot)'),
+                                                color: 'var(--chat-text-primary)',
                                                 boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
                                                 whiteSpace: 'pre-wrap'
                                             }}>
@@ -1437,13 +1438,13 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                     </div>
                                                 ) : msg.isAudioSent ? (
                                                     <>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: '#667781', fontSize: '0.7rem', fontWeight: '600' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: '600' }}>
                                                             <Mic size={13} /> Enviado como áudio
                                                         </div>
-                                                        <div style={{ fontStyle: 'italic', color: '#4a5568' }}>{msg.text}</div>
+                                                        <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>{msg.text}</div>
                                                     </>
                                                 ) : msg.text}
-                                                <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: '#667781' }}>{msg.time}</span>
+                                                <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{msg.time}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1496,7 +1497,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     borderRadius: '12px',
                                     overflow: 'hidden'
                                 }}>
-                                    <Suspense fallback={<div style={{ width: 320, height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white' }}><Loader2 className="animate-spin" /></div>}>
+                                    <Suspense fallback={<div style={{ width: 320, height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}><Loader2 className="animate-spin" /></div>}>
                                         <EmojiPicker
                                             theme={Theme.LIGHT}
                                             onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
@@ -1509,7 +1510,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
                             <button
                                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                style={{ background: 'none', border: 'none', color: '#54656f', cursor: 'pointer', padding: '4px' }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
                             >
                                 <Smile size={24} />
                             </button>
@@ -1517,7 +1518,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploading || isSending}
-                                style={{ background: 'none', border: 'none', color: '#54656f', cursor: 'pointer', padding: '4px' }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
                             >
                                 {isUploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
                             </button>
@@ -1531,9 +1532,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             />
 
                             {isRecording ? (
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'white', borderRadius: '8px', padding: '8px 16px' }}>
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 16px' }}>
                                     <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }}></div>
-                                    <span style={{ flex: 1, fontSize: '0.9rem', color: '#667781', fontWeight: '500' }}>Gravando... {formatTime(recordingTime)}</span>
+                                    <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Gravando... {formatTime(recordingTime)}</span>
                                     <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
                                         <X size={20} />
                                     </button>
@@ -1550,7 +1551,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             left: isMobile ? '0' : '60px',
                                             right: isMobile ? '0' : '60px',
                                             marginBottom: '10px',
-                                            backgroundColor: 'white',
+                                            background: 'var(--bg-secondary)',
                                             borderRadius: '12px',
                                             boxShadow: '0 -4px 15px rgba(0,0,0,0.1)',
                                             maxHeight: '200px',
@@ -1579,7 +1580,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             ))}
                                         </div>
                                     )}
-                                    <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '8px', padding: '4px 12px' }}>
+                                    <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: '8px', padding: '4px 12px' }}>
                                         <input
                                             type="text"
                                             value={inputValue}
@@ -1602,14 +1603,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     </div>
 
                                     {inputValue.trim() ? (
-                                        <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: '#54656f', cursor: 'pointer' }}>
+                                        <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                                             {isSending ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
                                         </button>
                                     ) : (
                                         <button
                                             onTouchStart={startRecording}
                                             onMouseDown={startRecording}
-                                            style={{ background: 'none', border: 'none', color: '#54656f', cursor: 'pointer', padding: '4px' }}
+                                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
                                         >
                                             <Mic size={24} />
                                         </button>
@@ -1619,7 +1620,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         </div>
                     </>
                 ) : (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#667781' }}>Selecione uma conversa para começar</div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Selecione uma conversa para começar</div>
                 )}
             </div>}
 
@@ -1681,7 +1682,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     <button
                                         onClick={handleGenerateAiSummary}
                                         disabled={isGeneratingSummary}
-                                        style={{ background: 'white', border: '1px solid #c4b5fd', borderRadius: '6px', fontSize: '0.65rem', padding: '2px 8px', fontWeight: '800', cursor: 'pointer', color: '#6d28d9' }}
+                                        style={{ background: 'var(--bg-secondary)', border: '1px solid #c4b5fd', borderRadius: '6px', fontSize: '0.65rem', padding: '2px 8px', fontWeight: '800', cursor: 'pointer', color: '#6d28d9' }}
                                     >
                                         {isGeneratingSummary ? 'Processando...' : 'Gerar Resumo'}
                                     </button>
@@ -1760,7 +1761,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             <select
                                                 value={(selectedLead.custom_fields || {})[field.key] || ''}
                                                 onChange={e => handleUpdateCustomField(field.key, e.target.value)}
-                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', backgroundColor: 'white' }}
+                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', background: 'var(--bg-secondary)' }}
                                             >
                                                 <option value="">-- Selecione --</option>
                                                 {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -1938,7 +1939,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     {showFlowSelector && (
                                         <div style={{
                                             position: 'absolute', bottom: '100%', left: 0, right: 0,
-                                            marginBottom: '6px', backgroundColor: 'white', borderRadius: '12px',
+                                            marginBottom: '6px', background: 'var(--bg-secondary)', borderRadius: '12px',
                                             boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb',
                                             zIndex: 999, overflow: 'hidden',
                                         }}>
@@ -2016,7 +2017,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
             {showCloseChatModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', width: '90%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                    <div style={{ background: 'var(--bg-secondary)', padding: '24px', borderRadius: '16px', width: '90%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
                         <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>Fechar Conversa</h3>
                         <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>
                             Por qual motivo você está fechando esta conversa?
