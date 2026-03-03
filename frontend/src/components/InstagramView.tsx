@@ -15,9 +15,6 @@ import {
   MessageCircle,
   Power,
   PowerOff,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
   AlertCircle,
   Info
 } from 'lucide-react';
