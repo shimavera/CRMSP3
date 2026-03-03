@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ReactFlowProvider, type Node, type Edge } from '@xyflow/react';
-import { Save, AlertCircle, CheckCircle, Loader2, Edit2 } from 'lucide-react';
+import { Save, AlertCircle, CheckCircle, Loader2, Edit2, Activity } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { FlowDefinition, FlowNodeType, UserProfile } from '../../lib/supabase';
 import FlowCanvas from './FlowCanvas';
@@ -8,6 +8,7 @@ import FlowSidebar from './FlowSidebar';
 import NodeConfigPanel from './NodeConfigPanel';
 import { getDefaultNodeData } from './utils/flowTypes';
 import { validateFlow, type ValidationResult } from './utils/flowValidation';
+import FlowExecutionLog from './FlowExecutionLog';
 
 interface FlowBuilderViewProps {
   authUser: UserProfile;
@@ -26,6 +27,7 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [showExecutionLog, setShowExecutionLog] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
 
   // Current working nodes/edges
@@ -442,6 +444,28 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
                 </div>
               )}
 
+              {/* Logs button */}
+              <button
+                onClick={() => setShowExecutionLog(true)}
+                title="Ver execuções"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                  backgroundColor: 'transparent',
+                  color: isDarkMode ? '#888' : '#64748b',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <Activity size={14} />
+                Logs
+              </button>
+
               {/* Save button */}
               <button
                 onClick={handleSaveFlow}
@@ -539,6 +563,16 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
           onDeleteNode={handleDeleteNode}
           isDark={isDarkMode}
           companyId={companyId}
+        />
+      )}
+
+      {/* Execution Log Modal */}
+      {showExecutionLog && selectedFlow && (
+        <FlowExecutionLog
+          flowId={selectedFlow.id}
+          flowName={selectedFlow.name}
+          isDark={isDarkMode}
+          onClose={() => setShowExecutionLog(false)}
         />
       )}
 
