@@ -66,14 +66,18 @@ const DEFAULT_PIPELINE: { stage: Stage; color: string; bg: string; icon: any; de
 ];
 
 const FUNIS_DISPONIVEIS = [
-    { id: 'vendas', nome: 'Pré-consulta / Venda', etapas: DEFAULT_PIPELINE },
+    { id: 'vendas', nome: 'Pré-consulta / Venda', etapas: DEFAULT_PIPELINE.filter(e => e.stage !== 'Fechado' && e.stage !== 'Perdido') },
     {
         id: 'pos_venda', nome: 'Pós-venda / Fidelização', etapas: [
             { stage: 'Novo Lead', color: '#6366f1', bg: '#eef2ff', icon: Users, description: 'Paciente para retorno' },
             { stage: 'Contato Iniciado', color: '#0ea5e9', bg: '#f0f9ff', icon: Phone, description: 'Pesquisa NPS enviada' },
-            { stage: 'Agendou Retorno', color: '#10b981', bg: '#f0fdf4', icon: Calendar, description: 'Retorno marcado' },
-            { stage: 'Fechado', color: '#059669', bg: '#ecfdf5', icon: Trophy, description: 'Elogio recebido' },
-            { stage: 'Perdido', color: '#ef4444', bg: '#fef2f2', icon: XCircle, description: 'Reclamação/Insatisfeito' }
+            { stage: 'Agendou Retorno', color: '#10b981', bg: '#f0fdf4', icon: Calendar, description: 'Retorno marcado' }
+        ]
+    },
+    {
+        id: 'fechados', nome: 'Leads Fechados / Perdidos', etapas: [
+            { stage: 'Fechado', color: '#059669', bg: '#ecfdf5', icon: Trophy, description: 'Cliente fechado/ganho' },
+            { stage: 'Perdido', color: '#64748b', bg: '#f8fafc', icon: XCircle, description: 'Lead perdido/encerrado' }
         ]
     }
 ];
@@ -190,6 +194,11 @@ const LeadCard = (props: {
                         {lead.ia_active && (
                             <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#ede9fe', color: '#5b21b6', fontWeight: '600' }}>
                                 🤖 IA ativa
+                            </span>
+                        )}
+                        {lead.closed_reason && lead.closed_reason !== 'Sem motivo informado' && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: '800' }}>
+                                📌 {lead.closed_reason}
                             </span>
                         )}
                         {pendingTasks > 0 && (
@@ -523,6 +532,7 @@ const KanbanView = () => {
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
     const [showFilterOptions, setShowFilterOptions] = useState(false);
+    const [closedReasonFilter, setClosedReasonFilter] = useState<string>('all');
 
     const fetchLeads = async () => {
         const { data, error } = await supabase
@@ -595,35 +605,44 @@ const KanbanView = () => {
         moveCard(Number(draggableId), destination.droppableId);
     };
 
-    // Filtros de data
+    // Filtros
     const filteredLeads = useMemo(() => {
-        if (dateFilterMode === 'all') return leads;
-
-        const now = new Date();
-        return leads.filter(l => {
-            if (!l.created_at) return false;
-
-            const leadDate = new Date(l.created_at);
-
-            if (dateFilterMode === 'today') {
-                return leadDate.toDateString() === now.toDateString();
-            }
-            if (dateFilterMode === 'week') {
-                const oneWeekAgo = new Date();
-                oneWeekAgo.setDate(now.getDate() - 7);
-                return leadDate >= oneWeekAgo && leadDate <= now;
-            }
-            if (dateFilterMode === 'month') {
-                return leadDate.getMonth() === now.getMonth() && leadDate.getFullYear() === now.getFullYear();
-            }
-            if (dateFilterMode === 'custom') {
-                if (startDate && leadDate < new Date(startDate + 'T00:00:00')) return false;
-                if (endDate && leadDate > new Date(endDate + 'T23:59:59')) return false;
+        let result = leads;
+        if (dateFilterMode !== 'all') {
+            const now = new Date();
+            result = result.filter(l => {
+                if (!l.created_at) return false;
+                const leadDate = new Date(l.created_at);
+                if (dateFilterMode === 'today') return leadDate.toDateString() === now.toDateString();
+                if (dateFilterMode === 'week') {
+                    const oneWeekAgo = new Date();
+                    oneWeekAgo.setDate(now.getDate() - 7);
+                    return leadDate >= oneWeekAgo && leadDate <= now;
+                }
+                if (dateFilterMode === 'month') return leadDate.getMonth() === now.getMonth() && leadDate.getFullYear() === now.getFullYear();
+                if (dateFilterMode === 'custom') {
+                    if (startDate && leadDate < new Date(startDate + 'T00:00:00')) return false;
+                    if (endDate && leadDate > new Date(endDate + 'T23:59:59')) return false;
+                    return true;
+                }
                 return true;
-            }
-            return true;
-        });
-    }, [leads, dateFilterMode, startDate, endDate]);
+            });
+        }
+
+        if (activePipelineId === 'fechados' && closedReasonFilter !== 'all') {
+            result = result.filter(l => {
+                if (closedReasonFilter === 'empty') return !l.closed_reason || l.closed_reason === 'Sem motivo informado';
+                return l.closed_reason === closedReasonFilter;
+            });
+        }
+
+        return result;
+    }, [leads, dateFilterMode, startDate, endDate, activePipelineId, closedReasonFilter]);
+
+    const availableReasons = useMemo(() => {
+        const reasons = new Set(leads.filter(l => l.closed_reason && l.closed_reason !== 'Sem motivo informado').map(l => l.closed_reason));
+        return Array.from(reasons) as string[];
+    }, [leads]);
 
     if (loading) return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px', color: '#6366f1' }}>
@@ -659,13 +678,11 @@ const KanbanView = () => {
                     <div style={{ position: 'relative' }}>
                         <button
                             onClick={() => setShowFilterOptions(!showFilterOptions)}
-                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: dateFilterMode !== 'all' ? '1px solid var(--accent)' : '1px solid var(--border)', backgroundColor: dateFilterMode !== 'all' ? 'var(--accent-soft)' : 'var(--bg-secondary)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', color: dateFilterMode !== 'all' ? 'var(--accent)' : 'var(--text-primary)', boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: dateFilterMode !== 'all' || closedReasonFilter !== 'all' ? '1px solid var(--accent)' : '1px solid var(--border)', backgroundColor: dateFilterMode !== 'all' || closedReasonFilter !== 'all' ? 'var(--accent-soft)' : 'var(--bg-secondary)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', color: dateFilterMode !== 'all' || closedReasonFilter !== 'all' ? 'var(--accent)' : 'var(--text-primary)', boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' }}
                         >
                             <Filter size={16} />
-                            {dateFilterMode === 'all' ? 'Filtro: Todo Período' :
-                                dateFilterMode === 'today' ? 'Filtro: Hoje' :
-                                    dateFilterMode === 'week' ? 'Filtro: Últimos 7 dias' :
-                                        dateFilterMode === 'month' ? 'Filtro: Este Mês' : 'Filtro: Período Específico'}
+                            Filtros
+                            {(dateFilterMode !== 'all' || closedReasonFilter !== 'all') && <span style={{ width: '8px', height: '8px', backgroundColor: 'var(--accent)', borderRadius: '50%' }}></span>}
                         </button>
 
                         {showFilterOptions && (
@@ -689,7 +706,7 @@ const KanbanView = () => {
                                 </div>
 
                                 {dateFilterMode === 'custom' && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-soft)', paddingTop: '12px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-soft)', paddingTop: '12px', marginBottom: '12px' }}>
                                         <div>
                                             <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)' }}>Data Inicial</label>
                                             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '4px', fontSize: '0.85rem' }} />
@@ -698,6 +715,23 @@ const KanbanView = () => {
                                             <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-secondary)' }}>Data Final</label>
                                             <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '4px', fontSize: '0.85rem' }} />
                                         </div>
+                                    </div>
+                                )}
+
+                                {activePipelineId === 'fechados' && (
+                                    <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '12px' }}>
+                                        <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Motivo do Fechamento</h4>
+                                        <select
+                                            value={closedReasonFilter}
+                                            onChange={(e) => setClosedReasonFilter(e.target.value)}
+                                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                                        >
+                                            <option value="all">Todos os Motivos</option>
+                                            <option value="empty">Sem motivo definido</option>
+                                            {availableReasons.map(r => (
+                                                <option key={r} value={r}>{r}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 )}
                             </div>

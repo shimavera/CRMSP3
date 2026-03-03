@@ -865,7 +865,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             });
 
             if (!checkKey) {
-                throw new Error('Configure a "Chave Global da Evolution API" abaixo para poder criar novas instâncias.');
+                throw new Error('Configure a "Chave Global de Automação" para poder criar novas instâncias. Contate o administrador se não tiver acesso.');
             }
 
             // Salvar evo_api_url se estava vazia
@@ -890,7 +890,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
             // Instância não existe — precisa criar com a CHAVE GLOBAL
             if (!globalKey) {
-                throw new Error('Para criar uma nova instância na Evolution API, configure a "Chave Global da Evolution API" abaixo.');
+                throw new Error('Para criar uma nova conexão, configure a "Chave Global" do sistema principal.');
             }
 
             console.log(`[EVO] Instance check returned ${checkRes.status}, criando com chave global...`);
@@ -1314,15 +1314,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     }
                 } else {
                     const errBody = await evoRes.text();
-                    console.warn('Evolution instance creation failed:', evoRes.status, errBody);
-                    setCreateClientError('Cliente criado, mas a instância Evolution falhou. Verifique a Chave Global Evolution e tente reconectar nas configurações do cliente.');
+                    console.warn('Backend instance creation failed:', evoRes.status, errBody);
+                    setCreateClientError('Cliente criado, mas a conexão falhou. Verifique a chave de servidor e tente reconectar nas configurações do cliente.');
                 }
             } catch (evoErr) {
-                console.warn('Evolution API instance creation error:', evoErr);
-                setCreateClientError('Cliente criado, mas não foi possível conectar à Evolution API. Configure a instância manualmente.');
+                console.warn('Backend instance creation error:', evoErr);
+                setCreateClientError('Cliente criado, mas não foi possível conectar ao backend. Configure a conexão manualmente.');
             }
         } else {
-            setCreateClientError('Cliente criado, mas a Chave Global Evolution não foi informada. A instância precisa ser criada manualmente.');
+            setCreateClientError('Cliente criado, mas a chave global não foi informada. A conexão precisará ser criada manualmente.');
         }
 
         setCreateClientSuccess(true);
@@ -1558,7 +1558,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                                 <div>
                                     <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Conexão WhatsApp</h3>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Gerencie a instância da Evolution API conectada ao seu WhatsApp.</p>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Gerencie a instância conectada ao seu WhatsApp.</p>
                                 </div>
                                 <button
                                     onClick={() => activeInstance && checkInstanceStatus(activeInstance)}
@@ -1654,7 +1654,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                         setEvoGlobalKey(val);
                                                         localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
                                                     }}
-                                                    placeholder="Cole a Global API Key da Evolution aqui"
+                                                    placeholder="Cole a Global API Key aqui"
                                                     style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace', backgroundColor: 'white' }}
                                                 />
                                                 <button
@@ -1696,9 +1696,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         {/* Card 2: Chave Global da Evolution API (Master Only) */}
                         {authUser.role === 'master' && (
                             <div className="glass-card" style={{ padding: '2rem' }}>
-                                <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '0.5rem' }}>Chave Global da Evolution API</h3>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '0.5rem' }}>Chave Global de Automação</h3>
                                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1rem' }}>
-                                    Necessária para criar novas instâncias. Encontrada no painel da Evolution API.
+                                    Necessária para criar novas instâncias. Encontrada no painel do servidor.
                                 </p>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                     <div style={{ flex: 1, position: 'relative' }}>
@@ -1710,7 +1710,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 setEvoGlobalKey(val);
                                                 localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
                                             }}
-                                            placeholder="Cole aqui a Global API Key da Evolution"
+                                            placeholder="Cole aqui a Global API Key de automação"
                                             style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace' }}
                                         />
                                         <button
@@ -3000,7 +3000,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             <input value={newClientName} onChange={(e) => setNewClientName(e.target.value)} placeholder="Ex: Odonto Clean" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
                                         </div>
                                         <div>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome da Instância (Evolution)</label>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Nome da Instância (Conexão)</label>
                                             <input value={newClientEvo} onChange={(e) => setNewClientEvo(e.target.value)} placeholder="Ex: odonto_clean" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
                                         </div>
                                         <div>
@@ -3013,9 +3013,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         </div>
                                     </div>
                                     <div style={{ marginBottom: '1rem' }}>
-                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Chave Global Evolution (AUTHENTICATION_API_KEY do servidor)</label>
-                                        <input value={newClientEvoKey} onChange={(e) => setNewClientEvoKey(e.target.value)} type="password" placeholder="Chave do servidor Evolution para criar instâncias" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontFamily: 'monospace' }} />
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Encontre em: Evolution Manager ou variáveis de ambiente do servidor. Se deixar vazio, a instância precisará ser criada manualmente.</p>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Chave Global de Automação (AUTHENTICATION_API_KEY do servidor)</label>
+                                        <input value={newClientEvoKey} onChange={(e) => setNewClientEvoKey(e.target.value)} type="password" placeholder="Chave do servidor para criar instâncias" style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontFamily: 'monospace' }} />
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Encontre em: variáveis de ambiente do servidor. Se deixar vazio, a instância precisará ser criada manualmente.</p>
                                     </div>
 
                                     {createClientError && <p style={{ color: '#b91c1c', fontSize: '0.85rem', marginBottom: '1rem' }}>{createClientError}</p>}
@@ -3165,7 +3165,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 <div className="glass-card" style={{ padding: '2rem' }}>
                     <div style={{ marginBottom: '2rem' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '4px' }}>Logs de Execução (Webhook)</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Monitore as comunicações entre o N8N e a Evolution API.</p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Monitore as comunicações entre o N8N e o servidor de mensagens.</p>
                     </div>
 
                     <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
