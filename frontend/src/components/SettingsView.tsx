@@ -742,9 +742,17 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setStatus('loading');
         setEvoError(null);
         try {
+            const apiUrl = instance.evo_api_url || instances.find(i => i.evo_api_url)?.evo_api_url || 'https://evo.sp3company.shop';
+            const apiKey = instance.evo_api_key || instances.find(i => i.evo_api_key)?.evo_api_key || '';
+
+            if (!apiKey) {
+                setStatus('disconnected');
+                return;
+            }
+
             const response = await fetch(
-                `${instance.evo_api_url}/instance/connectionState/${instance.instance_name}`,
-                { headers: { 'apikey': instance.evo_api_key } }
+                `${apiUrl}/instance/connectionState/${instance.instance_name}`,
+                { headers: { 'apikey': apiKey } }
             );
 
             if (!response.ok) {
@@ -816,10 +824,23 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
     const ensureInstanceExists = async (instance: Instance): Promise<boolean> => {
         try {
+            // Fallback para instâncias sem evo_api_url configurada
+            const apiUrl = instance.evo_api_url || instances.find(i => i.evo_api_url)?.evo_api_url || 'https://evo.sp3company.shop';
+            const apiKey = instance.evo_api_key || instances.find(i => i.evo_api_key)?.evo_api_key || '';
+
+            if (!apiKey) throw new Error('Nenhuma API key da Evolution configurada. Verifique a instância principal.');
+
+            // Salvar credenciais herdadas no banco se estavam vazias
+            if (!instance.evo_api_url || !instance.evo_api_key) {
+                await supabase.from('sp3_instances')
+                    .update({ evo_api_url: apiUrl, evo_api_key: apiKey })
+                    .eq('id', instance.id);
+            }
+
             // Verificar se instância já existe
             const checkRes = await fetch(
-                `${instance.evo_api_url}/instance/connectionState/${instance.instance_name}`,
-                { headers: { 'apikey': instance.evo_api_key } }
+                `${apiUrl}/instance/connectionState/${instance.instance_name}`,
+                { headers: { 'apikey': apiKey } }
             );
 
             if (checkRes.ok) return true;
@@ -827,12 +848,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             // Qualquer erro = tentar criar a instância
             console.log(`Instance check returned ${checkRes.status}, tentando criar...`);
             const createRes = await fetch(
-                `${instance.evo_api_url}/instance/create`,
+                `${apiUrl}/instance/create`,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'apikey': instance.evo_api_key
+                        'apikey': apiKey
                     },
                     body: JSON.stringify({
                         instanceName: instance.instance_name,
@@ -849,12 +870,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
             // Após recriar a instância, configurar webhook e settings
             const createData = await createRes.json();
-            const newApiKey = createData?.hash || createData?.token || createData?.instance?.apikey || instance.evo_api_key;
+            const newApiKey = createData?.hash || createData?.token || createData?.instance?.apikey || apiKey;
 
-            await configureInstanceWebhookAndSettings(instance.evo_api_url, instance.instance_name, newApiKey);
+            await configureInstanceWebhookAndSettings(apiUrl, instance.instance_name, newApiKey);
 
             // Atualizar a API key no banco caso tenha mudado
-            if (newApiKey && newApiKey !== instance.evo_api_key) {
+            if (newApiKey && newApiKey !== apiKey) {
                 // Tentar update direto primeiro (funciona se RLS permite)
                 const { error: updateErr } = await supabase
                     .from('sp3_instances')
@@ -1017,13 +1038,20 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
 
         try {
+            // Herdar evo_api_url e evo_api_key de uma instância existente da mesma empresa
+            const existingWithEvo = instances.find(i => i.evo_api_url);
+            const evoUrl = existingWithEvo?.evo_api_url || 'https://evo.sp3company.shop';
+            const evoKey = existingWithEvo?.evo_api_key || '';
+
             const { error } = await supabase
                 .from('sp3_instances')
                 .insert([{
                     company_id: authUser.company_id,
                     instance_name: sanitizedName,
                     display_name: newInstanceDisplayName.trim(),
-                    created_by: authUser.id
+                    created_by: authUser.id,
+                    evo_api_url: evoUrl,
+                    evo_api_key: evoKey
                 }]);
 
             if (error) throw error;
