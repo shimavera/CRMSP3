@@ -33,6 +33,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [evoError, setEvoError] = useState<string | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // Chave global da Evolution API (admin) — persistida em localStorage
+    const [evoGlobalKey, setEvoGlobalKey] = useState<string>(() => {
+        try { return localStorage.getItem(`sp3_evo_global_key_${authUser.company_id}`) || ''; } catch { return ''; }
+    });
+    const [showEvoGlobalKey, setShowEvoGlobalKey] = useState(false);
+
     // Estados de Dados
     const [isResettingChats, setIsResettingChats] = useState(false);
 
@@ -742,7 +748,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setStatus('loading');
         setEvoError(null);
         try {
-            const { apiUrl, apiKey } = await resolveEvoCredentials(instance);
+            const apiUrl = await resolveEvoApiUrl(instance);
+            const apiKey = instance.evo_api_key || evoGlobalKey || '';
 
             if (!apiKey) {
                 setStatus('disconnected');
@@ -821,73 +828,74 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
-    // Busca credenciais Evolution API — consulta banco diretamente se state não tem
-    const resolveEvoCredentials = async (instance: Instance): Promise<{ apiUrl: string; apiKey: string }> => {
-        if (instance.evo_api_url && instance.evo_api_key) {
-            return { apiUrl: instance.evo_api_url, apiKey: instance.evo_api_key };
-        }
-
-        // Tentar do state local
-        const fromState = instances.find(i => i.evo_api_url && i.evo_api_key && i.id !== instance.id);
-        if (fromState?.evo_api_url && fromState?.evo_api_key) {
-            return { apiUrl: fromState.evo_api_url, apiKey: fromState.evo_api_key };
-        }
-
-        // Consultar Supabase diretamente (state pode estar desatualizado)
+    // Resolve a URL da Evolution API a partir de qualquer instância da empresa
+    const resolveEvoApiUrl = async (instance: Instance): Promise<string> => {
+        if (instance.evo_api_url) return instance.evo_api_url;
+        const fromState = instances.find(i => i.evo_api_url);
+        if (fromState?.evo_api_url) return fromState.evo_api_url;
         const { data } = await supabase
             .from('sp3_instances')
-            .select('evo_api_url, evo_api_key')
+            .select('evo_api_url')
             .eq('company_id', authUser.company_id)
             .not('evo_api_url', 'is', null)
-            .not('evo_api_key', 'is', null)
-            .neq('evo_api_key', '')
             .limit(1)
             .maybeSingle();
-
-        if (data?.evo_api_url && data?.evo_api_key) {
-            return { apiUrl: data.evo_api_url, apiKey: data.evo_api_key };
-        }
-
-        return { apiUrl: 'https://evo.sp3company.shop', apiKey: '' };
+        return data?.evo_api_url || 'https://evo.sp3company.shop';
     };
 
     const ensureInstanceExists = async (instance: Instance): Promise<{ ok: boolean; apiUrl: string; apiKey: string }> => {
         try {
-            const { apiUrl, apiKey } = await resolveEvoCredentials(instance);
+            const apiUrl = await resolveEvoApiUrl(instance);
+            // Chave da instância para operações (check status, connect, etc.)
+            const instanceKey = instance.evo_api_key || '';
+            // Chave global para operações admin (criar instância)
+            const globalKey = evoGlobalKey;
 
-            console.log('[EVO] resolveEvoCredentials:', { apiUrl, apiKey: apiKey ? '***' + apiKey.slice(-6) : '(vazio)', instanceName: instance.instance_name });
+            // Determinar qual chave usar para verificar status
+            const checkKey = instanceKey || globalKey;
 
-            if (!apiKey) {
-                throw new Error('Nenhuma API key da Evolution configurada. Verifique as credenciais da instância "WhatsApp Principal".');
+            console.log('[EVO] ensureInstanceExists:', {
+                apiUrl,
+                instanceKey: instanceKey ? '***' + instanceKey.slice(-6) : '(vazio)',
+                globalKey: globalKey ? '***' + globalKey.slice(-6) : '(vazio)',
+                instanceName: instance.instance_name
+            });
+
+            if (!checkKey) {
+                throw new Error('Configure a "Chave Global da Evolution API" abaixo para poder criar novas instâncias.');
             }
 
-            // Salvar credenciais herdadas no banco se estavam vazias
-            if (!instance.evo_api_url || !instance.evo_api_key) {
+            // Salvar evo_api_url se estava vazia
+            if (!instance.evo_api_url) {
                 await supabase.from('sp3_instances')
-                    .update({ evo_api_url: apiUrl, evo_api_key: apiKey })
+                    .update({ evo_api_url: apiUrl })
                     .eq('id', instance.id);
-                // Atualizar state local
-                setActiveInstance(prev => prev?.id === instance.id ? { ...prev, evo_api_url: apiUrl, evo_api_key: apiKey } : prev);
-                setInstances(prev => prev.map(i => i.id === instance.id ? { ...i, evo_api_url: apiUrl, evo_api_key: apiKey } : i));
+                setActiveInstance(prev => prev?.id === instance.id ? { ...prev, evo_api_url: apiUrl } : prev);
             }
 
-            // Verificar se instância já existe
+            // Verificar se instância já existe na Evolution API
             const checkRes = await fetch(
                 `${apiUrl}/instance/connectionState/${instance.instance_name}`,
-                { headers: { 'apikey': apiKey } }
+                { headers: { 'apikey': checkKey } }
             );
 
-            if (checkRes.ok) return { ok: true, apiUrl, apiKey };
+            if (checkRes.ok) {
+                return { ok: true, apiUrl, apiKey: checkKey };
+            }
 
-            // Qualquer erro = tentar criar a instância
-            console.log(`[EVO] Instance check returned ${checkRes.status}, tentando criar...`);
+            // Instância não existe — precisa criar com a CHAVE GLOBAL
+            if (!globalKey) {
+                throw new Error('Para criar uma nova instância na Evolution API, configure a "Chave Global da Evolution API" abaixo.');
+            }
+
+            console.log(`[EVO] Instance check returned ${checkRes.status}, criando com chave global...`);
             const createRes = await fetch(
                 `${apiUrl}/instance/create`,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'apikey': apiKey
+                        'apikey': globalKey
                     },
                     body: JSON.stringify({
                         instanceName: instance.instance_name,
@@ -902,30 +910,31 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 throw new Error(`Falha ao criar instancia (${createRes.status}): ${errBody}`);
             }
 
-            // Após criar a instância, configurar webhook e settings
+            // Salvar a chave específica da instância retornada pela API
             const createData = await createRes.json();
-            const newApiKey = createData?.hash || createData?.token || createData?.instance?.apikey || apiKey;
+            const newInstanceKey = createData?.hash || createData?.token || createData?.instance?.apikey || '';
 
-            await configureInstanceWebhookAndSettings(apiUrl, instance.instance_name, newApiKey);
+            await configureInstanceWebhookAndSettings(apiUrl, instance.instance_name, newInstanceKey || globalKey);
 
-            // Atualizar a API key da instância no banco
-            if (newApiKey && newApiKey !== apiKey) {
+            // Persistir a chave da instância no banco
+            if (newInstanceKey) {
                 const { error: updateErr } = await supabase
                     .from('sp3_instances')
-                    .update({ evo_api_key: newApiKey, evo_api_url: apiUrl })
+                    .update({ evo_api_key: newInstanceKey, evo_api_url: apiUrl })
                     .eq('id', instance.id);
 
                 if (updateErr) {
                     await supabase.rpc('update_instance_evo_credentials', {
                         p_instance_name: instance.instance_name,
                         p_evo_api_url: apiUrl,
-                        p_evo_api_key: newApiKey
+                        p_evo_api_key: newInstanceKey
                     });
                 }
-                setActiveInstance(prev => prev?.id === instance.id ? { ...prev, evo_api_url: apiUrl, evo_api_key: newApiKey } : prev);
+                setActiveInstance(prev => prev?.id === instance.id ? { ...prev, evo_api_url: apiUrl, evo_api_key: newInstanceKey } : prev);
+                setInstances(prev => prev.map(i => i.id === instance.id ? { ...i, evo_api_url: apiUrl, evo_api_key: newInstanceKey } : i));
             }
 
-            return { ok: true, apiUrl, apiKey: newApiKey || apiKey };
+            return { ok: true, apiUrl, apiKey: newInstanceKey || globalKey };
         } catch (err: any) {
             console.error('[EVO] Erro ao verificar/criar instancia:', err);
             setEvoError(err.message);
@@ -1630,7 +1639,43 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             )}
                         </div>
 
-                        {/* Card 2: Gerenciamento de Instâncias (Master Only) */}
+                        {/* Card 2: Chave Global da Evolution API (Master Only) */}
+                        {authUser.role === 'master' && (
+                            <div className="glass-card" style={{ padding: '2rem' }}>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '0.5rem' }}>Chave Global da Evolution API</h3>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1rem' }}>
+                                    Necessária para criar novas instâncias. Encontrada no painel da Evolution API.
+                                </p>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <div style={{ flex: 1, position: 'relative' }}>
+                                        <input
+                                            type={showEvoGlobalKey ? 'text' : 'password'}
+                                            value={evoGlobalKey}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setEvoGlobalKey(val);
+                                                localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
+                                            }}
+                                            placeholder="Cole aqui a Global API Key da Evolution"
+                                            style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace' }}
+                                        />
+                                        <button
+                                            onClick={() => setShowEvoGlobalKey(!showEvoGlobalKey)}
+                                            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}
+                                        >
+                                            {showEvoGlobalKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+                                {evoGlobalKey && (
+                                    <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle size={12} /> Chave salva localmente
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Card 3: Gerenciamento de Instâncias (Master Only) */}
                         {authUser.role === 'master' && (
                             <div className="glass-card" style={{ padding: '2rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
