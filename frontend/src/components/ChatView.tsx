@@ -58,6 +58,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const timerRef = useRef<any>(null);
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState('');
+    const [chatFilter, setChatFilter] = useState<'all' | 'ia' | 'followup'>('all');
     const [dialog, setDialog] = useState<{
         type: 'alert' | 'confirm' | 'prompt';
         title: string;
@@ -148,6 +149,33 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         setSelectedLead(updatedLead);
         setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
         await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
+    };
+
+    const handleCloseConversation = async () => {
+        if (!selectedLead) return;
+        setDialog({
+            type: 'prompt',
+            title: 'Fechar Conversa',
+            message: 'Qual o motivo do fechamento?',
+            placeholder: 'Ex: Preço alto, não respondeu, etc.',
+            onConfirm: async (reason?: string) => {
+                setDialog(null);
+                const updates = {
+                    closed: true,
+                    closed_reason: reason || 'Sem motivo informado',
+                    stage: 'Perdido' // or Fechado, let's just mark it as Perdido for generic closing
+                };
+                const { error } = await supabase.from('sp3chat').update(updates).eq('id', selectedLead.id);
+                if (!error) {
+                    const updatedLead = { ...selectedLead, ...updates };
+                    setSelectedLead(updatedLead);
+                    setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+                } else {
+                    await showAlert('Erro ao fechar conversa: ' + error.message);
+                }
+            },
+            onCancel: () => setDialog(null)
+        });
     };
 
     const [isSarahThinking, setIsSarahThinking] = useState(false);
@@ -444,11 +472,29 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     // ORDENAÇÃO DINÂMICA (Performance Otimizada)
     const sortedLeads = useMemo(() => {
-        return [...leads].sort((a, b) => {
+        const filtered = leads.filter(lead => {
+            // Exibir leads fechados no chat? O usuário só pediu "filtro de todos", "na ia", "followup", e que quem fechar vai para o Kanban. Mas se fechar, soma do chat? Vamos manter no All se quiser, ou sumir? Vamos sumir do chat os fechados se `closed` for true? O usuário disse: "fechar covnersa e quando fechar colocr o motivo do fechamento e no kanban ele ir para uma kanban separado de leads fechados" - Vou manter visível se não me pedirem para esconder, mas normalmente `closed` exclui da aba ativa. Vou esconder chamadas `closed`.
+            if ((lead as any).closed) return false;
+            if (chatFilter === 'all') return true;
+            if (chatFilter === 'ia') return lead.ia_active === true;
+            if (chatFilter === 'followup') return (lead.followup_stage || 0) > 0;
+            return true;
+        });
+
+        return filtered.sort((a, b) => {
             const dateA = new Date(a.last_interaction_at || a.stage_updated_at || a.created_at || 0).getTime();
             const dateB = new Date(b.last_interaction_at || b.stage_updated_at || b.created_at || 0).getTime();
             return dateB - dateA;
         });
+    }, [leads, chatFilter]);
+
+    const stats = useMemo(() => {
+        const activeLeads = leads.filter(l => !(l as any).closed);
+        return {
+            all: activeLeads.length,
+            ia: activeLeads.filter(l => l.ia_active).length,
+            followup: activeLeads.filter(l => (l.followup_stage || 0) > 0).length
+        }
     }, [leads]);
 
     const fetchMessages = async () => {
@@ -893,8 +939,28 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr 300px', gap: isMobile ? 0 : '1.5rem', height: isMobile ? '100%' : 'calc(100vh - 180px)' }}>
             {/* Sidebar de Conversas */}
             {(!isMobile || mobilePanel === 'list') && <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-soft)' }}>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Conversas</h4>
+                <div style={{ padding: '1.25rem 1.25rem 0.5rem 1.25rem', borderBottom: '1px solid var(--border-soft)' }}>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>Conversas ({sortedLeads.length})</h4>
+                    <div style={{ display: 'flex', gap: '4px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
+                        <button
+                            onClick={() => setChatFilter('all')}
+                            style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', backgroundColor: chatFilter === 'all' ? 'var(--accent)' : 'var(--bg-secondary)', color: chatFilter === 'all' ? 'white' : 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                        >
+                            Todos <span style={{ backgroundColor: chatFilter === 'all' ? 'rgba(255,255,255,0.2)' : '#e2e8f0', padding: '1px 5px', borderRadius: '8px', fontSize: '0.65rem' }}>{stats.all}</span>
+                        </button>
+                        <button
+                            onClick={() => setChatFilter('ia')}
+                            style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', backgroundColor: chatFilter === 'ia' ? '#10b981' : 'var(--bg-secondary)', color: chatFilter === 'ia' ? 'white' : 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                        >
+                            Na IA <span style={{ backgroundColor: chatFilter === 'ia' ? 'rgba(255,255,255,0.2)' : '#e2e8f0', padding: '1px 5px', borderRadius: '8px', fontSize: '0.65rem' }}>{stats.ia}</span>
+                        </button>
+                        <button
+                            onClick={() => setChatFilter('followup')}
+                            style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', backgroundColor: chatFilter === 'followup' ? '#8b5cf6' : 'var(--bg-secondary)', color: chatFilter === 'followup' ? 'white' : 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                        >
+                            Follow-up <span style={{ backgroundColor: chatFilter === 'followup' ? 'rgba(255,255,255,0.2)' : '#e2e8f0', padding: '1px 5px', borderRadius: '8px', fontSize: '0.65rem' }}>{stats.followup}</span>
+                        </button>
+                    </div>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {sortedLeads.map(lead => (
@@ -1588,6 +1654,26 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 {selectedLead.followup_locked ? 'Desbloquear Follow-up' : 'Travar Follow-up'}
                             </button>
 
+                            <button
+                                onClick={handleCloseConversation}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    backgroundColor: '#fee2e2',
+                                    color: '#b91c1c',
+                                    fontWeight: '700',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <X size={18} /> Fechar Conversa
+                            </button>
+
                             <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: selectedLead.ia_active ? '#f0fdf4' : '#fff7ed', border: '1px solid ' + (selectedLead.ia_active ? '#dcfce7' : '#ffedd5') }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                     <Bot size={18} color={selectedLead.ia_active ? '#16a34a' : '#ea580c'} />
@@ -1612,6 +1698,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
                         <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
 
+                        {dialog.type === 'prompt' && (
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder={dialog.placeholder}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '20px', boxSizing: 'border-box', fontSize: '0.95rem' }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') dialog.onConfirm((e.target as HTMLInputElement).value);
+                                }}
+                                onChange={(e) => {
+                                    // temporary store the value
+                                    (dialog as any).inputValue = e.target.value;
+                                }}
+                            />
+                        )}
+
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                             {dialog.type !== 'alert' && (
                                 <button
@@ -1622,7 +1724,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 </button>
                             )}
                             <button
-                                onClick={() => dialog.onConfirm()}
+                                onClick={() => dialog.onConfirm((dialog as any).inputValue)}
                                 style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
                             >
                                 OK
