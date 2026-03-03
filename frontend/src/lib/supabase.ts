@@ -113,3 +113,56 @@ export type FollowupStepMessage = {
   media_mime?: string;
   caption?: string;
 };
+
+export type InstagramAccount = {
+  id: number;
+  company_id?: string;
+  ig_user_id: string;
+  ig_username: string;
+  page_id: string;
+  page_name: string;
+  access_token?: string;
+  token_expires_at?: string;
+  is_active: boolean;
+  created_at?: string;
+};
+
+export type InstagramAutomation = {
+  id: number;
+  company_id?: string;
+  instagram_account_id: number;
+  name: string;
+  post_id: string;
+  post_url: string;
+  post_thumbnail_url?: string;
+  post_caption?: string;
+  keyword: string;
+  active: boolean;
+  reply_comment: boolean;
+  reply_comment_text?: string;
+  messages: InstagramAutomationMessage[];
+  created_at?: string;
+};
+
+export type InstagramAutomationMessage = {
+  id?: number;
+  automation_id?: number;
+  company_id?: string;
+  sort_order: number;
+  message_type: 'text' | 'image' | 'link_button';
+  text_content?: string;
+  media_url?: string;
+  button_title?: string;
+  button_url?: string;
+  delay_seconds: number;
+};
+
+export type InstagramPost = {
+  id: string;
+  caption?: string;
+  media_type: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
+  media_url?: string;
+  thumbnail_url?: string;
+  permalink: string;
+  timestamp: string;
+};
