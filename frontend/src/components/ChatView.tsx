@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle } from 'lucide-react';
+import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday } from 'date-fns';
@@ -185,6 +185,15 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [totalFollowupSteps, setTotalFollowupSteps] = useState(3);
     const followupSelectorRef = useRef<HTMLDivElement>(null);
 
+    // Funnel stage selector
+    const [showStageSelector, setShowStageSelector] = useState(false);
+    const stageSelectorRef = useRef<HTMLDivElement>(null);
+    const AVAILABLE_STAGES = [
+        'Novo Lead', 'Contato Iniciado', 'Em Follow-up', 'Qualificando',
+        'Reunião Agendada', 'No Show', 'Reunião Realizada', 'Proposta Enviada',
+        'Negociação', 'Fechado', 'Perdido'
+    ];
+
     // Ref para usar dentro do Realtime sem recriar o subscription
     const selectedLeadRef = useRef<Lead | null>(null);
     useEffect(() => { selectedLeadRef.current = selectedLead; }, [selectedLead]);
@@ -231,17 +240,19 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         loadTotalSteps();
     }, [authUser.company_id]);
 
-    // Fechar dropdown de follow-up ao clicar fora
+    // Fechar dropdown de follow-up e stage selector ao clicar fora
     useEffect(() => {
-        if (!showFollowupSelector) return;
         const handler = (e: MouseEvent) => {
-            if (followupSelectorRef.current && !followupSelectorRef.current.contains(e.target as Node)) {
+            if (showFollowupSelector && followupSelectorRef.current && !followupSelectorRef.current.contains(e.target as Node)) {
                 setShowFollowupSelector(false);
+            }
+            if (showStageSelector && stageSelectorRef.current && !stageSelectorRef.current.contains(e.target as Node)) {
+                setShowStageSelector(false);
             }
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
-    }, [showFollowupSelector]);
+    }, [showFollowupSelector, showStageSelector]);
 
     // Carregar instância ativa da Evolution API
     useEffect(() => {
@@ -648,6 +659,47 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 message: JSON.stringify({
                     type: 'system',
                     msgStyle: newStage === 0 ? 'info' : 'followup',
+                    content: label
+                })
+            }]);
+        }
+    };
+
+    const handleChangeStage = async (newStage: string) => {
+        if (!selectedLead) return;
+        setShowStageSelector(false);
+
+        const { error } = await supabase
+            .from('sp3chat')
+            .update({ stage: newStage, stage_updated_at: new Date().toISOString() })
+            .eq('id', selectedLead.id);
+
+        if (error) {
+            await showAlert('Erro ao alterar etapa: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, stage: newStage };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+
+            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const firstName = authUser.nome.split(' ')[0];
+            const label = `📊 Movido para ${newStage} por ${firstName} em ${now}`;
+
+            setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                role: 'system',
+                text: label,
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                msgStyle: 'info'
+            }]);
+
+            await supabase.from('n8n_chat_histories').insert([{
+                company_id: authUser.company_id,
+                session_id: selectedLead.telefone,
+                message: JSON.stringify({
+                    type: 'system',
+                    msgStyle: 'info',
                     content: label
                 })
             }]);
@@ -1110,6 +1162,45 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         </div>
                                     )}
                                 </div>
+
+                                <div style={{ position: 'relative' }} ref={stageSelectorRef}>
+                                    <div
+                                        onClick={() => setShowStageSelector(!showStageSelector)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid #bfdbfe' }}
+                                        title="Clique para definir o status do funil"
+                                    >
+                                        <TrendingUp size={14} /> {selectedLead.stage || 'SEM ETAPA'}
+                                    </div>
+
+                                    {showStageSelector && (
+                                        <div style={{
+                                            position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+                                            backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                            border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
+                                        }}>
+                                            <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
+                                                Definir Etapa do Funil
+                                            </div>
+                                            {AVAILABLE_STAGES.map(stage => (
+                                                <div
+                                                    key={stage}
+                                                    onClick={() => handleChangeStage(stage)}
+                                                    style={{
+                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                                        backgroundColor: selectedLead.stage === stage ? '#e0f2fe' : 'transparent',
+                                                        color: selectedLead.stage === stage ? '#0369a1' : '#374151'
+                                                    }}
+                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
+                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.stage === stage ? '#e0f2fe' : 'transparent')}
+                                                >
+                                                    {selectedLead.stage === stage ? '✓ ' : ''}{stage}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
                             </div>
                         </div>
 
