@@ -102,8 +102,9 @@ const LeadCard = (props: {
     onClick: (lead: Lead) => void;
     currentPipeline?: any[];
     index: number;
+    hasActiveFlow?: boolean;
 }) => {
-    const { lead, stageColor, onMove, onDelete, onClick, currentPipeline, index } = props;
+    const { lead, stageColor, onMove, onDelete, onClick, currentPipeline, index, hasActiveFlow } = props;
     const [showMenu, setShowMenu] = useState(false);
     const daysInStage = lead.stage_updated_at
         ? Math.floor((Date.now() - new Date(lead.stage_updated_at).getTime()) / 86400000)
@@ -194,6 +195,11 @@ const LeadCard = (props: {
                         {lead.ia_active && (
                             <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#ede9fe', color: '#5b21b6', fontWeight: '600' }}>
                                 🤖 IA ativa
+                            </span>
+                        )}
+                        {hasActiveFlow && (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#eef2ff', color: '#4338ca', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                🔄 Fluxo ativo
                             </span>
                         )}
                         {lead.closed_reason && lead.closed_reason !== 'Sem motivo informado' && (
@@ -522,6 +528,7 @@ const KanbanView = () => {
     const [loading, setLoading] = useState(true);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [showMetrics, setShowMetrics] = useState(true);
+    const [leadsWithActiveFlows, setLeadsWithActiveFlows] = useState<Set<number>>(new Set());
 
     // Funil State
     const [activePipelineId, setActivePipelineId] = useState('vendas');
@@ -549,6 +556,15 @@ const KanbanView = () => {
 
     useEffect(() => {
         fetchLeads();
+
+        // Fetch leads with active flow executions
+        supabase
+            .from('sp3_flow_executions')
+            .select('lead_id')
+            .in('status', ['running', 'paused'])
+            .then(({ data }) => {
+                if (data) setLeadsWithActiveFlows(new Set(data.map(d => d.lead_id)));
+            });
 
         // Realtime: atualizar kanban automaticamente (MCP)
         const channel = supabase
@@ -803,6 +819,7 @@ const KanbanView = () => {
                                                     onDelete={deleteCard}
                                                     onClick={setSelectedLead}
                                                     currentPipeline={currentPipeline}
+                                                    hasActiveFlow={leadsWithActiveFlows.has(lead.id)}
                                                 />
                                             ))}
                                             {provided.placeholder}

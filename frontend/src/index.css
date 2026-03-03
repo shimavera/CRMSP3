@@ -1,7 +1,10 @@
 :root {
-  --bg-primary: #f4f7fa;
+  --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-sidebar: rgba(255, 255, 255, 0.75);
+  --bg-header: rgba(255, 255, 255, 0.8);
+  --bg-gradient: radial-gradient(circle at top left, #f8fafc, #eef2f6);
+  --bg-tertiary: #f1f5f9;
 
   --text-primary: #1e293b;
   --text-secondary: #64748b;
@@ -33,7 +36,10 @@
 .dark-mode {
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
-  --bg-sidebar: rgba(15, 23, 42, 0.8);
+  --bg-sidebar: rgba(15, 23, 42, 0.95);
+  --bg-header: rgba(15, 23, 42, 0.8);
+  --bg-gradient: radial-gradient(circle at top left, #0f172a, #111827);
+  --bg-tertiary: #334155;
 
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
@@ -175,7 +181,7 @@ body {
   transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   height: 100vh;
   overflow: hidden;
-  background: radial-gradient(circle at top left, #f8fafc, #eef2f6);
+  background: var(--bg-gradient);
   background-color: var(--bg-primary);
 }
 

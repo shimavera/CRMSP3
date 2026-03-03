@@ -17,7 +17,8 @@ import {
   Trash2,
   Sun,
   Moon,
-  Instagram
+  Instagram,
+  GitBranch
 } from 'lucide-react';
 // Lazy Load Componentes
 const LazyChatView = lazy(() => import('./components/ChatView'));
@@ -26,6 +27,7 @@ const LazySettingsView = lazy(() => import('./components/SettingsView'));
 const LazyLoginView = lazy(() => import('./components/LoginView'));
 const LazyDashboardView = lazy(() => import('./components/DashboardView'));
 const LazyInstagramView = lazy(() => import('./components/InstagramView'));
+const LazyFlowBuilderView = lazy(() => import('./components/FlowBuilder/FlowBuilderView'));
 import { supabase } from './lib/supabase';
 import type { Lead, UserProfile } from './lib/supabase';
 
@@ -442,6 +444,9 @@ function App() {
             <SidebarItem icon={Users} label="Base de Leads" active={activeTab === 'leads'} onClick={() => navigate('leads')} />
           )}
           <SidebarItem icon={Instagram} label="Instagram" active={activeTab === 'instagram'} onClick={() => navigate('instagram')} />
+          {authUser.permissions.settings && (
+            <SidebarItem icon={GitBranch} label="Fluxos" active={activeTab === 'flows'} onClick={() => navigate('flows')} />
+          )}
         </nav>
 
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
@@ -572,6 +577,10 @@ function App() {
 
           {activeTab === 'instagram' && (
             <LazyInstagramView authUser={authUser} />
+          )}
+
+          {activeTab === 'flows' && authUser.permissions.settings && (
+            <LazyFlowBuilderView authUser={authUser} isDarkMode={isDarkMode} />
           )}
         </Suspense>
         {activeTab === 'leads' && authUser.permissions.leads && (
