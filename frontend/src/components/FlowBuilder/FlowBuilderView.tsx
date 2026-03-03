@@ -25,6 +25,7 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
   const [flowName, setFlowName] = useState('');
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   // Current working nodes/edges
   const nodesRef = useRef<Node[]>([]);
@@ -197,22 +198,27 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
     }
   };
 
-  const handleDeleteFlow = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este fluxo?')) return;
+  const handleDeleteFlow = (id: number) => {
+    setConfirmDelete(id);
+  };
+
+  const confirmDeleteFlow = async () => {
+    if (!confirmDelete) return;
 
     const { error } = await supabase
       .from('sp3_flows')
       .delete()
-      .eq('id', id);
+      .eq('id', confirmDelete);
 
     if (!error) {
-      setFlows(prev => prev.filter(f => f.id !== id));
-      if (selectedFlowId === id) {
+      setFlows(prev => prev.filter(f => f.id !== confirmDelete));
+      if (selectedFlowId === confirmDelete) {
         setSelectedFlowId(null);
         setSelectedNodeId(null);
       }
       showToast('success', 'Fluxo excluído');
     }
+    setConfirmDelete(null);
   };
 
   const handleDuplicateFlow = async (id: number) => {
@@ -496,6 +502,66 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
         }}>
           {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
           {toast.message}
+        </div>
+      )}
+      {/* Modal Confirmar Exclusão */}
+      {confirmDelete && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99999
+        }}>
+          <div style={{
+            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+            borderRadius: '16px',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '400px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ backgroundColor: '#fee2e2', padding: '10px', borderRadius: '50%', color: '#ef4444' }}>
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: isDarkMode ? '#f8fafc' : '#0f172a' }}>Excluir Fluxo</h3>
+              </div>
+            </div>
+
+            <p style={{ margin: '0 0 24px 0', fontSize: '0.95rem', color: isDarkMode ? '#cbd5e1' : '#475569', lineHeight: 1.5 }}>
+              Tem certeza que deseja excluir este fluxo? Esta ação não pode ser desfeita e todas as automações que dependem dele vão parar de funcionar.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => setConfirmDelete(null)}
+                style={{
+                  padding: '10px 16px', borderRadius: '10px',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+                  color: isDarkMode ? '#cbd5e1' : '#475569',
+                  fontWeight: 600, fontSize: '0.9rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteFlow}
+                style={{
+                  padding: '10px 16px', borderRadius: '10px',
+                  backgroundColor: '#ef4444', border: 'none',
+                  color: 'white', fontWeight: 600, fontSize: '0.9rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
