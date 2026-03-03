@@ -22,6 +22,20 @@
   --border: rgba(226, 232, 240, 0.8);
   --border-soft: rgba(241, 245, 249, 0.6);
 
+  /* Chat Bubble Variables */
+  --chat-bg-user: #ffffff;
+  --chat-bg-crm: #dbeafe;
+  --chat-bg-bot: #dcf8c6;
+  --chat-text-primary: #1f2937;
+  --chat-text-secondary: #4b5563;
+  --chat-icon-bg-user: #e2e8f0;
+  --chat-icon-bg-crm: #bfdbfe;
+  --chat-icon-bg-bot: #bbf7d0;
+  --chat-icon-text-user: #475569;
+  --chat-icon-text-crm: #1d4ed8;
+  --chat-icon-text-bot: #15803d;
+  --chat-name-user: #667781;
+
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
   --shadow-lg: 0 12px 24px rgba(17, 24, 39, 0.08), 0 4px 8px rgba(17, 24, 39, 0.04);
@@ -34,24 +48,38 @@
 }
 
 .dark-mode {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-sidebar: rgba(15, 23, 42, 0.95);
-  --bg-header: rgba(15, 23, 42, 0.8);
-  --bg-gradient: radial-gradient(circle at top left, #0f172a, #111827);
-  --bg-tertiary: #334155;
+  --bg-primary: #000000;
+  --bg-secondary: #111111;
+  --bg-sidebar: #050505;
+  --bg-header: #050505;
+  --bg-gradient: #000000;
+  --bg-tertiary: #1a1a1a;
 
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #ededed;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
 
   --accent: #818cf8;
   --accent-hover: #a5b4fc;
   --accent-soft: rgba(129, 140, 248, 0.15);
   --accent-gradient: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
 
-  --border: rgba(51, 65, 85, 0.8);
-  --border-soft: rgba(51, 65, 85, 0.4);
+  --border: #333333;
+  --border-soft: #222222;
+
+  /* Chat Bubble Dark Mode Variables */
+  --chat-bg-user: #1f2937;
+  --chat-bg-crm: #1e3a8a;
+  --chat-bg-bot: #005c4b;
+  --chat-text-primary: #f8fafc;
+  --chat-text-secondary: #cbd5e1;
+  --chat-icon-bg-user: #374151;
+  --chat-icon-bg-crm: #1e40af;
+  --chat-icon-bg-bot: #065f46;
+  --chat-icon-text-user: #cbd5e1;
+  --chat-icon-text-crm: #93c5fd;
+  --chat-icon-text-bot: #86efac;
+  --chat-name-user: #9ca3af;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
