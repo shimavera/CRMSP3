@@ -454,7 +454,7 @@ function App() {
             <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => navigate('settings')} />
           )}
           {/* Perfil do usuário logado */}
-          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'var(--bg-primary)', border: '1px solid var(--border-soft)', marginBottom: '8px' }}>
+          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'var(--bg-primary)', border: '1px solid var(--border)', marginBottom: '8px' }}>
             <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '2px' }}>{authUser.nome}</div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>{authUser.role === 'master' ? '⭐ Administrador Master' : 'Operador'}</div>
           </div>
@@ -511,13 +511,13 @@ function App() {
               </button>
               <button
                 onClick={handleExportLeads}
-                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 📥 Exportar
               </button>
               <button
                 onClick={fetchLeads}
-                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
               >
                 Atualizar
               </button>
