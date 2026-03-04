@@ -56,6 +56,29 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
   </button>
 );
 
+// ─── NOTIFICAÇÃO SONORA GLOBAL ──────────────────────────────────────────────
+export const playNotificationSound = () => {
+  try {
+    const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const playTone = (freq: number, startTime: number, duration: number) => {
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.5, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+      osc.connect(gain);
+      gain.connect(context.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+    const now = context.currentTime;
+    playTone(600, now, 0.15);
+    playTone(800, now + 0.1, 0.15);
+  } catch (error) { }
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -262,6 +285,21 @@ function App() {
       }, (payload) => {
         const deleted = payload.old as any;
         setLeads(prev => prev.filter(l => l.id !== deleted.id));
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'n8n_chat_histories',
+        filter: `company_id=eq.${authUser.company_id}`
+      }, (payload) => {
+        const newMsg = payload.new as any;
+        try {
+          const parsed = typeof newMsg.message === 'string' ? JSON.parse(newMsg.message) : newMsg.message;
+          const isHuman = parsed.type === 'human' && !parsed.sentByCRM;
+          if (isHuman) {
+            playNotificationSound();
+          }
+        } catch (e) { }
       })
       .subscribe();
 
