@@ -65,28 +65,16 @@ BEGIN
       AND f.trigger_type = 'external_lead'
       AND (NEW.company_id = f.company_id OR NEW.company_id IS NULL)
   LOOP
-    v_new_chat_id := NULL;
-    SELECT id INTO v_new_chat_id
-    FROM sp3chat
-    WHERE company_id = v_flow.company_id
-      AND (telefone = v_lead_phone OR telefone = right(v_lead_phone, 11))
-    LIMIT 1;
-
-    IF v_new_chat_id IS NULL THEN
-      INSERT INTO sp3chat (
-        company_id, nome, telefone, status,
-        stage, ia_active, observacoes, created_at
-      ) VALUES (
-        v_flow.company_id, v_lead_name, v_lead_phone, 'active',
-        'Novo Lead', true, v_observacoes, NOW()
-      )
-      RETURNING id INTO v_new_chat_id;
-    ELSE
-      UPDATE sp3chat
-      SET observacoes = COALESCE(observacoes, '') || E'\n---\n' || v_observacoes,
-          stage = COALESCE(NULLIF(stage, ''), 'Novo Lead')
-      WHERE id = v_new_chat_id;
-    END IF;
+    -- O cliente deseja que cada disparo/entrada crie um lead SEPARADO no Pipedrive/Kanban/Sistema,
+    -- mesmo que o telefone já exista.
+    INSERT INTO sp3chat (
+      company_id, nome, telefone,
+      stage, ia_active, observacoes, created_at
+    ) VALUES (
+      v_flow.company_id, v_lead_name, v_lead_phone,
+      'Novo Lead', true, v_observacoes, NOW()
+    )
+    RETURNING id INTO v_new_chat_id;
 
     NEW.processed := true;
     NEW.sp3chat_id := v_new_chat_id;

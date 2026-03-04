@@ -197,7 +197,8 @@ export type SendMessageNodeData = {
 export type WaitDelayNodeData = {
   label: string;
   delay_value: number;
-  delay_unit: 'minutes' | 'hours' | 'days';
+  delay_unit: 'minutes' | 'hours' | 'days' | 'minutes_before_meeting' | 'hours_before_meeting' | 'days_before_meeting';
+  business_hours?: boolean;
 };
 
 export type ConditionNodeData = {

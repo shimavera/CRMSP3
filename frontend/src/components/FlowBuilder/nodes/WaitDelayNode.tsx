@@ -7,6 +7,9 @@ const UNIT_LABELS: Record<string, string> = {
   minutes: 'minuto(s)',
   hours: 'hora(s)',
   days: 'dia(s)',
+  minutes_before_meeting: 'min(s) antes da Reunião',
+  hours_before_meeting: 'hora(s) antes da Reunião',
+  days_before_meeting: 'dia(s) antes da Reunião',
 };
 
 export default function WaitDelayNode({ data, selected }: NodeProps) {
@@ -22,9 +25,16 @@ export default function WaitDelayNode({ data, selected }: NodeProps) {
         <Clock size={15} style={s.icon} />
         <span style={s.title}>{d.label || 'Aguardar'}</span>
       </div>
-      <div style={s.badge}>
-        <Clock size={10} />
-        {d.delay_value || 1} {UNIT_LABELS[d.delay_unit] || 'dia(s)'}
+      <div style={{ ...s.badge, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <Clock size={10} />
+          {d.delay_value || 1} {UNIT_LABELS[d.delay_unit] || 'hora(s)'}
+        </div>
+        {d.business_hours && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontWeight: 600 }}>
+            <Clock size={10} /> Horário Comercial
+          </div>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE_OUTPUT} />
     </div>
