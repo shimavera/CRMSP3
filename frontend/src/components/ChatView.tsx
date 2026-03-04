@@ -24,6 +24,32 @@ const InfoItem = ({ icon: Icon, label, value }: { icon: any, label: string, valu
     </div>
 );
 
+const parseTextVariables = (text: string, lead: any) => {
+    if (!text) return '';
+    let parsed = text;
+
+    const leadName = lead?.nome || 'Cliente';
+
+    parsed = parsed.replace(/{{nome}}/gi, leadName);
+    parsed = parsed.replace(/{{lead_name}}/gi, leadName);
+    parsed = parsed.replace(/{{nome do lead}}/gi, leadName);
+    parsed = parsed.replace(/{{leadName}}/gi, leadName);
+
+    const hour = new Date().getHours();
+    let greeting = 'Bom dia';
+    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+    else if (hour >= 18) greeting = 'Boa noite';
+
+    parsed = parsed.replace(/{{Sauda\u00E7\u00E3o \(Bom dia\/Boa tarde\)}}/gi, greeting);
+    parsed = parsed.replace(/{{Saudacao \(Bom dia\/Boa tarde\)}}/gi, greeting);
+    parsed = parsed.replace(/{{saudacao}}/gi, greeting);
+    parsed = parsed.replace(/{{sauda\u00E7\u00E3o}}/gi, greeting);
+
+    if (lead?.telefone) parsed = parsed.replace(/{{telefone}}/gi, lead.telefone);
+
+    return parsed;
+};
+
 const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatViewProps) => {
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -1566,7 +1592,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                 <div
                                                     key={msg.id}
                                                     onClick={() => {
-                                                        const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, msg.content.replace(/{{nome}}/g, selectedLead?.nome || 'Cliente'));
+                                                        const parsedMsg = parseTextVariables(msg.content, selectedLead);
+                                                        const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, parsedMsg);
                                                         setInputValue(newVal);
                                                         setShowQuickMessagesStore(false);
                                                     }}
@@ -1575,7 +1602,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                                                 >
                                                     <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{msg.content}</span>
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parseTextVariables(msg.content, selectedLead)}</span>
                                                 </div>
                                             ))}
                                         </div>

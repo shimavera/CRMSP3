@@ -41,7 +41,12 @@ BEGIN
   v_score := (regexp_match(p_lead_observacoes, 'Score: ([^\n]+)'))[1];
   v_origem := (regexp_match(p_lead_observacoes, 'Origem: ([^\n]+)'))[1];
 
+  -- Alias para nome
   v_result := replace(v_result, '{{lead_nome}}', COALESCE(p_lead_nome, ''));
+  v_result := replace(v_result, '{{lead_name}}', COALESCE(p_lead_nome, ''));
+  v_result := replace(v_result, '{{nome}}', COALESCE(p_lead_nome, ''));
+  
+  -- Outros campos
   v_result := replace(v_result, '{{lead_telefone}}', COALESCE(p_lead_telefone, ''));
   v_result := replace(v_result, '{{lead_email}}', COALESCE(p_lead_email, ''));
   v_result := replace(v_result, '{{lead_clinica}}', COALESCE(v_clinica, ''));
@@ -49,13 +54,15 @@ BEGIN
   v_result := replace(v_result, '{{lead_score}}', COALESCE(v_score, ''));
   v_result := replace(v_result, '{{lead_origem}}', COALESCE(v_origem, ''));
   v_result := replace(v_result, '{{company_name}}', COALESCE(p_company_name, ''));
-  v_result := replace(v_result, '{{saudacao}}',
+  
+  -- Saudação e variações (case sensitive em replace normal, então várias opções ou usar regexp_replace)
+  v_result := regexp_replace(v_result, '\{\{sauda\u00E7\u00E3o.*?\}\}|\{\{saudacao.*?\}\}',
     CASE
       WHEN EXTRACT(HOUR FROM NOW() AT TIME ZONE 'America/Sao_Paulo') < 12 THEN 'Bom dia'
       WHEN EXTRACT(HOUR FROM NOW() AT TIME ZONE 'America/Sao_Paulo') < 18 THEN 'Boa tarde'
       ELSE 'Boa noite'
     END
-  );
+  , 'gi');
 
   RETURN v_result;
 END;
@@ -91,7 +98,7 @@ BEGIN
   -- Buscar execuções pendentes (com lock para evitar duplicatas)
   FOR v_exec IN
     SELECT e.id, e.flow_id, e.lead_id, e.company_id,
-           e.current_node_id, e.execution_log,
+           e.current_node_id, e.execution_log, e.started_at,
            f.flow_data
     FROM sp3_flow_executions e
     JOIN sp3_flows f ON f.id = e.flow_id
@@ -312,39 +319,82 @@ BEGIN
         v_delay_value := COALESCE((v_node_data->>'delay_value')::int, 1);
         v_delay_unit := COALESCE(v_node_data->>'delay_unit', 'hours');
 
-        -- Próximo nó (será retomado depois do delay)
-        SELECT e->>'target' INTO v_next_node_id
-        FROM jsonb_array_elements(v_flow_data->'edges') AS e
-        WHERE e->>'source' = v_current_node_id
-        LIMIT 1;
+        DECLARE
+          v_target_time TIMESTAMPTZ := NULL;
+          v_is_meeting_based BOOLEAN := false;
+        BEGIN
+          IF v_delay_unit IN ('minutes_before_meeting', 'hours_before_meeting', 'days_before_meeting') THEN
+            v_is_meeting_based := true;
+            IF v_lead.meeting_datetime IS NULL THEN
+              -- Se ainda não tem data (assumindo q a pessoa esqueceu de botar no CRM momentaneamente ou tá processando)
+              -- Pausa o fluxo para checar de novo daqui a pouco
+              v_target_time := NOW() + interval '10 minutes';
+            ELSE
+              v_target_time := v_lead.meeting_datetime - 
+                CASE 
+                  WHEN v_delay_unit = 'minutes_before_meeting' THEN (v_delay_value || ' minutes')::interval
+                  WHEN v_delay_unit = 'hours_before_meeting' THEN (v_delay_value || ' hours')::interval
+                  WHEN v_delay_unit = 'days_before_meeting' THEN (v_delay_value || ' days')::interval
+                END;
+            END IF;
+          ELSE
+            v_target_time := NOW() + 
+                CASE v_delay_unit
+                  WHEN 'minutes' THEN (v_delay_value || ' minutes')::interval
+                  WHEN 'hours' THEN (v_delay_value || ' hours')::interval
+                  WHEN 'days' THEN (v_delay_value || ' days')::interval
+                  ELSE '1 hour'::interval
+                END;
+          END IF;
 
-        v_log := v_log || jsonb_build_array(
-          jsonb_build_object(
-            'node_id', v_current_node_id,
-            'action', 'Aguardando ' || v_delay_value || ' ' ||
-              CASE v_delay_unit
-                WHEN 'minutes' THEN 'minuto(s)'
-                WHEN 'hours' THEN 'hora(s)'
-                WHEN 'days' THEN 'dia(s)'
-                ELSE v_delay_unit
-              END,
-            'timestamp', NOW()::text
-          )
-        );
+          IF COALESCE(v_node_data->>'business_hours', 'false') = 'true' THEN
+            v_target_time := sp3_adjust_to_business_hours(v_target_time);
+          END IF;
 
-        UPDATE sp3_flow_executions
-        SET current_node_id = COALESCE(v_next_node_id, v_current_node_id),
-            next_run_at = NOW() +
-              CASE v_delay_unit
-                WHEN 'minutes' THEN (v_delay_value || ' minutes')::interval
-                WHEN 'hours' THEN (v_delay_value || ' hours')::interval
-                WHEN 'days' THEN (v_delay_value || ' days')::interval
-                ELSE '1 hour'::interval
-              END,
-            execution_log = v_log
-        WHERE id = v_exec.id;
+          -- Pular mensagem se já passou muito do prazo (se foi agendada pra cima da hora)
+          IF v_is_meeting_based AND v_lead.meeting_datetime IS NOT NULL AND v_target_time < NOW() - interval '10 minutes' THEN
+            v_log := v_log || jsonb_build_array(jsonb_build_object(
+              'node_id', v_current_node_id, 'action', 'Ignorado (já passou do prazo de lembrete)', 'timestamp', NOW()::text
+            ));
+            -- Pegar próximo nó (Mensagem)
+            SELECT e->>'target' INTO v_next_node_id FROM jsonb_array_elements(v_flow_data->'edges') AS e WHERE e->>'source' = v_current_node_id LIMIT 1;
+            IF v_next_node_id IS NOT NULL THEN
+              -- Pular a Mensagem e ir pro próximo depois dela (o próximo Delay)
+              SELECT e2->>'target' INTO v_next_node_id FROM jsonb_array_elements(v_flow_data->'edges') AS e2 WHERE e2->>'source' = v_next_node_id LIMIT 1;
+            END IF;
 
-        v_should_stop := true;
+            IF v_next_node_id IS NOT NULL THEN
+              v_current_node_id := v_next_node_id;
+              CONTINUE;
+            ELSE
+              v_should_stop := true;
+              UPDATE sp3_flow_executions SET status = 'completed', completed_at = NOW(), execution_log = v_log WHERE id = v_exec.id;
+            END IF;
+
+          ELSE
+            -- Caminho Normal da pausa
+            SELECT e->>'target' INTO v_next_node_id
+            FROM jsonb_array_elements(v_flow_data->'edges') AS e
+            WHERE e->>'source' = v_current_node_id
+            LIMIT 1;
+
+            v_log := v_log || jsonb_build_array(
+              jsonb_build_object(
+                'node_id', v_current_node_id,
+                'action', 'Aguardando ' || v_delay_value || ' ' || REPLACE(v_delay_unit, '_meeting', ''),
+                'timestamp', NOW()::text
+              )
+            );
+
+            UPDATE sp3_flow_executions
+            SET current_node_id = COALESCE(v_next_node_id, v_current_node_id),
+                next_run_at = v_target_time,
+                execution_log = v_log
+            WHERE id = v_exec.id;
+
+            v_should_stop := true;
+          END IF;
+        END;
 
       -- ==========================================
       -- CONDITION: avalia e escolhe caminho

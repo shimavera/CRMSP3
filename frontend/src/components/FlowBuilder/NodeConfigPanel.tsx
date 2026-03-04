@@ -223,6 +223,7 @@ function TriggerConfig({ data, update, selectStyle, labelStyle, sectionStyle, in
           <option value="new_lead">Novo Lead</option>
           <option value="no_response_timeout">Lead Não Respondeu</option>
           <option value="external_lead">Lead do Site (Formulário)</option>
+          <option value="meeting_scheduled">Reunião Agendada</option>
         </select>
       </div>
       {data.triggerType === 'external_lead' && (
@@ -535,11 +536,31 @@ function WaitDelayConfig({ data, update, inputStyle, selectStyle, labelStyle, se
             value={data.delay_unit || 'days'}
             onChange={e => update({ delay_unit: e.target.value })}
           >
-            <option value="minutes">Minuto(s)</option>
-            <option value="hours">Hora(s)</option>
-            <option value="days">Dia(s)</option>
+            <optgroup label="A partir de agora">
+              <option value="minutes">Minuto(s)</option>
+              <option value="hours">Hora(s)</option>
+              <option value="days">Dia(s)</option>
+            </optgroup>
+            <optgroup label="Até a data da Reunião">
+              <option value="minutes_before_meeting">Minuto(s) antes</option>
+              <option value="hours_before_meeting">Hora(s) antes</option>
+              <option value="days_before_meeting">Dia(s) antes</option>
+            </optgroup>
           </select>
         </div>
+      </div>
+      <div style={sectionStyle}>
+        <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={data.business_hours || false}
+            onChange={e => update({ business_hours: e.target.checked })}
+            style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: '16px', height: '16px' }}
+          />
+          <span style={{ fontSize: '0.75rem', color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#475569' }}>
+            Dentro do horário comercial (8h-18h, Seg-Sex)
+          </span>
+        </label>
       </div>
     </>
   );
