@@ -134,9 +134,6 @@ const LeadCard = (props: {
                         position: 'relative',
                         userSelect: 'none',
                         ...provided.draggableProps.style,
-                        // Forçamos o transform do dnd apenas se estiver arrastando, para evitar o "vôo"
-                        transform: snapshot.isDragging ? provided.draggableProps.style?.transform : undefined,
-                        zIndex: snapshot.isDragging ? 9999 : 1,
                     }}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -295,11 +292,11 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
             .from('sp3chat')
             .update({
                 stage: form.stage,
-                meeting_datetime: form.meeting_datetime,
-                meeting_link: form.meeting_link,
-                meeting_status: form.meeting_status,
-                proposal_status: form.proposal_status,
-                closed_reason: form.closed_reason,
+                meeting_datetime: form.meeting_datetime || null,
+                meeting_link: form.meeting_link || null,
+                meeting_status: form.meeting_status || null,
+                proposal_status: form.proposal_status || null,
+                closed_reason: form.closed_reason || null,
                 stage_updated_at: form.stage !== lead.stage ? new Date().toISOString() : lead.stage_updated_at,
                 tasks: form.tasks,
                 custom_fields: form.custom_fields
@@ -307,7 +304,12 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
             .eq('id', lead.id);
 
         setSaving(false);
-        if (!error) onUpdate({ ...lead, ...form });
+        if (error) {
+            console.error("Erro ao salvar lead:", error);
+            alert(`Oops! Ocorreu um erro ao salvar o lead: ${error.message}`);
+        } else {
+            onUpdate({ ...lead, ...form });
+        }
     };
 
     return (
