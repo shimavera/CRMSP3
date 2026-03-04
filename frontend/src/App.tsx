@@ -431,12 +431,41 @@ function App() {
   };
 
   const handleDeleteLead = async (leadId: number) => {
-    if (!await showConfirm('Tem certeza que deseja excluir este Lead?')) return;
-    const { error } = await supabase.from('sp3chat').delete().eq('id', leadId);
-    if (error) {
-      await showAlert('Erro ao excluir: ' + error.message);
-    } else {
-      await fetchLeads();
+    if (!await showConfirm('Tem certeza que deseja excluir este Lead?\n\nIsso vai apagar TODO o histórico de conversas, follow-ups, automações e anotações desse número. O lead entrará como novo se entrar em contato novamente.')) return;
+
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) { await showAlert('Lead não encontrado.'); return; }
+
+    try {
+      // 1. Apagar histórico de conversas (n8n_chat_histories)
+      await supabase
+        .from('n8n_chat_histories')
+        .delete()
+        .eq('session_id', lead.telefone)
+        .eq('company_id', lead.company_id);
+
+      // 2. Apagar estado de follow-up (sp3_followup_state)
+      await supabase
+        .from('sp3_followup_state')
+        .delete()
+        .eq('telefone', lead.telefone);
+
+      // 3. Cancelar execuções de fluxo ativas
+      await supabase
+        .from('sp3_flow_executions')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('lead_id', leadId)
+        .in('status', ['running', 'paused']);
+
+      // 4. Apagar o lead (sp3_flow_executions com FK CASCADE também são removidas)
+      const { error } = await supabase.from('sp3chat').delete().eq('id', leadId);
+      if (error) {
+        await showAlert('Erro ao excluir: ' + error.message);
+      } else {
+        await fetchLeads();
+      }
+    } catch (err: any) {
+      await showAlert('Erro ao excluir lead: ' + (err.message || err));
     }
   };
 
