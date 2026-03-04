@@ -41,7 +41,9 @@
       "Bash(curl -s \"https://n8n.sp3company.shop/api/v1/workflows/aFNGsz4pDkLMYP5m\" -H \"X-N8N-API-KEY: n8n_api_e6c6ec67dd7fa79da0b74e27da90e78a2ac5cb89db1c1da3db2c97be5f5b14a1b36c10a3eb0a4e40\")",
       "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" \"https://n8n.sp3company.shop/api/v1/workflows\" -H \"X-N8N-API-KEY: n8n_api_e6c6ec67dd7fa79da0b74e27da90e78a2ac5cb89db1c1da3db2c97be5f5b14a1b36c10a3eb0a4e40\")",
       "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" \"https://n8n.sp3company.shop/api/v1/workflows?limit=3\" -H \"X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhM2ZiNTFkOS04Y2RhLTQ1ZWQtYmY0NS0zOGUyOTY3NmVlMTEiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwNDk1NDMwfQ.VkVO2RVzt_8Nb8oqLSL0OfxSNQQa5tyLfyKrUUls7egE\")",
-      "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" \"https://sp3company.app.n8n.cloud/api/v1/workflows?limit=2\" -H \"X-N8N-API-KEY: n8n_api_e6c6ec67dd7fa79da0b74e27da90e78a2ac5cb89db1c1da3db2c97be5f5b14a1b36c10a3eb0a4e40\")"
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" \"https://sp3company.app.n8n.cloud/api/v1/workflows?limit=2\" -H \"X-N8N-API-KEY: n8n_api_e6c6ec67dd7fa79da0b74e27da90e78a2ac5cb89db1c1da3db2c97be5f5b14a1b36c10a3eb0a4e40\")",
+      "mcp__n8n__search_nodes",
+      "mcp__n8n__validate_workflow"
     ]
   }
 }
