@@ -669,7 +669,7 @@ const KanbanView = () => {
     );
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
             {/* Header da Pipeline */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div>
