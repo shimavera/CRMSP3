@@ -41,16 +41,16 @@ const LoginView = () => {
             }}>
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                    <div className="logo-container" style={{ marginBottom: '1rem' }}>
+                    <div className="logo-container" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
                         <div className="logo-icon-wrapper">
                             <img
                                 src="/favicon.png"
-                                alt="SP3 Symbol"
+                                alt="Saúde AI Symbol"
                                 style={{ height: '52px', width: '52px', objectFit: 'contain', borderRadius: '12px' }}
                             />
                         </div>
-                        <span className="logo-text" style={{ fontSize: '3.25rem', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.04em', lineHeight: 1 }}>
-                            SP3
+                        <span className="logo-text" style={{ fontSize: '2.5rem', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                            Saúde AI
                         </span>
                     </div>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '500' }}>
@@ -156,7 +156,7 @@ const LoginView = () => {
                     Acesso restrito a usuários autorizados
                 </p>
                 <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.65rem', color: '#cbd5e1', fontWeight: '600' }}>
-                    V18 - 03/03 - 12:43
+                    Saúde AI v1.0
                 </p>
             </div>
         </div>

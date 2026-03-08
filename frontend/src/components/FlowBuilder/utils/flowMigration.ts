@@ -1,34 +1,17 @@
 import type { FollowupStep } from '../../../lib/supabase';
 import type { FlowData, FlowNode, FlowEdge, FlowMessageItem } from '../../../lib/supabase';
 
-export interface MigrationOptions {
-  triggerType?: 'manual' | 'no_response_timeout';
-  timeoutConfig?: { timeout_value: string; timeout_unit: string };
-  addLockAction?: boolean;
-  businessHours?: boolean;
-}
-
 /**
  * Converte etapas lineares de follow-up (sistema antigo) para um grafo visual (sistema novo).
  *
  * Estrutura gerada:
- *   Gatilho (manual ou no_response_timeout)
- *     -> Enviar Msg 1 -> Aguardar -> Condicao (respondeu?)
- *       -> Sim: Fim (Converteu)
- *       -> Nao: Enviar Msg 2 -> Aguardar -> Condicao -> ...
- *     -> Ultimo Nao: [Action: lock_followup] -> Fim (Frio)
+ *   Gatilho (manual)
+ *     → Enviar Msg 1 → Aguardar → Condição (respondeu?)
+ *       → Sim: Fim (Converteu)
+ *       → Não: Enviar Msg 2 → Aguardar → Condição → ...
+ *     → Último Não: Fim (Frio)
  */
-export function migrateLinearStepsToFlow(
-  steps: FollowupStep[],
-  options: MigrationOptions = {}
-): FlowData {
-  const {
-    triggerType = 'no_response_timeout',
-    timeoutConfig = { timeout_value: '30', timeout_unit: 'minutes' },
-    addLockAction = true,
-    businessHours = true,
-  } = options;
-
+export function migrateLinearStepsToFlow(steps: FollowupStep[]): FlowData {
   const sortedSteps = [...steps]
     .filter(s => s.active)
     .sort((a, b) => a.step_number - b.step_number);
@@ -51,11 +34,7 @@ export function migrateLinearStepsToFlow(
     id: triggerId,
     type: 'trigger',
     position: { x: X_CENTER, y },
-    data: {
-      label: triggerType === 'no_response_timeout' ? 'Sem Resposta' : 'Gatilho',
-      triggerType,
-      config: triggerType === 'no_response_timeout' ? { ...timeoutConfig } : {},
-    },
+    data: { label: 'Gatilho', triggerType: 'manual', config: {} },
   });
   y += Y_STEP;
 
@@ -68,7 +47,7 @@ export function migrateLinearStepsToFlow(
     data: { label: 'Converteu', outcome: 'success' },
   });
 
-  // 3. Fim (Frio) — sera posicionado ao final
+  // 3. Fim (Frio) — será posicionado ao final
   const endColdId = crypto.randomUUID();
 
   let prevNodeId = triggerId;
@@ -77,7 +56,7 @@ export function migrateLinearStepsToFlow(
     const step = sortedSteps[i];
     const isLast = i === sortedSteps.length - 1;
 
-    // No: Enviar Mensagem
+    // Nó: Enviar Mensagem
     const sendMsgId = crypto.randomUUID();
     const messages: FlowMessageItem[] = (step.messages || [])
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -94,7 +73,7 @@ export function migrateLinearStepsToFlow(
       id: sendMsgId,
       type: 'send_message',
       position: { x: X_CENTER, y },
-      data: { label: `${step.step_number}o Follow-up`, messages },
+      data: { label: `${step.step_number}º Follow-up`, messages },
     });
 
     edges.push({
@@ -104,7 +83,7 @@ export function migrateLinearStepsToFlow(
     });
     y += Y_STEP;
 
-    // No: Aguardar (com business_hours se habilitado)
+    // Nó: Aguardar
     const waitId = crypto.randomUUID();
     nodes.push({
       id: waitId,
@@ -114,7 +93,6 @@ export function migrateLinearStepsToFlow(
         label: `Aguardar ${step.delay_days} ${step.delay_unit === 'minutes' ? 'min' : step.delay_unit === 'hours' ? 'h' : 'dia(s)'}`,
         delay_value: step.delay_days,
         delay_unit: step.delay_unit,
-        ...(businessHours ? { business_hours: true } : {}),
       },
     });
 
@@ -125,7 +103,7 @@ export function migrateLinearStepsToFlow(
     });
     y += Y_STEP;
 
-    // No: Condicao (respondeu?)
+    // Nó: Condição (respondeu?)
     const condId = crypto.randomUUID();
     nodes.push({
       id: condId,
@@ -144,7 +122,7 @@ export function migrateLinearStepsToFlow(
       target: condId,
     });
 
-    // Edge "Sim" -> Fim (Converteu)
+    // Edge "Sim" → Fim (Converteu)
     edges.push({
       id: crypto.randomUUID(),
       source: condId,
@@ -154,67 +132,44 @@ export function migrateLinearStepsToFlow(
     });
 
     if (isLast) {
-      if (addLockAction) {
-        // Ultimo "Nao" -> Action(lock_followup) -> Fim(Frio)
-        const actionLockId = crypto.randomUUID();
-        nodes.push({
-          id: actionLockId,
-          type: 'action',
-          position: { x: X_CENTER, y: y + Y_STEP },
-          data: { label: 'Desativar IA', action_type: 'lock_followup', config: {} },
-        });
+      // Última condição "Não" → Fim (Frio)
+      nodes.push({
+        id: endColdId,
+        type: 'end',
+        position: { x: X_CENTER, y: y + Y_STEP },
+        data: { label: 'Frio', outcome: 'failed' },
+      });
 
-        edges.push({
-          id: crypto.randomUUID(),
-          source: condId,
-          target: actionLockId,
-          sourceHandle: 'false',
-          label: 'Nao',
-        });
-
-        nodes.push({
-          id: endColdId,
-          type: 'end',
-          position: { x: X_CENTER, y: y + Y_STEP * 2 },
-          data: { label: 'Frio', outcome: 'failed' },
-        });
-
-        edges.push({
-          id: crypto.randomUUID(),
-          source: actionLockId,
-          target: endColdId,
-        });
-      } else {
-        // Sem lock: "Nao" -> Fim (Frio) diretamente
-        nodes.push({
-          id: endColdId,
-          type: 'end',
-          position: { x: X_CENTER, y: y + Y_STEP },
-          data: { label: 'Frio', outcome: 'failed' },
-        });
-
-        edges.push({
-          id: crypto.randomUUID(),
-          source: condId,
-          target: endColdId,
-          sourceHandle: 'false',
-          label: 'Nao',
-        });
-      }
+      edges.push({
+        id: crypto.randomUUID(),
+        source: condId,
+        target: endColdId,
+        sourceHandle: 'false',
+        label: 'Não',
+      });
     }
 
     y += Y_STEP;
-    prevNodeId = condId;
+    prevNodeId = condId; // "Não" vai continuar para o próximo step
+
+    // Se não for o último, conectar "Não" ao próximo SendMessage (que será criado no próximo loop)
+    if (!isLast) {
+      // A edge "Não" será a source para o próximo nó — prevNodeId fica com sourceHandle
+      // Na verdade, precisamos criar a edge explicitamente no próximo loop
+    }
   }
 
-  // Corrigir edges "Nao" intermediarias
+  // Corrigir edges "Não" intermediárias (que conectam ao próximo SendMessage)
+  // Percorrer novamente para adicionar as edges faltantes
   const conditionNodes = nodes.filter(n => n.type === 'condition');
   const sendMessageNodes = nodes.filter(n => n.type === 'send_message');
 
   for (let i = 0; i < conditionNodes.length - 1; i++) {
+    // Se não for o último condition, conectar "Não" ao próximo SendMessage
     const condNode = conditionNodes[i];
     const nextSendMsg = sendMessageNodes[i + 1];
 
+    // Verificar se já existe uma edge "false" para este condition
     const existingFalseEdge = edges.find(e => e.source === condNode.id && e.sourceHandle === 'false');
     if (!existingFalseEdge && nextSendMsg) {
       edges.push({
@@ -222,12 +177,12 @@ export function migrateLinearStepsToFlow(
         source: condNode.id,
         target: nextSendMsg.id,
         sourceHandle: 'false',
-        label: 'Nao',
+        label: 'Não',
       });
     }
   }
 
-  // Atualizar posicao Y do Fim (Converteu) para ficar centralizado
+  // Atualizar posição Y do Fim (Converteu) para ficar centralizado
   const endSuccessNode = nodes.find(n => n.id === endSuccessId);
   if (endSuccessNode) {
     endSuccessNode.position.y = Math.floor(y / 2);
