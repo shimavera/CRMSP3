@@ -485,15 +485,15 @@ function App() {
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''} ${!desktopSidebarOpen && !isMobile ? ' desktop-sidebar-closed' : ''}`}>
         <div className="logo-container" style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem' }}>
-          <div className="logo-icon-wrapper" style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: '12px' }}>
+          <div className="logo-icon-wrapper" style={{ padding: '6px', background: 'var(--accent-soft)', borderRadius: '8px' }}>
             <img
               src="/favicon.png"
-              alt="SP3 Symbol"
-              style={{ height: '34px', width: '34px', objectFit: 'contain', borderRadius: '8px' }}
+              alt="Saúde AI Symbol"
+              style={{ height: '30px', width: '30px', objectFit: 'contain', borderRadius: '4px' }}
             />
           </div>
-          <span className="logo-text" style={{ fontSize: '1.85rem', fontWeight: '900', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.04em', lineHeight: 1 }}>
-            SP3
+          <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.04em', lineHeight: 1 }}>
+            Saúde AI
           </span>
         </div>
 
@@ -528,7 +528,7 @@ function App() {
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
 
           <div style={{ textAlign: 'center', marginTop: '1rem', opacity: 0.5, fontSize: '0.65rem', fontWeight: 'bold' }}>
-            V18 - 03/03 - 12:43
+            Saúde AI v1.0
           </div>
         </div>
       </aside>
@@ -556,9 +556,9 @@ function App() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
                   {lastSync && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bbf7d0', animation: 'fadeIn 0.5s ease-out' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', animation: 'pulsing 2s infinite' }} />
-                      <span style={{ fontSize: '0.6rem', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>Sincronizado {lastSync}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', animation: 'fadeIn 0.5s ease-out' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
+                      <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Sincronizado {lastSync}</span>
                     </div>
                   )}
                 </div>
@@ -655,12 +655,12 @@ function App() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <h3 style={{ fontWeight: '900', fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}><Users size={22} color="var(--accent)" /> Toda Base</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '2px' }}>{leads.length} leads cadastrados</p>
+                <h3 style={{ fontWeight: '700', fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.02em' }}><Users size={20} color="var(--text-primary)" /> Base de Leads</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>{leads.length} leads cadastrados</p>
               </div>
               <button
                 onClick={() => { setNewLeadNome(''); setNewLeadTelefone(''); setEditingLeadId(null); setShowAddLead(true); setAddLeadError(null); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '12px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
               >
                 <Plus size={16} /> Adicionar Lead
               </button>
