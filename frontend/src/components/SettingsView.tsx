@@ -1335,21 +1335,37 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const handleResetChats = async () => {
-        if (!await showConfirm('CUIDADO: Isso irá apagar todo o histórico de conversas do sistema! Deseja realmente continuar?')) return;
-        if (!await showConfirm('TEM CERTEZA ABSOLUTA? Esta ação não pode ser desfeita e irá zerar as conversas da IA.')) return;
+        if (!await showConfirm('CUIDADO: Isso irá apagar TODOS os leads, conversas, execuções de fluxo e dados de clientes desta empresa! Configurações (fluxos, prompts, IA) serão mantidas. Deseja continuar?')) return;
+        if (!await showConfirm('TEM CERTEZA ABSOLUTA? Esta ação não pode ser desfeita. Todos os contatos e histórico serão perdidos permanentemente.')) return;
 
         setIsResettingChats(true);
         try {
-            const { error } = await supabase
+            // Ordem importa: respeitar foreign keys
+            // 1. Execuções de fluxo (referencia sp3chat e sp3_flows)
+            const { error: e1 } = await supabase
+                .from('sp3_flow_executions')
+                .delete()
+                .eq('company_id', authUser.company_id);
+            if (e1) throw e1;
+
+            // 2. Histórico de conversas
+            const { error: e2 } = await supabase
                 .from('n8n_chat_histories')
                 .delete()
                 .eq('company_id', authUser.company_id);
+            if (e2) throw e2;
 
-            if (error) throw error;
-            await showAlert('Histórico de conversas apagado com sucesso! As próximas mensagens iniciarão uma nova conversa do zero.');
+            // 3. Leads / contatos (sp3chat)
+            const { error: e3 } = await supabase
+                .from('sp3chat')
+                .delete()
+                .eq('company_id', authUser.company_id);
+            if (e3) throw e3;
+
+            await showAlert('Dados zerados com sucesso! Leads, conversas e execuções de fluxo foram removidos. A empresa está pronta para novos testes.');
         } catch (err: any) {
-            console.error('Erro ao limpar histórico:', err);
-            await showAlert('Erro ao apagar histórico: ' + err.message);
+            console.error('Erro ao limpar dados:', err);
+            await showAlert('Erro ao apagar dados: ' + err.message);
         } finally {
             setIsResettingChats(false);
         }
@@ -2440,10 +2456,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                         <div style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid #fee2e2', backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#b91c1c' }}>Zerar Histórico de Conversas (IA)</h4>
+                                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#b91c1c' }}>Zerar Todos os Dados de Clientes</h4>
                                 <p style={{ fontSize: '0.85rem', color: '#7f1d1d', marginTop: '4px' }}>
-                                    Apaga permanentemente <strong>todo o histórico de conversas</strong> do banco de dados (n8n_chat_histories).
-                                    Isso fará com que a IA esqueça todas as conversas anteriores e inicie os atendimentos totalmente do zero. Útil para limpar dados de ambiente de teste.
+                                    Apaga permanentemente <strong>todos os leads, conversas, execuções de fluxo</strong> e dados salvos nos cards (etiquetas, observações, campos customizados, agendamentos).
+                                    A empresa fica como nova — ideal para limpar testes. <strong>Configurações</strong> (fluxos, prompts, IA, horários) são mantidas.
                                 </p>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
@@ -2453,7 +2469,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#ef4444', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                                 >
                                     {isResettingChats ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                                    {isResettingChats ? 'Apagando...' : 'Apagar Todo o Histórico'}
+                                    {isResettingChats ? 'Apagando...' : 'Zerar Dados de Clientes'}
                                 </button>
                             </div>
                         </div>
