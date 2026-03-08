@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance } from '../lib/supabase';
+import PromptBuilderChat from './PromptBuilderChat';
 
 interface SettingsViewProps {
     authUser: UserProfile;
@@ -88,58 +89,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [createUserSuccess, setCreateUserSuccess] = useState(false);
 
     // Estados do Prompt da IA
-    const [aiPrompt, setAiPrompt] = useState<string>('');
-    const [aiEquipe, setAiEquipe] = useState('');
-    const [aiDentistas, setAiDentistas] = useState('');
-    const [aiMedicos, setAiMedicos] = useState('');
-    const [aiHorarios, setAiHorarios] = useState('');
-    const [aiServicos, setAiServicos] = useState('');
     const [promptHistory, setPromptHistory] = useState<any[]>([]);
-    const [isSavingPrompt, setIsSavingPrompt] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState(false);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-    const parsePromptData = (content: string) => {
-        const defaultState = { basePrompt: content, equipe: '', dentistas: '', medicos: '', horarios: '', servicos: '' };
-        const delimiterStart = '\n\n=== CONTEXTO ESTRUTURADO ===\n';
-        const delimiterEnd = '=== FIM CONTEXTO ESTRUTURADO ===';
-
-        if (content.includes(delimiterStart)) {
-            const parts = content.split(delimiterStart);
-            const base = parts[0];
-            const structuredPart = parts[1].split(delimiterEnd)[0];
-
-            const extractField = (tagName: string) => {
-                const regex = new RegExp(`\\[${tagName}\\]\\n([\\s\\S]*?)(?:\\n\\n\\[|$)`);
-                const match = structuredPart.match(regex);
-                return match ? match[1].trim() : '';
-            };
-
-            return {
-                basePrompt: base.trim(),
-                equipe: extractField('EQUIPE'),
-                dentistas: extractField('DENTISTAS'),
-                medicos: extractField('MEDICOS'),
-                horarios: extractField('HORARIOS'),
-                servicos: extractField('SERVICOS'),
-            };
-        }
-        return defaultState;
-    };
-
-    const buildPromptData = () => {
-        let content = aiPrompt.trim();
-        if (aiEquipe || aiDentistas || aiMedicos || aiHorarios || aiServicos) {
-            content += '\n\n=== CONTEXTO ESTRUTURADO ===\n';
-            if (aiEquipe) content += `[EQUIPE]\n${aiEquipe}\n\n`;
-            if (aiDentistas) content += `[DENTISTAS]\n${aiDentistas}\n\n`;
-            if (aiMedicos) content += `[MEDICOS]\n${aiMedicos}\n\n`;
-            if (aiHorarios) content += `[HORARIOS]\n${aiHorarios}\n\n`;
-            if (aiServicos) content += `[SERVICOS]\n${aiServicos}\n\n`;
-            content += '=== FIM CONTEXTO ESTRUTURADO ===';
-        }
-        return content;
-    };
 
     // Estados do Follow-up
     const [followupConfig, setFollowupConfig] = useState<any>({
@@ -460,16 +411,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
             if (data && data.length > 0) {
                 setPromptHistory(data);
-                // Se o editor estiver vazio, carrega o mais recente
-                if (!aiPrompt && !aiEquipe && !aiDentistas && !aiMedicos && !aiHorarios && !aiServicos) {
-                    const parsed = parsePromptData(data[0].content);
-                    setAiPrompt(parsed.basePrompt);
-                    setAiEquipe(parsed.equipe);
-                    setAiDentistas(parsed.dentistas);
-                    setAiMedicos(parsed.medicos);
-                    setAiHorarios(parsed.horarios);
-                    setAiServicos(parsed.servicos);
-                }
             }
             if (error) console.error('Erro ao buscar histórico:', error);
         } catch (err) {
@@ -479,37 +420,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
-    const handleSavePrompt = async () => {
-        const fullContent = buildPromptData();
-        if (!fullContent.trim()) return;
-        setIsSavingPrompt(true);
-        setSaveSuccess(false);
-        try {
+    const handleRestoreVersion = async (content: string) => {
+        if (await showConfirm('Deseja restaurar esta versão como o prompt ativo? Uma nova versão será criada.')) {
             const { error } = await supabase
                 .from('sp3_prompts')
-                .insert([{ company_id: authUser.company_id, content: fullContent }]);
-
-            if (error) throw error;
-            setSaveSuccess(true);
-            await fetchPromptHistory(); // Atualiza a lista
-            setTimeout(() => setSaveSuccess(false), 3000);
-        } catch (err) {
-            console.error('Erro ao salvar prompt:', err);
-            await showAlert('Erro ao salvar no banco. Verifique se criou a tabela sp3_prompts via SQL no Supabase.');
-        } finally {
-            setIsSavingPrompt(false);
-        }
-    };
-
-    const handleRestoreVersion = async (content: string) => {
-        if (await showConfirm('Deseja carregar esta versão no editor? (Você precisará clicar em Salvar para ativá-la como a principal)')) {
-            const parsed = parsePromptData(content);
-            setAiPrompt(parsed.basePrompt);
-            setAiEquipe(parsed.equipe);
-            setAiDentistas(parsed.dentistas);
-            setAiMedicos(parsed.medicos);
-            setAiHorarios(parsed.horarios);
-            setAiServicos(parsed.servicos);
+                .insert([{ company_id: authUser.company_id, content }]);
+            if (!error) await fetchPromptHistory();
         }
     };
 
@@ -1679,93 +1595,18 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                 {activeSubTab === 'ia' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', height: 'calc(100vh - 200px)' }}>
-                        {/* Editor do Prompt */}
-                        <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-                            <div style={{ marginBottom: '1.5rem', flexShrink: 0 }}>
-                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Configuração e Prompt da IA</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Preencha os campos abaixo para fornecer contexto. O sistema os unirá automaticamente para a IA.</p>
-                            </div>
-
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1.2rem', paddingBottom: '1rem' }}>
-                                {/* Equipe */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome(s) da Equipe</label>
-                                    <input value={aiEquipe} onChange={(e) => setAiEquipe(e.target.value)} placeholder="Ex: Mário e Luigi" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Dentistas */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dentistas e Especialidades (Odontologia)</label>
-                                    <input value={aiDentistas} onChange={(e) => setAiDentistas(e.target.value)} placeholder="Ex: Dra. Ana (Ortodontia), Dr. João (Implantodontia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Médicos */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Médicos e Especialidades (Medicina)</label>
-                                    <input value={aiMedicos} onChange={(e) => setAiMedicos(e.target.value)} placeholder="Ex: Dr. Pedro (Dermatologia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Horários de Atendimento */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dias e Horários de Atendimento</label>
-                                    <input value={aiHorarios} onChange={(e) => setAiHorarios(e.target.value)} placeholder="Ex: Segunda à Sexta das 8h as 18h" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Serviços */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>O que a Clínica faz (Procedimentos, Serviços)</label>
-                                    <textarea value={aiServicos} onChange={(e) => setAiServicos(e.target.value)} placeholder="Ex: Limpeza, Clareamento, Restauração, Lente de Contato, Harmonização Facial..." rows={3} style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem', resize: 'vertical', fontFamily: 'inherit' }} />
-                                </div>
-
-                                {/* Base Prompt */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Comportamento e Instruções Gerais (Prompt Base)</label>
-                                    <textarea
-                                        value={aiPrompt}
-                                        onChange={(e) => setAiPrompt(e.target.value)}
-                                        placeholder="A Sarah é uma assistente da clínica..."
-                                        style={{
-                                            border: '1px solid var(--border-soft)',
-                                            backgroundColor: 'var(--bg-tertiary)',
-                                            fontSize: '0.95rem',
-                                            lineHeight: '1.6',
-                                            fontFamily: 'inherit',
-                                            resize: 'vertical',
-                                            outline: 'none',
-                                            padding: '1.5rem',
-                                            borderRadius: '16px',
-                                            minHeight: '200px'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '1rem', flexShrink: 0, borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
-                                {saveSuccess && (
-                                    <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Versão salva com sucesso!</span>
-                                )}
-                                <button
-                                    onClick={handleSavePrompt}
-                                    disabled={isSavingPrompt}
-                                    style={{
-                                        padding: '12px 24px',
-                                        borderRadius: '12px',
-                                        border: 'none',
-                                        background: 'var(--accent)',
-                                        color: 'white',
-                                        fontWeight: '700',
-                                        fontSize: '0.9rem',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        boxShadow: '0 4px 12px var(--accent-light)'
-                                    }}
-                                >
-                                    {isSavingPrompt ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Nova Versão'}
-                                </button>
-                            </div>
-                        </div>
+                        {/* Chat Builder */}
+                        <PromptBuilderChat
+                            companyId={authUser.company_id!}
+                            currentPrompt={promptHistory.length > 0 ? promptHistory[0].content : ''}
+                            onSavePrompt={async (content: string) => {
+                                const { error } = await supabase
+                                    .from('sp3_prompts')
+                                    .insert([{ company_id: authUser.company_id, content }]);
+                                if (error) throw error;
+                                await fetchPromptHistory();
+                            }}
+                        />
 
                         {/* Histórico Lateral */}
                         <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
@@ -1792,19 +1633,19 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                             <span style={{ fontSize: '0.7rem', fontWeight: '800', color: i === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
-                                                {i === 0 ? '🚀 ATIVA AGORA' : `Versão #${promptHistory.length - i}`}
+                                                {i === 0 ? 'ATIVA AGORA' : `Versão #${promptHistory.length - i}`}
                                             </span>
                                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                                                 {new Date(v.created_at).toLocaleDateString('pt-BR')} {new Date(v.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
                                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                            {parsePromptData(v.content).basePrompt}
+                                            {v.content.substring(0, 120)}...
                                         </div>
                                     </div>
                                 ))}
                                 {promptHistory.length === 0 && (
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Salve sua primeira versão para iniciar o histórico.</p>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Use o chat ao lado para criar seu primeiro prompt.</p>
                                 )}
                             </div>
                         </div>
