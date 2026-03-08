@@ -1362,7 +1362,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 .eq('company_id', authUser.company_id);
             if (e3) throw e3;
 
-            await showAlert('Dados zerados com sucesso! Leads, conversas e execuções de fluxo foram removidos. A empresa está pronta para novos testes.');
+            await showAlert('Dados zerados com sucesso! A página será recarregada.');
+            window.location.reload();
         } catch (err: any) {
             console.error('Erro ao limpar dados:', err);
             await showAlert('Erro ao apagar dados: ' + err.message);
