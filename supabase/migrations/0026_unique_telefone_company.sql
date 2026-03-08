@@ -14,6 +14,9 @@ WHERE id IN (
     WHERE rn > 1
 );
 
--- Criar o constraint UNIQUE
-ALTER TABLE sp3chat
-ADD CONSTRAINT sp3chat_telefone_company_unique UNIQUE (telefone, company_id);
+-- Criar o constraint UNIQUE (idempotente)
+DO $$ BEGIN
+  ALTER TABLE sp3chat
+  ADD CONSTRAINT sp3chat_telefone_company_unique UNIQUE (telefone, company_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
