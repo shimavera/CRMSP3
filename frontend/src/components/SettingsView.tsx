@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, Clock, ChevronDown, ChevronRight, User, PauseCircle } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance } from '../lib/supabase';
 import PromptBuilderChat from './PromptBuilderChat';
@@ -15,6 +15,219 @@ const SECTION_LABELS: Record<string, string> = {
     leads: 'Base de Leads',
     settings: 'Configurações'
 };
+
+// ─── Execution Logs Panel ─────────────────────────────
+type LogStatusFilter = 'all' | 'running' | 'paused' | 'completed' | 'failed';
+const LOG_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+    running:   { label: 'Rodando',  color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+    paused:    { label: 'Pausado',  color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+    completed: { label: 'Completo', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+    failed:    { label: 'Falhou',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+};
+
+function ExecutionLogsPanel({ companyId }: { companyId: string }) {
+    const [executions, setExecutions] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState<LogStatusFilter>('all');
+    const [expandedId, setExpandedId] = useState<number | null>(null);
+
+    const loadLogs = async () => {
+        setIsLoading(true);
+        const { data: execs } = await supabase
+            .from('sp3_flow_executions')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (!execs) { setIsLoading(false); return; }
+
+        const leadIds = [...new Set(execs.map((e: any) => e.lead_id))];
+        const flowIds = [...new Set(execs.map((e: any) => e.flow_id))];
+        let leadMap: Record<number, { nome: string; telefone: string }> = {};
+        let flowMap: Record<number, string> = {};
+
+        if (leadIds.length > 0) {
+            const { data: leads } = await supabase.from('sp3chat').select('id, nome, telefone').in('id', leadIds);
+            if (leads) leadMap = Object.fromEntries(leads.map((l: any) => [l.id, { nome: l.nome, telefone: l.telefone }]));
+        }
+        if (flowIds.length > 0) {
+            const { data: flows } = await supabase.from('sp3_flows').select('id, name').in('id', flowIds);
+            if (flows) flowMap = Object.fromEntries(flows.map((f: any) => [f.id, f.name]));
+        }
+
+        setExecutions(execs.map((e: any) => ({
+            ...e,
+            lead_nome: leadMap[e.lead_id]?.nome,
+            lead_telefone: leadMap[e.lead_id]?.telefone,
+            flow_name: flowMap[e.flow_id] || `Fluxo #${e.flow_id}`,
+        })));
+        setIsLoading(false);
+    };
+
+    useEffect(() => { loadLogs(); }, []);
+
+    const filtered = statusFilter === 'all' ? executions : executions.filter(e => e.status === statusFilter);
+    const counts = executions.reduce((acc: any, e: any) => { acc[e.status] = (acc[e.status] || 0) + 1; return acc; }, {} as Record<string, number>);
+
+    const fmtDate = (s?: string) => { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+    const fmtTime = (s?: string) => { if (!s) return '—'; return new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+    const fmtDuration = (s?: string, e?: string) => {
+        if (!s || !e) return '—';
+        const ms = new Date(e).getTime() - new Date(s).getTime();
+        if (ms < 0) return '—';
+        const sec = Math.floor(ms / 1000);
+        if (sec < 60) return `${sec}s`;
+        const min = Math.floor(sec / 60);
+        if (min < 60) return `${min}m ${sec % 60}s`;
+        return `${Math.floor(min / 60)}h ${min % 60}m`;
+    };
+
+    return (
+        <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                <Activity size={20} style={{ color: 'var(--accent)' }} />
+                <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0 }}>Logs de Execução</h3>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                        {executions.length} execuç{executions.length === 1 ? 'ão' : 'ões'} total
+                        {counts.running ? ` · ${counts.running} rodando` : ''}
+                        {counts.failed ? ` · ${counts.failed} falha(s)` : ''}
+                    </p>
+                </div>
+
+                {/* Filter chips */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {(['all', 'running', 'completed', 'failed', 'paused'] as const).map(s => (
+                        <button key={s} onClick={() => setStatusFilter(s)} style={{
+                            padding: '4px 10px', borderRadius: '20px', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                            background: statusFilter === s ? (s === 'all' ? 'var(--accent)' : LOG_STATUS_CFG[s].bg) : 'var(--bg-tertiary)',
+                            color: statusFilter === s ? (s === 'all' ? 'white' : LOG_STATUS_CFG[s].color) : 'var(--text-muted)',
+                        }}>
+                            {s === 'all' ? `Todos (${executions.length})` : `${LOG_STATUS_CFG[s].label} (${counts[s] || 0})`}
+                        </button>
+                    ))}
+                </div>
+
+                <button onClick={loadLogs} title="Atualizar" style={{
+                    padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0,
+                }}>
+                    <RefreshCw size={14} style={isLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
+                </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+                {isLoading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
+                        <Loader2 size={28} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite' }} />
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                        <Activity size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                        <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '4px' }}>
+                            {executions.length === 0 ? 'Nenhuma execução registrada' : 'Nenhuma execução com esse filtro'}
+                        </p>
+                        <p style={{ fontSize: '0.8rem' }}>
+                            {executions.length === 0 ? 'Quando seus fluxos de follow-up forem disparados, os logs aparecerão aqui.' : 'Tente mudar o filtro de status.'}
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {filtered.map(exec => {
+                            const cfg = LOG_STATUS_CFG[exec.status] || LOG_STATUS_CFG.failed;
+                            const isExpanded = expandedId === exec.id;
+                            const log = exec.execution_log || [];
+                            return (
+                                <div key={exec.id} style={{
+                                    borderRadius: '10px', border: `1px solid ${isExpanded ? 'var(--accent)' : 'var(--border-soft)'}`, background: 'var(--bg-secondary)', overflow: 'hidden',
+                                }}>
+                                    <button onClick={() => setExpandedId(isExpanded ? null : exec.id)} style={{
+                                        width: '100%', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
+                                        border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
+                                    }}>
+                                        {/* Status */}
+                                        <span style={{
+                                            padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 600, minWidth: '76px',
+                                            background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', gap: '4px',
+                                        }}>
+                                            {exec.status === 'running' && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
+                                            {exec.status === 'paused' && <PauseCircle size={10} />}
+                                            {exec.status === 'completed' && <CheckCircle size={10} />}
+                                            {exec.status === 'failed' && <XCircle size={10} />}
+                                            {cfg.label}
+                                        </span>
+
+                                        {/* Flow name */}
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
+                                            {exec.flow_name}
+                                        </span>
+
+                                        {/* Lead */}
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-secondary)', flex: 1, minWidth: 0 }}>
+                                            <User size={11} style={{ flexShrink: 0 }} />
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {exec.lead_nome || `Lead #${exec.lead_id}`}
+                                            </span>
+                                        </span>
+
+                                        {/* Date */}
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                            <Clock size={11} /> {fmtDate(exec.started_at)}
+                                        </span>
+
+                                        {/* Duration */}
+                                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', minWidth: '50px', textAlign: 'right', flexShrink: 0 }}>
+                                            {fmtDuration(exec.started_at, exec.completed_at)}
+                                        </span>
+
+                                        {isExpanded ? <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+                                    </button>
+
+                                    {isExpanded && (
+                                        <div style={{ borderTop: '1px solid var(--border-soft)', padding: '12px 14px', background: 'var(--bg-tertiary)' }}>
+                                            <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                                <span>ID: #{exec.id}</span>
+                                                {exec.lead_telefone && <span>Tel: {exec.lead_telefone}</span>}
+                                                <span>Início: {fmtDate(exec.started_at)}</span>
+                                                {exec.completed_at && <span>Fim: {fmtDate(exec.completed_at)}</span>}
+                                            </div>
+                                            {log.length === 0 ? (
+                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem detalhes de execução.</p>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    {log.map((entry: any, i: number) => (
+                                                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', position: 'relative', paddingLeft: '18px', paddingBottom: i < log.length - 1 ? '8px' : 0 }}>
+                                                            {i < log.length - 1 && <div style={{ position: 'absolute', left: '6px', top: '12px', width: '1px', bottom: 0, background: 'var(--border-soft)' }} />}
+                                                            <div style={{
+                                                                position: 'absolute', left: '2px', top: '4px', width: '9px', height: '9px', borderRadius: '50%',
+                                                                background: (entry.action || '').includes('Erro') ? '#ef4444' : (entry.action || '').includes('finalizado') ? '#10b981' : 'var(--accent)',
+                                                                border: '2px solid var(--bg-tertiary)',
+                                                            }} />
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                                    {entry.action}
+                                                                    {entry.result && <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '6px' }}>— {entry.result}</span>}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                                                                    {entry.node_id && `${entry.node_id} · `}{fmtTime(entry.timestamp)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 const SettingsView = ({ authUser }: SettingsViewProps) => {
     const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
@@ -2433,20 +2646,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 </div>
             )}
             {activeSubTab === 'logs' && (
-                <div className="glass-card" style={{ padding: '2rem' }}>
-                    <div style={{ marginBottom: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '4px' }}>Logs de Execução (Webhook)</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Monitore as comunicações entre o N8N e o servidor de mensagens.</p>
-                    </div>
-
-                    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
-                        <div style={{ marginBottom: '1rem', color: 'var(--accent)' }}><Activity size={48} /></div>
-                        <h4 style={{ fontWeight: '700', marginBottom: '8px' }}>Monitoramento em Tempo Real</h4>
-                        <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: '400px', margin: '0 auto' }}>
-                            A tabela de logs do sistema está sendo inicializada. Uma vez ativa, você verá aqui falhas de entrega, payloads e erros de processamento da IA.
-                        </p>
-                    </div>
-                </div>
+                <ExecutionLogsPanel companyId={authUser.company_id!} />
             )}
         </div>
     );
