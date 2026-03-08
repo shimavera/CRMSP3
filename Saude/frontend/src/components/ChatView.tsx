@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
-import { format, isPast, isToday } from 'date-fns';
+import { format, isPast, isToday, isYesterday, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import type { Lead, UserProfile, QuickMessage, FlowDefinition, FlowExecution } from '../lib/supabase';
@@ -436,7 +436,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             sender,
             sentByCRM,
             text: typeof text === 'string' ? text : JSON.stringify(text),
-            time: new Date(m.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            time: new Date(m.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: new Date(m.created_at || Date.now())
         };
     };
 
@@ -1365,117 +1366,142 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         </div>
 
                         <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: '#f4f7fa', backgroundBlendMode: 'overlay' }}>
-                            {messages.map(msg => (
-                                msg.type === 'system' ? (
-                                    // Separador horizontal estilo Kommo
-                                    <div key={msg.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0', alignSelf: 'stretch' }}>
-                                        <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
-                                        <span style={{
-                                            fontSize: '0.68rem', fontWeight: '700', whiteSpace: 'nowrap',
-                                            padding: '3px 12px', borderRadius: '20px',
-                                            ...(msg.msgStyle === 'error' ? { color: '#b91c1c', backgroundColor: '#fee2e2' } :
-                                                msg.msgStyle === 'success' ? { color: '#15803d', backgroundColor: '#dcfce7' } :
-                                                    msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
-                                                        msg.msgStyle === 'info' ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
-                                                            msg.msgStyle === 'followup' ? { color: '#7c3aed', backgroundColor: '#ede9fe', border: '1px solid #c4b5fd' } :
-                                                                { color: 'var(--text-secondary)', backgroundColor: 'rgba(255,255,255,0.9)' })
-                                        }}>
-                                            {msg.text}
-                                        </span>
-                                        <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
-                                    </div>
-                                ) : (
-                                    // Mensagem com avatar + nome do remetente
-                                    <div key={msg.id} style={{
-                                        display: 'flex',
-                                        alignItems: 'flex-end',
-                                        gap: '7px',
-                                        alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end',
-                                        maxWidth: '80%',
-                                        flexDirection: msg.type === 'human' ? 'row' : 'row-reverse',
-                                        marginBottom: '4px'
-                                    }}>
-                                        {/* Avatar */}
-                                        <div style={{
-                                            width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            fontWeight: '700', fontSize: '0.75rem',
-                                            backgroundColor: msg.type === 'human' ? 'var(--chat-icon-bg-user)' : (msg.sentByCRM ? 'var(--chat-icon-bg-crm)' : 'var(--chat-icon-bg-bot)'),
-                                            color: msg.type === 'human' ? 'var(--chat-icon-text-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
-                                        }}>
-                                            {msg.type === 'human'
-                                                ? (selectedLead.nome || 'C')[0].toUpperCase()
-                                                : msg.sentByCRM ? <User size={15} /> : <Bot size={15} />
-                                            }
-                                        </div>
+                            {messages.map((msg, index) => {
+                                const prevMsg = messages[index - 1];
+                                const showDateDivider = !prevMsg || !isSameDay(msg.timestamp, prevMsg.timestamp);
+                                const dateLabel = isToday(msg.timestamp) ? 'Hoje' :
+                                    isYesterday(msg.timestamp) ? 'Ontem' :
+                                        format(msg.timestamp, "dd 'de' MMMM", { locale: ptBR });
 
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            {/* Nome do remetente */}
+                                return (
+                                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {showDateDivider && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '15px 0', alignSelf: 'stretch' }}>
+                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.08)' }} />
+                                                <span style={{
+                                                    fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)',
+                                                    backgroundColor: 'rgba(255,255,255,0.9)', padding: '4px 14px', borderRadius: '12px',
+                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)', textTransform: 'uppercase',
+                                                    letterSpacing: '0.02em'
+                                                }}>
+                                                    {dateLabel}
+                                                </span>
+                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.08)' }} />
+                                            </div>
+                                        )}
+
+                                        {msg.type === 'system' ? (
+                                            // Separador horizontal estilo Kommo
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0', alignSelf: 'stretch' }}>
+                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
+                                                <span style={{
+                                                    fontSize: '0.68rem', fontWeight: '700', whiteSpace: 'nowrap',
+                                                    padding: '3px 12px', borderRadius: '20px',
+                                                    ...(msg.msgStyle === 'error' ? { color: '#b91c1c', backgroundColor: '#fee2e2' } :
+                                                        msg.msgStyle === 'success' ? { color: '#15803d', backgroundColor: '#dcfce7' } :
+                                                            msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
+                                                                msg.msgStyle === 'info' ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
+                                                                    msg.msgStyle === 'followup' ? { color: '#7c3aed', backgroundColor: '#ede9fe', border: '1px solid #c4b5fd' } :
+                                                                        { color: 'var(--text-secondary)', backgroundColor: 'rgba(255,255,255,0.9)' })
+                                                }}>
+                                                    {msg.text}
+                                                </span>
+                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
+                                            </div>
+                                        ) : (
+                                            // Mensagem com avatar + nome do remetente
                                             <div style={{
-                                                fontSize: '0.63rem', fontWeight: '700',
-                                                paddingLeft: msg.type === 'human' ? '4px' : '0',
-                                                paddingRight: msg.type === 'human' ? '0' : '4px',
-                                                textAlign: msg.type === 'human' ? 'left' : 'right',
-                                                color: msg.type === 'human' ? 'var(--chat-name-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
+                                                display: 'flex',
+                                                alignItems: 'flex-end',
+                                                gap: '7px',
+                                                alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end',
+                                                maxWidth: '80%',
+                                                flexDirection: msg.type === 'human' ? 'row' : 'row-reverse',
+                                                marginBottom: '4px'
                                             }}>
-                                                {msg.type === 'human'
-                                                    ? (selectedLead.nome || selectedLead.telefone)
-                                                    : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
-                                                }
-                                                {msg.isFollowup && (
-                                                    <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: '#7c3aed', backgroundColor: '#ede9fe', padding: '1px 6px', borderRadius: '8px' }}>
-                                                        Follow-up {msg.followupStep}
-                                                    </span>
-                                                )}
-                                            </div>
+                                                {/* Avatar */}
+                                                <div style={{
+                                                    width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    fontWeight: '700', fontSize: '0.75rem',
+                                                    backgroundColor: msg.type === 'human' ? 'var(--chat-icon-bg-user)' : (msg.sentByCRM ? 'var(--chat-icon-bg-crm)' : 'var(--chat-icon-bg-bot)'),
+                                                    color: msg.type === 'human' ? 'var(--chat-icon-text-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
+                                                }}>
+                                                    {msg.type === 'human'
+                                                        ? (selectedLead.nome || 'C')[0].toUpperCase()
+                                                        : msg.sentByCRM ? <User size={15} /> : <Bot size={15} />
+                                                    }
+                                                </div>
 
-                                            {/* Balão */}
-                                            <div className="chat-bubble-custom" style={{
-                                                position: 'relative',
-                                                padding: msg.isImage ? '4px 4px 20px 4px' : '8px 12px 18px 12px',
-                                                borderRadius: msg.type === 'human' ? '0 8px 8px 8px' : '8px 0 8px 8px',
-                                                fontSize: '0.92rem',
-                                                backgroundColor: msg.type === 'human' ? 'var(--chat-bg-user)' : (msg.sentByCRM ? 'var(--chat-bg-crm)' : 'var(--chat-bg-bot)'),
-                                                color: 'var(--chat-text-primary)',
-                                                boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
-                                                whiteSpace: 'pre-wrap'
-                                            }}>
-                                                {msg.isImage ? (
-                                                    <img
-                                                        src={msg.text.trim()}
-                                                        alt="imagem"
-                                                        style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
-                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                    />
-                                                ) : msg.isVideo || msg.type === 'video' ? (
-                                                    <video
-                                                        controls
-                                                        src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
-                                                        style={{ maxWidth: '280px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
-                                                        onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
-                                                    />
-                                                ) : msg.isAudio ? (
-                                                    <div style={{ padding: '8px 0', minWidth: '350px', width: '100%', maxWidth: '400px' }}>
-                                                        <audio
-                                                            controls
-                                                            src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
-                                                            style={{ width: '100%', height: '40px' }}
-                                                        />
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    {/* Nome do remetente */}
+                                                    <div style={{
+                                                        fontSize: '0.63rem', fontWeight: '700',
+                                                        paddingLeft: msg.type === 'human' ? '4px' : '0',
+                                                        paddingRight: msg.type === 'human' ? '0' : '4px',
+                                                        textAlign: msg.type === 'human' ? 'left' : 'right',
+                                                        color: msg.type === 'human' ? 'var(--chat-name-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
+                                                    }}>
+                                                        {msg.type === 'human'
+                                                            ? (selectedLead.nome || selectedLead.telefone)
+                                                            : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
+                                                        }
+                                                        {msg.isFollowup && (
+                                                            <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: '#7c3aed', backgroundColor: '#ede9fe', padding: '1px 6px', borderRadius: '8px' }}>
+                                                                Follow-up {msg.followupStep}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                ) : msg.isAudioSent ? (
-                                                    <>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: '600' }}>
-                                                            <Mic size={13} /> Enviado como áudio
-                                                        </div>
-                                                        <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>{msg.text}</div>
-                                                    </>
-                                                ) : msg.text}
-                                                <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{msg.time}</span>
+
+                                                    {/* Balão */}
+                                                    <div className="chat-bubble-custom" style={{
+                                                        position: 'relative',
+                                                        padding: msg.isImage ? '4px 4px 20px 4px' : '8px 12px 18px 12px',
+                                                        borderRadius: msg.type === 'human' ? '0 8px 8px 8px' : '8px 0 8px 8px',
+                                                        fontSize: '0.92rem',
+                                                        backgroundColor: msg.type === 'human' ? 'var(--chat-bg-user)' : (msg.sentByCRM ? 'var(--chat-bg-crm)' : 'var(--chat-bg-bot)'),
+                                                        color: 'var(--chat-text-primary)',
+                                                        boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
+                                                        whiteSpace: 'pre-wrap'
+                                                    }}>
+                                                        {msg.isImage ? (
+                                                            <img
+                                                                src={msg.text.trim()}
+                                                                alt="imagem"
+                                                                style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
+                                                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                            />
+                                                        ) : msg.isVideo || msg.type === 'video' ? (
+                                                            <video
+                                                                controls
+                                                                src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
+                                                                style={{ maxWidth: '280px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
+                                                                onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                                                            />
+                                                        ) : msg.isAudio ? (
+                                                            <div style={{ padding: '8px 0', minWidth: '350px', width: '100%', maxWidth: '400px' }}>
+                                                                <audio
+                                                                    controls
+                                                                    src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
+                                                                    style={{ width: '100%', height: '40px' }}
+                                                                />
+                                                            </div>
+                                                        ) : msg.isAudioSent ? (
+                                                            <>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: '600' }}>
+                                                                    <Mic size={13} /> Enviado como áudio
+                                                                </div>
+                                                                <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>{msg.text}</div>
+                                                            </>
+                                                        ) : msg.text}
+                                                        <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{msg.time}</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
-                                )
-                            ))}
+                                );
+                            })}
 
                             {isSarahThinking && (
                                 <div style={{
