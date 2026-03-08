@@ -127,7 +127,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [followupSuccess, setFollowupSuccess] = useState(false);
 
     // Toggle visual flows
-    const [useVisualFlows, setUseVisualFlows] = useState(false);
 
     // Estados do Step Builder (Follow-up dinâmico)
     const [followupSteps, setFollowupSteps] = useState<FollowupStep[]>([]);
@@ -264,7 +263,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     msg_2: data.msg_2 || 'Ainda por aí? Se preferir, podemos marcar um papo rápido para eu tirar suas dúvidas! 📲',
                     msg_3: data.msg_3 || 'Vi que as coisas devem estar corridas! Vou deixar nosso link de agenda aqui para quando você puder. 🤝'
                 });
-                setUseVisualFlows(data.use_visual_flows || false);
             }
         } catch (err) {
             console.error('Erro ao carregar follow-up:', err);
@@ -1489,6 +1487,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             fetchUsers();
         } else if (activeSubTab === 'ia') {
             fetchPromptHistory();
+            fetchFollowupConfig();
         } else if (activeSubTab === 'followup') {
             fetchFollowupConfig();
             fetchFollowupSteps();
@@ -1872,7 +1871,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     </div>
                 )}
 
-                {activeSubTab === 'ia' && (
+                {activeSubTab === 'ia' && (<>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', height: 'calc(100vh - 200px)' }}>
                         {/* Editor do Prompt */}
                         <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
@@ -1940,7 +1939,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Versão salva com sucesso!</span>
                                 )}
                                 <button
-                                    onClick={handleSavePrompt}
+                                    onClick={async () => { await handleSavePrompt(); await handleSaveFollowup(); }}
                                     disabled={isSavingPrompt}
                                     style={{
                                         padding: '12px 24px',
@@ -2004,163 +2003,63 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
                         </div>
                     </div>
-                )}
+
+                    {/* Horário de Atendimento — na aba IA */}
+                    <div className="glass-card" style={{ padding: '2rem', marginTop: '1.5rem' }}>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.15rem', fontWeight: '800', marginBottom: '0.5rem' }}>Horario de Atendimento</h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Horario comercial usado pela IA e pelos fluxos de follow-up.</p>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Horario</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Inicio</label>
+                                        <input type="time" value={followupConfig.start_time} onChange={(e) => setFollowupConfig({ ...followupConfig, start_time: e.target.value })} style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', outline: 'none' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fim</label>
+                                        <input type="time" value={followupConfig.end_time} onChange={(e) => setFollowupConfig({ ...followupConfig, end_time: e.target.value })} style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', outline: 'none' }} />
+                                    </div>
+                                </div>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginTop: '1rem' }}>Dias de Atendimento</h4>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'].map((day, i) => {
+                                        const isActive = followupConfig.active_days.includes(i);
+                                        return (
+                                            <button key={day} onClick={() => toggleDay(i)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid', borderColor: isActive ? 'var(--accent)' : 'var(--border-soft)', backgroundColor: isActive ? 'var(--accent-soft)' : 'white', color: isActive ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}>
+                                                {day}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Mensagem Fora de Horario</h4>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '-0.5rem' }}>Enviada automaticamente quando um cliente manda mensagem fora do horario.</p>
+                                <textarea value={followupConfig.out_of_hours_message || ''} onChange={(e) => setFollowupConfig({ ...followupConfig, out_of_hours_message: e.target.value })} rows={4} placeholder="Ex: Oi! Estamos fora do horario de atendimento..." style={{ padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem', lineHeight: '1.5', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }} />
+                            </div>
+                        </div>
+                    </div>
+                </>)}
 
                 {activeSubTab === 'followup' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {/* SEÇÃO 1: Horário de Atendimento */}
-                        <div className="glass-card" style={{ padding: '2rem' }}>
-                            <div style={{ marginBottom: '2rem' }}>
-                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Horário de Atendimento</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Configure os dias e horários que sua empresa atende. Fora desse horário, o sistema enviará uma mensagem automática.</p>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                                {/* Horários */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Horário</h4>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Início</label>
-                                            <input
-                                                type="time"
-                                                value={followupConfig.start_time}
-                                                onChange={(e) => setFollowupConfig({ ...followupConfig, start_time: e.target.value })}
-                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', outline: 'none' }}
-                                            />
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fim</label>
-                                            <input
-                                                type="time"
-                                                value={followupConfig.end_time}
-                                                onChange={(e) => setFollowupConfig({ ...followupConfig, end_time: e.target.value })}
-                                                style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', outline: 'none' }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)', marginTop: '1rem' }}>Dias de Atendimento</h4>
-                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, i) => {
-                                            const isActive = followupConfig.active_days.includes(i);
-                                            return (
-                                                <button
-                                                    key={day}
-                                                    onClick={() => toggleDay(i)}
-                                                    style={{
-                                                        padding: '8px 12px',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid',
-                                                        borderColor: isActive ? 'var(--accent)' : 'var(--border-soft)',
-                                                        backgroundColor: isActive ? 'var(--accent-soft)' : 'white',
-                                                        color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: '700',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    {day}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                {/* Mensagem Fora de Horário */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent)' }}>Mensagem Fora de Horário</h4>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '-0.5rem' }}>Enviada automaticamente quando um cliente manda mensagem fora do horário de atendimento.</p>
-                                    <textarea
-                                        value={followupConfig.out_of_hours_message || ''}
-                                        onChange={(e) => setFollowupConfig({ ...followupConfig, out_of_hours_message: e.target.value })}
-                                        rows={5}
-                                        placeholder="Ex: Oi! Estamos fora do horário de atendimento..."
-                                        style={{
-                                            padding: '10px 14px',
-                                            borderRadius: '10px',
-                                            border: '1px solid var(--border-soft)',
-                                            backgroundColor: 'var(--bg-tertiary)',
-                                            fontSize: '0.9rem',
-                                            lineHeight: '1.5',
-                                            fontFamily: 'inherit',
-                                            resize: 'vertical',
-                                            outline: 'none'
-                                        }}
-                                    />
-                                </div>
-                            </div>
+                        {/* Banner: horario movido para aba IA */}
+                        <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                Horario de atendimento e mensagem fora de horario estao na aba <strong style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => setActiveSubTab('ia')}>IA</strong>.
+                            </span>
                         </div>
 
-                        {/* SEÇÃO: Modo de Follow-up */}
-                        <div className="glass-card" style={{ padding: '2rem' }}>
-                            <h3 style={{ fontSize: '1.15rem', fontWeight: '800', marginBottom: '0.5rem' }}>Modo de Follow-up</h3>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                                Escolha como gerenciar seus follow-ups automáticos.
-                            </p>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                {/* Opção: Modo Simples */}
-                                <div
-                                    onClick={async () => {
-                                        setUseVisualFlows(false);
-                                        await supabase.from('sp3_followup_settings').update({ use_visual_flows: false }).eq('company_id', authUser.company_id);
-                                    }}
-                                    style={{
-                                        flex: 1, padding: '16px', borderRadius: '12px', cursor: 'pointer',
-                                        border: !useVisualFlows ? '2px solid var(--accent)' : '2px solid var(--border-soft)',
-                                        backgroundColor: !useVisualFlows ? 'rgba(99,102,241,0.05)' : 'transparent',
-                                        transition: 'all 0.2s',
-                                    }}
-                                >
-                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px', color: 'var(--text-primary)' }}>
-                                        Etapas Lineares
-                                    </div>
-                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                                        Configure etapas sequenciais (1, 2, 3...) com tempo de espera entre cada uma. Mais simples e direto.
-                                    </div>
-                                    {!useVisualFlows && (
-                                        <div style={{ marginTop: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)' }}>Ativo</div>
-                                    )}
-                                </div>
-                                {/* Opção: Modo Visual */}
-                                <div
-                                    onClick={async () => {
-                                        setUseVisualFlows(true);
-                                        await supabase.from('sp3_followup_settings').update({ use_visual_flows: true }).eq('company_id', authUser.company_id);
-                                    }}
-                                    style={{
-                                        flex: 1, padding: '16px', borderRadius: '12px', cursor: 'pointer',
-                                        border: useVisualFlows ? '2px solid var(--accent)' : '2px solid var(--border-soft)',
-                                        backgroundColor: useVisualFlows ? 'rgba(99,102,241,0.05)' : 'transparent',
-                                        transition: 'all 0.2s',
-                                    }}
-                                >
-                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px', color: 'var(--text-primary)' }}>
-                                        Flow Builder Visual
-                                    </div>
-                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                                        Monte fluxos visuais com condições, ramificações e múltiplos caminhos. Mais flexível e poderoso.
-                                    </div>
-                                    {useVisualFlows && (
-                                        <div style={{ marginTop: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)' }}>Ativo</div>
-                                    )}
-                                </div>
-                            </div>
-                            {useVisualFlows && (
-                                <div style={{
-                                    marginTop: '12px', padding: '12px 16px', borderRadius: '10px',
-                                    backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                }}>
-                                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                                        Gerencie seus fluxos visuais na página <strong>Fluxos</strong> no menu lateral.
-                                    </span>
-                                </div>
-                            )}
+                        {/* SEÇÃO: Follow-up Automatico — Step Builder */}
+                        <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                Configure as etapas abaixo e clique <strong>Gerar Fluxo</strong> para criar um fluxo visual automaticamente.
+                            </span>
                         </div>
 
-                        {/* SEÇÃO 2: Follow-up Automático — Step Builder (visível apenas no modo simples) */}
-                        {!useVisualFlows && (
                         <div className="glass-card" style={{ padding: '2rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                 <div>
@@ -2660,11 +2559,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
                                     }}
                                 >
-                                    {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
+                                    {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alteracoes'}
                                 </button>
                             </div>
                         </div>
-                        )}
                     </div>
                 )}
 
