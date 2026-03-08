@@ -488,7 +488,7 @@ function App() {
           <div className="logo-icon-wrapper" style={{ padding: '6px', background: 'var(--accent-soft)', borderRadius: '8px' }}>
             <img
               src="/favicon.png"
-              alt="SP3 Symbol"
+              alt="Saúde AI Symbol"
               style={{ height: '30px', width: '30px', objectFit: 'contain', borderRadius: '4px' }}
             />
           </div>
@@ -528,7 +528,7 @@ function App() {
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
 
           <div style={{ textAlign: 'center', marginTop: '1rem', opacity: 0.5, fontSize: '0.65rem', fontWeight: 'bold' }}>
-            Vercel-like Aesthetic v1.0
+            Saúde AI v1.0
           </div>
         </div>
       </aside>
