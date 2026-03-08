@@ -558,7 +558,7 @@ function WaitDelayConfig({ data, update, inputStyle, selectStyle, labelStyle, se
             style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: '16px', height: '16px' }}
           />
           <span style={{ fontSize: '0.75rem', color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#475569' }}>
-            Dentro do horário comercial (8h-18h, Seg-Sex)
+            Respeitar horario comercial (configurado na aba IA)
           </span>
         </label>
       </div>
