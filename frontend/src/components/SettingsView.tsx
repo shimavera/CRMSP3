@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, Activity, Square, LayoutDashboard } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance, FollowupStep, FollowupStepMessage } from '../lib/supabase';
+import { migrateLinearStepsToFlow } from './FlowBuilder/utils/flowMigration';
 
 interface SettingsViewProps {
     authUser: UserProfile;
@@ -407,6 +408,72 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             await showAlert('Erro ao salvar etapas: ' + (err.message || 'Erro desconhecido'));
         } finally {
             setIsSavingFollowup(false);
+        }
+    };
+
+    const [isGeneratingFlow, setIsGeneratingFlow] = useState(false);
+
+    const handleGenerateFlow = async () => {
+        const companyId = authUser.company_id;
+        if (!companyId) return;
+
+        const activeSteps = followupSteps.filter(s => s.active);
+        if (activeSteps.length === 0) {
+            await showAlert('Nenhuma etapa ativa para gerar o fluxo.');
+            return;
+        }
+
+        setIsGeneratingFlow(true);
+        try {
+            const flowData = migrateLinearStepsToFlow(activeSteps, {
+                triggerType: 'no_response_timeout',
+                timeoutConfig: { timeout_value: '30', timeout_unit: 'minutes' },
+                addLockAction: true,
+                businessHours: true,
+            });
+
+            // Verificar se já existe um fluxo de follow-up para esta empresa
+            const { data: existing } = await supabase
+                .from('sp3_flows')
+                .select('id')
+                .eq('company_id', companyId)
+                .eq('trigger_type', 'no_response_timeout')
+                .limit(1);
+
+            if (existing && existing.length > 0) {
+                // Atualizar fluxo existente
+                const { error } = await supabase
+                    .from('sp3_flows')
+                    .update({
+                        flow_data: flowData,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', existing[0].id);
+
+                if (error) throw error;
+                await showAlert('Fluxo de follow-up atualizado com sucesso! Acesse a aba Fluxos para visualizar.');
+            } else {
+                // Criar novo fluxo
+                const { error } = await supabase
+                    .from('sp3_flows')
+                    .insert({
+                        company_id: companyId,
+                        name: 'Follow-up Automatico',
+                        description: 'Fluxo gerado a partir das etapas de follow-up. Envia mensagens quando lead não responde.',
+                        trigger_type: 'no_response_timeout',
+                        trigger_config: { timeout_value: '30', timeout_unit: 'minutes' },
+                        flow_data: flowData,
+                        is_active: true,
+                    });
+
+                if (error) throw error;
+                await showAlert('Fluxo de follow-up criado com sucesso! Acesse a aba Fluxos para visualizar e editar.');
+            }
+        } catch (err: any) {
+            console.error('Erro ao gerar fluxo:', err);
+            await showAlert('Erro ao gerar fluxo: ' + (err.message || 'Erro desconhecido'));
+        } finally {
+            setIsGeneratingFlow(false);
         }
     };
 
@@ -2054,10 +2121,32 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         </div>
 
                         {/* SEÇÃO: Follow-up Automatico — Step Builder */}
-                        <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                 Configure as etapas abaixo e clique <strong>Gerar Fluxo</strong> para criar um fluxo visual automaticamente.
                             </span>
+                            <button
+                                onClick={handleGenerateFlow}
+                                disabled={isGeneratingFlow || followupSteps.filter(s => s.active).length === 0}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    background: 'var(--accent)',
+                                    color: '#fff',
+                                    fontSize: '0.85rem',
+                                    fontWeight: '600',
+                                    cursor: isGeneratingFlow ? 'wait' : 'pointer',
+                                    opacity: isGeneratingFlow || followupSteps.filter(s => s.active).length === 0 ? 0.6 : 1,
+                                    whiteSpace: 'nowrap',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                }}
+                            >
+                                {isGeneratingFlow ? <Loader2 size={14} className="spin" /> : <Activity size={14} />}
+                                Gerar Fluxo
+                            </button>
                         </div>
 
                         <div className="glass-card" style={{ padding: '2rem' }}>
