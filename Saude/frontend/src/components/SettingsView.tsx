@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, ChevronDown, ChevronRight, Mic, ImageIcon, Type, Activity, Square, LayoutDashboard } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, Clock, ChevronDown, ChevronRight, User, PauseCircle } from 'lucide-react';
 import { supabase } from "../lib/supabase";
-import type { UserProfile, SocialProofVideo, QuickMessage, Instance, FollowupStep, FollowupStepMessage } from '../lib/supabase';
+import type { UserProfile, SocialProofVideo, QuickMessage, Instance } from '../lib/supabase';
+import PromptBuilderChat from './PromptBuilderChat';
 
 interface SettingsViewProps {
     authUser: UserProfile;
@@ -14,6 +15,219 @@ const SECTION_LABELS: Record<string, string> = {
     leads: 'Base de Leads',
     settings: 'Configurações'
 };
+
+// ─── Execution Logs Panel ─────────────────────────────
+type LogStatusFilter = 'all' | 'running' | 'paused' | 'completed' | 'failed';
+const LOG_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+    running: { label: 'Rodando', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+    paused: { label: 'Pausado', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+    completed: { label: 'Completo', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+    failed: { label: 'Falhou', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+};
+
+function ExecutionLogsPanel({ companyId }: { companyId: string }) {
+    const [executions, setExecutions] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState<LogStatusFilter>('all');
+    const [expandedId, setExpandedId] = useState<number | null>(null);
+
+    const loadLogs = async () => {
+        setIsLoading(true);
+        const { data: execs } = await supabase
+            .from('sp3_flow_executions')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (!execs) { setIsLoading(false); return; }
+
+        const leadIds = [...new Set(execs.map((e: any) => e.lead_id))];
+        const flowIds = [...new Set(execs.map((e: any) => e.flow_id))];
+        let leadMap: Record<number, { nome: string; telefone: string }> = {};
+        let flowMap: Record<number, string> = {};
+
+        if (leadIds.length > 0) {
+            const { data: leads } = await supabase.from('sp3chat').select('id, nome, telefone').in('id', leadIds);
+            if (leads) leadMap = Object.fromEntries(leads.map((l: any) => [l.id, { nome: l.nome, telefone: l.telefone }]));
+        }
+        if (flowIds.length > 0) {
+            const { data: flows } = await supabase.from('sp3_flows').select('id, name').in('id', flowIds);
+            if (flows) flowMap = Object.fromEntries(flows.map((f: any) => [f.id, f.name]));
+        }
+
+        setExecutions(execs.map((e: any) => ({
+            ...e,
+            lead_nome: leadMap[e.lead_id]?.nome,
+            lead_telefone: leadMap[e.lead_id]?.telefone,
+            flow_name: flowMap[e.flow_id] || `Fluxo #${e.flow_id}`,
+        })));
+        setIsLoading(false);
+    };
+
+    useEffect(() => { loadLogs(); }, []);
+
+    const filtered = statusFilter === 'all' ? executions : executions.filter(e => e.status === statusFilter);
+    const counts = executions.reduce((acc: any, e: any) => { acc[e.status] = (acc[e.status] || 0) + 1; return acc; }, {} as Record<string, number>);
+
+    const fmtDate = (s?: string) => { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+    const fmtTime = (s?: string) => { if (!s) return '—'; return new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+    const fmtDuration = (s?: string, e?: string) => {
+        if (!s || !e) return '—';
+        const ms = new Date(e).getTime() - new Date(s).getTime();
+        if (ms < 0) return '—';
+        const sec = Math.floor(ms / 1000);
+        if (sec < 60) return `${sec}s`;
+        const min = Math.floor(sec / 60);
+        if (min < 60) return `${min}m ${sec % 60}s`;
+        return `${Math.floor(min / 60)}h ${min % 60}m`;
+    };
+
+    return (
+        <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                <Activity size={20} style={{ color: 'var(--accent)' }} />
+                <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0 }}>Logs de Execução</h3>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                        {executions.length} execuç{executions.length === 1 ? 'ão' : 'ões'} total
+                        {counts.running ? ` · ${counts.running} rodando` : ''}
+                        {counts.failed ? ` · ${counts.failed} falha(s)` : ''}
+                    </p>
+                </div>
+
+                {/* Filter chips */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {(['all', 'running', 'completed', 'failed', 'paused'] as const).map(s => (
+                        <button key={s} onClick={() => setStatusFilter(s)} style={{
+                            padding: '4px 10px', borderRadius: '20px', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                            background: statusFilter === s ? (s === 'all' ? 'var(--accent)' : LOG_STATUS_CFG[s].bg) : 'var(--bg-tertiary)',
+                            color: statusFilter === s ? (s === 'all' ? 'white' : LOG_STATUS_CFG[s].color) : 'var(--text-muted)',
+                        }}>
+                            {s === 'all' ? `Todos (${executions.length})` : `${LOG_STATUS_CFG[s].label} (${counts[s] || 0})`}
+                        </button>
+                    ))}
+                </div>
+
+                <button onClick={loadLogs} title="Atualizar" style={{
+                    padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0,
+                }}>
+                    <RefreshCw size={14} style={isLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
+                </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+                {isLoading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
+                        <Loader2 size={28} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite' }} />
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                        <Activity size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                        <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '4px' }}>
+                            {executions.length === 0 ? 'Nenhuma execução registrada' : 'Nenhuma execução com esse filtro'}
+                        </p>
+                        <p style={{ fontSize: '0.8rem' }}>
+                            {executions.length === 0 ? 'Quando seus fluxos de follow-up forem disparados, os logs aparecerão aqui.' : 'Tente mudar o filtro de status.'}
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {filtered.map(exec => {
+                            const cfg = LOG_STATUS_CFG[exec.status] || LOG_STATUS_CFG.failed;
+                            const isExpanded = expandedId === exec.id;
+                            const log = exec.execution_log || [];
+                            return (
+                                <div key={exec.id} style={{
+                                    borderRadius: '10px', border: `1px solid ${isExpanded ? 'var(--accent)' : 'var(--border-soft)'}`, background: 'var(--bg-secondary)', overflow: 'hidden',
+                                }}>
+                                    <button onClick={() => setExpandedId(isExpanded ? null : exec.id)} style={{
+                                        width: '100%', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
+                                        border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
+                                    }}>
+                                        {/* Status */}
+                                        <span style={{
+                                            padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 600, minWidth: '76px',
+                                            background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', gap: '4px',
+                                        }}>
+                                            {exec.status === 'running' && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
+                                            {exec.status === 'paused' && <PauseCircle size={10} />}
+                                            {exec.status === 'completed' && <CheckCircle size={10} />}
+                                            {exec.status === 'failed' && <XCircle size={10} />}
+                                            {cfg.label}
+                                        </span>
+
+                                        {/* Flow name */}
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
+                                            {exec.flow_name}
+                                        </span>
+
+                                        {/* Lead */}
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-secondary)', flex: 1, minWidth: 0 }}>
+                                            <User size={11} style={{ flexShrink: 0 }} />
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {exec.lead_nome || `Lead #${exec.lead_id}`}
+                                            </span>
+                                        </span>
+
+                                        {/* Date */}
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                            <Clock size={11} /> {fmtDate(exec.started_at)}
+                                        </span>
+
+                                        {/* Duration */}
+                                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', minWidth: '50px', textAlign: 'right', flexShrink: 0 }}>
+                                            {fmtDuration(exec.started_at, exec.completed_at)}
+                                        </span>
+
+                                        {isExpanded ? <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+                                    </button>
+
+                                    {isExpanded && (
+                                        <div style={{ borderTop: '1px solid var(--border-soft)', padding: '12px 14px', background: 'var(--bg-tertiary)' }}>
+                                            <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                                <span>ID: #{exec.id}</span>
+                                                {exec.lead_telefone && <span>Tel: {exec.lead_telefone}</span>}
+                                                <span>Início: {fmtDate(exec.started_at)}</span>
+                                                {exec.completed_at && <span>Fim: {fmtDate(exec.completed_at)}</span>}
+                                            </div>
+                                            {log.length === 0 ? (
+                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem detalhes de execução.</p>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    {log.map((entry: any, i: number) => (
+                                                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', position: 'relative', paddingLeft: '18px', paddingBottom: i < log.length - 1 ? '8px' : 0 }}>
+                                                            {i < log.length - 1 && <div style={{ position: 'absolute', left: '6px', top: '12px', width: '1px', bottom: 0, background: 'var(--border-soft)' }} />}
+                                                            <div style={{
+                                                                position: 'absolute', left: '2px', top: '4px', width: '9px', height: '9px', borderRadius: '50%',
+                                                                background: (entry.action || '').includes('Erro') ? '#ef4444' : (entry.action || '').includes('finalizado') ? '#10b981' : 'var(--accent)',
+                                                                border: '2px solid var(--bg-tertiary)',
+                                                            }} />
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                                    {entry.action}
+                                                                    {entry.result && <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '6px' }}>— {entry.result}</span>}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                                                                    {entry.node_id && `${entry.node_id} · `}{fmtTime(entry.timestamp)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 const SettingsView = ({ authUser }: SettingsViewProps) => {
     const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
@@ -69,6 +283,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         try { return localStorage.getItem(`sp3_evo_global_key_${authUser.company_id}`) || ''; } catch { return ''; }
     });
     const [showEvoGlobalKey, setShowEvoGlobalKey] = useState(false);
+    const [evoKeySaved, setEvoKeySaved] = useState(false);
 
     // Estados de Dados
     const [isResettingChats, setIsResettingChats] = useState(false);
@@ -88,58 +303,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [createUserSuccess, setCreateUserSuccess] = useState(false);
 
     // Estados do Prompt da IA
-    const [aiPrompt, setAiPrompt] = useState<string>('');
-    const [aiEquipe, setAiEquipe] = useState('');
-    const [aiDentistas, setAiDentistas] = useState('');
-    const [aiMedicos, setAiMedicos] = useState('');
-    const [aiHorarios, setAiHorarios] = useState('');
-    const [aiServicos, setAiServicos] = useState('');
     const [promptHistory, setPromptHistory] = useState<any[]>([]);
-    const [isSavingPrompt, setIsSavingPrompt] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState(false);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-    const parsePromptData = (content: string) => {
-        const defaultState = { basePrompt: content, equipe: '', dentistas: '', medicos: '', horarios: '', servicos: '' };
-        const delimiterStart = '\n\n=== CONTEXTO ESTRUTURADO ===\n';
-        const delimiterEnd = '=== FIM CONTEXTO ESTRUTURADO ===';
-
-        if (content.includes(delimiterStart)) {
-            const parts = content.split(delimiterStart);
-            const base = parts[0];
-            const structuredPart = parts[1].split(delimiterEnd)[0];
-
-            const extractField = (tagName: string) => {
-                const regex = new RegExp(`\\[${tagName}\\]\\n([\\s\\S]*?)(?:\\n\\n\\[|$)`);
-                const match = structuredPart.match(regex);
-                return match ? match[1].trim() : '';
-            };
-
-            return {
-                basePrompt: base.trim(),
-                equipe: extractField('EQUIPE'),
-                dentistas: extractField('DENTISTAS'),
-                medicos: extractField('MEDICOS'),
-                horarios: extractField('HORARIOS'),
-                servicos: extractField('SERVICOS'),
-            };
-        }
-        return defaultState;
-    };
-
-    const buildPromptData = () => {
-        let content = aiPrompt.trim();
-        if (aiEquipe || aiDentistas || aiMedicos || aiHorarios || aiServicos) {
-            content += '\n\n=== CONTEXTO ESTRUTURADO ===\n';
-            if (aiEquipe) content += `[EQUIPE]\n${aiEquipe}\n\n`;
-            if (aiDentistas) content += `[DENTISTAS]\n${aiDentistas}\n\n`;
-            if (aiMedicos) content += `[MEDICOS]\n${aiMedicos}\n\n`;
-            if (aiHorarios) content += `[HORARIOS]\n${aiHorarios}\n\n`;
-            if (aiServicos) content += `[SERVICOS]\n${aiServicos}\n\n`;
-            content += '=== FIM CONTEXTO ESTRUTURADO ===';
-        }
-        return content;
-    };
 
     // Estados do Follow-up
     const [followupConfig, setFollowupConfig] = useState<any>({
@@ -156,24 +321,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     });
     const [isSavingFollowup, setIsSavingFollowup] = useState(false);
     const [followupSuccess, setFollowupSuccess] = useState(false);
-
-    // Toggle visual flows
-    const [useVisualFlows, setUseVisualFlows] = useState(false);
-
-    // Estados do Step Builder (Follow-up dinâmico)
-    const [followupSteps, setFollowupSteps] = useState<FollowupStep[]>([]);
-    const [isLoadingSteps, setIsLoadingSteps] = useState(false);
-    const [expandedStep, setExpandedStep] = useState<number | null>(null);
-    const [uploadingMedia, setUploadingMedia] = useState<string | null>(null);
-    const [showMsgTypeMenu, setShowMsgTypeMenu] = useState<number | null>(null);
-    const followupMediaRefs = useRef<Record<string, HTMLInputElement | null>>({});
-    const stepBuilderEndRef = useRef<HTMLDivElement | null>(null);
-    // Gravação de áudio ao vivo
-    const [recordingKey, setRecordingKey] = useState<string | null>(null);
-    const [recordingTime, setRecordingTime] = useState(0);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const audioChunksRef = useRef<Blob[]>([]);
-    const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Estados de Vídeos de Prova Social
     const [videos, setVideos] = useState<SocialProofVideo[]>([]);
@@ -295,7 +442,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     msg_2: data.msg_2 || 'Ainda por aí? Se preferir, podemos marcar um papo rápido para eu tirar suas dúvidas! 📲',
                     msg_3: data.msg_3 || 'Vi que as coisas devem estar corridas! Vou deixar nosso link de agenda aqui para quando você puder. 🤝'
                 });
-                setUseVisualFlows(data.use_visual_flows || false);
             }
         } catch (err) {
             console.error('Erro ao carregar follow-up:', err);
@@ -335,259 +481,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
-    // ─── FUNÇÕES DO STEP BUILDER (FOLLOW-UP DINÂMICO) ─────────────────
-    const FOLLOWUP_VARIABLES = [
-        { label: 'Nome', token: '[Lead: Nome]' },
-        { label: 'Telefone', token: '[Lead: Telefone]' },
-        { label: 'Saudação', token: '[Saudação]' },
-    ];
-
-    const fetchFollowupSteps = async () => {
-        setIsLoadingSteps(true);
-        try {
-            const { data: steps } = await supabase
-                .from('sp3_followup_steps')
-                .select('*, sp3_followup_step_messages(*)')
-                .eq('company_id', authUser.company_id)
-                .order('step_number', { ascending: true });
-
-            if (steps && steps.length > 0) {
-                const mapped: FollowupStep[] = steps.map((s: any) => ({
-                    ...s,
-                    delay_unit: s.delay_unit || 'days',
-                    messages: (s.sp3_followup_step_messages || [])
-                        .sort((a: any, b: any) => a.sort_order - b.sort_order)
-                }));
-                setFollowupSteps(mapped);
-                if (expandedStep === null) setExpandedStep(mapped[0]?.step_number ?? null);
-            }
-        } catch (err) {
-            console.error('Erro ao carregar etapas:', err);
-        } finally {
-            setIsLoadingSteps(false);
-        }
-    };
-
-    const handleSaveFollowupSteps = async () => {
-        setIsSavingFollowup(true);
-        setFollowupSuccess(false);
-        try {
-            const companyId = authUser.company_id;
-
-            // 1. Deletar TODAS as etapas atuais da empresa (cascade deleta mensagens)
-            await supabase.from('sp3_followup_steps').delete().eq('company_id', companyId);
-
-            // 2. Inserir todas as etapas de uma vez (batch)
-            if (followupSteps.length > 0) {
-                const stepsToInsert = followupSteps.map(s => ({
-                    company_id: companyId,
-                    step_number: s.step_number,
-                    delay_days: s.delay_days,
-                    delay_unit: s.delay_unit || 'days',
-                    active: s.active,
-                }));
-                const { data: insertedSteps, error: stepsError } = await supabase
-                    .from('sp3_followup_steps')
-                    .insert(stepsToInsert)
-                    .select('id, step_number');
-
-                if (stepsError) throw stepsError;
-                if (!insertedSteps) throw new Error('Falha ao inserir etapas');
-
-                // 3. Mapear step_number → ID real do banco
-                const stepIdMap = new Map<number, number>();
-                for (const s of insertedSteps) stepIdMap.set(s.step_number, s.id);
-
-                // 4. Inserir todas as mensagens de todas as etapas em batch
-                const allMsgs: any[] = [];
-                for (const step of followupSteps) {
-                    const realId = stepIdMap.get(step.step_number);
-                    if (!realId) continue;
-                    for (let idx = 0; idx < step.messages.length; idx++) {
-                        const m = step.messages[idx];
-                        allMsgs.push({
-                            step_id: realId,
-                            company_id: companyId,
-                            sort_order: idx,
-                            message_type: m.message_type,
-                            text_content: m.text_content || null,
-                            media_url: m.media_url || null,
-                            media_name: m.media_name || null,
-                            media_mime: m.media_mime || null,
-                            caption: m.caption || null,
-                        });
-                    }
-                }
-                if (allMsgs.length > 0) {
-                    const { error: msgsError } = await supabase
-                        .from('sp3_followup_step_messages')
-                        .insert(allMsgs);
-                    if (msgsError) throw msgsError;
-                }
-            }
-
-            // 5. Atualizar total_steps
-            await supabase
-                .from('sp3_followup_settings')
-                .update({ total_steps: followupSteps.length })
-                .eq('company_id', companyId);
-
-            setFollowupSuccess(true);
-            setTimeout(() => setFollowupSuccess(false), 3000);
-            await fetchFollowupSteps();
-        } catch (err: any) {
-            console.error('Erro ao salvar etapas:', err);
-            await showAlert('Erro ao salvar etapas: ' + (err.message || 'Erro desconhecido'));
-        } finally {
-            setIsSavingFollowup(false);
-        }
-    };
-
-    const handleFollowupMediaUpload = async (file: File, stepIdx: number, msgIdx: number) => {
-        const uploadKey = `step_${stepIdx}_msg_${msgIdx}`;
-        setUploadingMedia(uploadKey);
-        try {
-            const maxSize = 16 * 1024 * 1024; // 16MB WhatsApp limit
-            if (file.size > maxSize) {
-                await showAlert('Arquivo muito grande. Máximo 16MB para WhatsApp.');
-                return;
-            }
-            const ext = file.name.split('.').pop() || 'bin';
-            const fileName = `${authUser.company_id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('followup-media')
-                .upload(fileName, file, { contentType: file.type });
-            if (uploadError) throw uploadError;
-
-            const { data: urlData } = supabase.storage
-                .from('followup-media')
-                .getPublicUrl(fileName);
-
-            let msgType: 'audio' | 'image' | 'video' = 'image';
-            if (file.type.startsWith('audio/')) msgType = 'audio';
-            else if (file.type.startsWith('video/')) msgType = 'video';
-
-            const updated = [...followupSteps];
-            updated[stepIdx].messages[msgIdx] = {
-                ...updated[stepIdx].messages[msgIdx],
-                media_url: urlData.publicUrl,
-                media_name: file.name,
-                media_mime: file.type,
-                message_type: msgType,
-            };
-            setFollowupSteps(updated);
-        } catch (err: any) {
-            await showAlert('Erro no upload: ' + err.message);
-        } finally {
-            setUploadingMedia(null);
-        }
-    };
-
-    const addFollowupStep = () => {
-        if (followupSteps.length >= 15) return;
-        const nextNum = followupSteps.length > 0 ? followupSteps[followupSteps.length - 1].step_number + 1 : 1;
-        const newStep: FollowupStep = {
-            id: -Date.now(), // ID temporário negativo
-            company_id: authUser.company_id,
-            step_number: nextNum,
-            delay_days: 1,
-            delay_unit: 'days' as const,
-            active: true,
-            messages: [{ sort_order: 0, message_type: 'text', text_content: '' }],
-        };
-        setFollowupSteps([...followupSteps, newStep]);
-        setExpandedStep(nextNum);
-        // Auto-scroll para a nova etapa
-        setTimeout(() => stepBuilderEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-    };
-
-    // ─── Gravação de áudio ao vivo ──────────────────────────
-    const startRecording = async (stepIdx: number, msgIdx: number) => {
-        const key = `${stepIdx}_${msgIdx}`;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-            audioChunksRef.current = [];
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunksRef.current.push(e.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                stream.getTracks().forEach(t => t.stop());
-                if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-                setRecordingTime(0);
-
-                const blob = new Blob(audioChunksRef.current, { type: 'audio/ogg' });
-                if (blob.size < 500) { setRecordingKey(null); return; }
-
-                const file = new File([blob], `gravacao_${Date.now()}.ogg`, { type: 'audio/ogg' });
-                setRecordingKey(null);
-                await handleFollowupMediaUpload(file, stepIdx, msgIdx);
-            };
-
-            mediaRecorderRef.current = mediaRecorder;
-            mediaRecorder.start(250);
-            setRecordingKey(key);
-            setRecordingTime(0);
-            recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
-        } catch {
-            await showAlert('Permissão do microfone negada. Permita o acesso ao microfone nas configurações do navegador.');
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
-    };
-
-    const formatRecTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-
-    const removeFollowupStep = (idx: number) => {
-        const updated = followupSteps.filter((_, i) => i !== idx);
-        // Renumerar
-        const renumbered = updated.map((s, i) => ({ ...s, step_number: i + 1 }));
-        setFollowupSteps(renumbered);
-        if (expandedStep === followupSteps[idx]?.step_number) {
-            setExpandedStep(renumbered.length > 0 ? renumbered[0].step_number : null);
-        }
-    };
-
-    const addFollowupMessage = (stepIdx: number, type: 'text' | 'audio' | 'image' | 'video') => {
-        const updated = [...followupSteps];
-        const step = updated[stepIdx];
-        const newMsg: FollowupStepMessage = {
-            sort_order: step.messages.length,
-            message_type: type,
-            text_content: type === 'text' ? '' : undefined,
-        };
-        step.messages = [...step.messages, newMsg];
-        setFollowupSteps(updated);
-        setShowMsgTypeMenu(null);
-    };
-
-    const removeFollowupMessage = (stepIdx: number, msgIdx: number) => {
-        const updated = [...followupSteps];
-        updated[stepIdx].messages = updated[stepIdx].messages
-            .filter((_, i) => i !== msgIdx)
-            .map((m, i) => ({ ...m, sort_order: i }));
-        setFollowupSteps(updated);
-    };
-
-    const updateFollowupMessage = (stepIdx: number, msgIdx: number, field: string, value: string) => {
-        const updated = [...followupSteps];
-        (updated[stepIdx].messages[msgIdx] as any)[field] = value;
-        setFollowupSteps(updated);
-    };
-
-    const insertVariable = (stepIdx: number, msgIdx: number, token: string) => {
-        const msg = followupSteps[stepIdx].messages[msgIdx];
-        const field = msg.message_type === 'text' ? 'text_content' : 'caption';
-        const current = (msg as any)[field] || '';
-        updateFollowupMessage(stepIdx, msgIdx, field, current + token);
-    };
 
     // Funções de Vídeos de Prova Social
     const fetchVideos = async () => {
@@ -732,16 +625,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
             if (data && data.length > 0) {
                 setPromptHistory(data);
-                // Se o editor estiver vazio, carrega o mais recente
-                if (!aiPrompt && !aiEquipe && !aiDentistas && !aiMedicos && !aiHorarios && !aiServicos) {
-                    const parsed = parsePromptData(data[0].content);
-                    setAiPrompt(parsed.basePrompt);
-                    setAiEquipe(parsed.equipe);
-                    setAiDentistas(parsed.dentistas);
-                    setAiMedicos(parsed.medicos);
-                    setAiHorarios(parsed.horarios);
-                    setAiServicos(parsed.servicos);
-                }
             }
             if (error) console.error('Erro ao buscar histórico:', error);
         } catch (err) {
@@ -751,37 +634,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
-    const handleSavePrompt = async () => {
-        const fullContent = buildPromptData();
-        if (!fullContent.trim()) return;
-        setIsSavingPrompt(true);
-        setSaveSuccess(false);
-        try {
+    const handleRestoreVersion = async (content: string) => {
+        if (await showConfirm('Deseja restaurar esta versão como o prompt ativo? Uma nova versão será criada.')) {
             const { error } = await supabase
                 .from('sp3_prompts')
-                .insert([{ company_id: authUser.company_id, content: fullContent }]);
-
-            if (error) throw error;
-            setSaveSuccess(true);
-            await fetchPromptHistory(); // Atualiza a lista
-            setTimeout(() => setSaveSuccess(false), 3000);
-        } catch (err) {
-            console.error('Erro ao salvar prompt:', err);
-            await showAlert('Erro ao salvar no banco. Verifique se criou a tabela sp3_prompts via SQL no Supabase.');
-        } finally {
-            setIsSavingPrompt(false);
-        }
-    };
-
-    const handleRestoreVersion = async (content: string) => {
-        if (await showConfirm('Deseja carregar esta versão no editor? (Você precisará clicar em Salvar para ativá-la como a principal)')) {
-            const parsed = parsePromptData(content);
-            setAiPrompt(parsed.basePrompt);
-            setAiEquipe(parsed.equipe);
-            setAiDentistas(parsed.dentistas);
-            setAiMedicos(parsed.medicos);
-            setAiHorarios(parsed.horarios);
-            setAiServicos(parsed.servicos);
+                .insert([{ company_id: authUser.company_id, content }]);
+            if (!error) await fetchPromptHistory();
         }
     };
 
@@ -861,19 +719,17 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const configureInstanceWebhookAndSettings = async (apiUrl: string, instanceName: string, apiKey: string) => {
-        // Configurar webhook para o n8n (Evolution API v2 format)
+        // Configurar webhook para o n8n (Evolution API v2 — flat, snake_case)
         try {
             await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
-                    webhook: {
-                        enabled: true,
-                        url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
-                        webhookByEvents: false,
-                        webhookBase64: true,
-                        events: ['MESSAGES_UPSERT']
-                    }
+                    enabled: true,
+                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                    webhook_by_events: false,
+                    webhook_base64: true,
+                    events: ['MESSAGES_UPSERT']
                 })
             });
         } catch (whErr) {
@@ -1478,21 +1334,38 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const handleResetChats = async () => {
-        if (!await showConfirm('CUIDADO: Isso irá apagar todo o histórico de conversas do sistema! Deseja realmente continuar?')) return;
-        if (!await showConfirm('TEM CERTEZA ABSOLUTA? Esta ação não pode ser desfeita e irá zerar as conversas da IA.')) return;
+        if (!await showConfirm('CUIDADO: Isso irá apagar TODOS os leads, conversas, execuções de fluxo e dados de clientes desta empresa! Configurações (fluxos, prompts, IA) serão mantidas. Deseja continuar?')) return;
+        if (!await showConfirm('TEM CERTEZA ABSOLUTA? Esta ação não pode ser desfeita. Todos os contatos e histórico serão perdidos permanentemente.')) return;
 
         setIsResettingChats(true);
         try {
-            const { error } = await supabase
+            // Ordem importa: respeitar foreign keys
+            // 1. Execuções de fluxo (referencia sp3chat e sp3_flows)
+            const { error: e1 } = await supabase
+                .from('sp3_flow_executions')
+                .delete()
+                .eq('company_id', authUser.company_id);
+            if (e1) throw e1;
+
+            // 2. Histórico de conversas
+            const { error: e2 } = await supabase
                 .from('n8n_chat_histories')
                 .delete()
                 .eq('company_id', authUser.company_id);
+            if (e2) throw e2;
 
-            if (error) throw error;
-            await showAlert('Histórico de conversas apagado com sucesso! As próximas mensagens iniciarão uma nova conversa do zero.');
+            // 3. Leads / contatos (sp3chat)
+            const { error: e3 } = await supabase
+                .from('sp3chat')
+                .delete()
+                .eq('company_id', authUser.company_id);
+            if (e3) throw e3;
+
+            await showAlert('Dados zerados com sucesso! A página será recarregada.');
+            window.location.reload();
         } catch (err: any) {
-            console.error('Erro ao limpar histórico:', err);
-            await showAlert('Erro ao apagar histórico: ' + err.message);
+            console.error('Erro ao limpar dados:', err);
+            await showAlert('Erro ao apagar dados: ' + err.message);
         } finally {
             setIsResettingChats(false);
         }
@@ -1502,8 +1375,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         fetchInstances(); // Always fetch instances on mount
         fetchClosingReasons();
 
-        // Pré-preencher chave global da Evolution API do banco (se não tem no localStorage)
-        if (!evoGlobalKey && authUser.role === 'master') {
+        // Pré-preencher chave global da Evolution API do banco (somente super admin)
+        if (!evoGlobalKey && isSuperAdmin) {
             supabase.rpc('get_evo_global_key').then(({ data }) => {
                 if (data) {
                     setEvoGlobalKey(data);
@@ -1524,7 +1397,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             fetchPromptHistory();
         } else if (activeSubTab === 'followup') {
             fetchFollowupConfig();
-            fetchFollowupSteps();
         } else if (activeSubTab === 'videos') {
             fetchVideos();
         } else if (activeSubTab === 'quickmessages') {
@@ -1766,7 +1638,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <div style={{ color: '#b91c1c', fontSize: '0.85rem', marginBottom: evoError.includes('Chave Global') ? '12px' : 0 }}>
                                         <strong>Erro:</strong> {evoError}
                                     </div>
-                                    {evoError.includes('Chave Global') && authUser.role === 'master' && (
+                                    {evoError.includes('Chave Global') && isSuperAdmin && (
                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                             <div style={{ flex: 1, position: 'relative' }}>
                                                 <input
@@ -1816,8 +1688,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             )}
                         </div>
 
-                        {/* Card 2: Chave Global da Evolution API (Master Only) */}
-                        {authUser.role === 'master' && (
+                        {/* Card 2: Chave Global da Evolution API (Super Admin Only) */}
+                        {isSuperAdmin && (
                             <div className="glass-card" style={{ padding: '2rem' }}>
                                 <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '0.5rem' }}>Chave Global de Automação</h3>
                                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1rem' }}>
@@ -1843,10 +1715,25 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             {showEvoGlobalKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                         </button>
                                     </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (!evoGlobalKey.trim()) return;
+                                            const { error } = await supabase.rpc('save_evo_global_key', { p_key: evoGlobalKey.trim() });
+                                            if (!error) {
+                                                setEvoError(null);
+                                                setEvoKeySaved(true);
+                                                setTimeout(() => setEvoKeySaved(false), 2000);
+                                            }
+                                        }}
+                                        disabled={!evoGlobalKey.trim()}
+                                        style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: evoGlobalKey.trim() ? 'var(--accent)' : '#e5e7eb', color: evoGlobalKey.trim() ? 'white' : '#9ca3af', fontWeight: '700', fontSize: '0.8rem', cursor: evoGlobalKey.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                                    >
+                                        Salvar
+                                    </button>
                                 </div>
                                 {evoGlobalKey && (
                                     <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <CheckCircle size={12} /> Chave salva localmente
+                                        <CheckCircle size={12} /> {evoKeySaved ? 'Chave salva no banco de dados!' : 'Chave configurada'}
                                     </div>
                                 )}
                             </div>
@@ -1952,93 +1839,18 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
                 {activeSubTab === 'ia' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', height: 'calc(100vh - 200px)' }}>
-                        {/* Editor do Prompt */}
-                        <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-                            <div style={{ marginBottom: '1.5rem', flexShrink: 0 }}>
-                                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Configuração e Prompt da IA</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Preencha os campos abaixo para fornecer contexto. O sistema os unirá automaticamente para a IA.</p>
-                            </div>
-
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1.2rem', paddingBottom: '1rem' }}>
-                                {/* Equipe */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome(s) da Equipe</label>
-                                    <input value={aiEquipe} onChange={(e) => setAiEquipe(e.target.value)} placeholder="Ex: Mário e Luigi" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Dentistas */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dentistas e Especialidades (Odontologia)</label>
-                                    <input value={aiDentistas} onChange={(e) => setAiDentistas(e.target.value)} placeholder="Ex: Dra. Ana (Ortodontia), Dr. João (Implantodontia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Médicos */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Médicos e Especialidades (Medicina)</label>
-                                    <input value={aiMedicos} onChange={(e) => setAiMedicos(e.target.value)} placeholder="Ex: Dr. Pedro (Dermatologia)" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Horários de Atendimento */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dias e Horários de Atendimento</label>
-                                    <input value={aiHorarios} onChange={(e) => setAiHorarios(e.target.value)} placeholder="Ex: Segunda à Sexta das 8h as 18h" style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem' }} />
-                                </div>
-
-                                {/* Serviços */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>O que a Clínica faz (Procedimentos, Serviços)</label>
-                                    <textarea value={aiServicos} onChange={(e) => setAiServicos(e.target.value)} placeholder="Ex: Limpeza, Clareamento, Restauração, Lente de Contato, Harmonização Facial..." rows={3} style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.9rem', resize: 'vertical', fontFamily: 'inherit' }} />
-                                </div>
-
-                                {/* Base Prompt */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Comportamento e Instruções Gerais (Prompt Base)</label>
-                                    <textarea
-                                        value={aiPrompt}
-                                        onChange={(e) => setAiPrompt(e.target.value)}
-                                        placeholder="A Sarah é uma assistente da clínica..."
-                                        style={{
-                                            border: '1px solid var(--border-soft)',
-                                            backgroundColor: 'var(--bg-tertiary)',
-                                            fontSize: '0.95rem',
-                                            lineHeight: '1.6',
-                                            fontFamily: 'inherit',
-                                            resize: 'vertical',
-                                            outline: 'none',
-                                            padding: '1.5rem',
-                                            borderRadius: '16px',
-                                            minHeight: '200px'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '1rem', flexShrink: 0, borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
-                                {saveSuccess && (
-                                    <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>✓ Versão salva com sucesso!</span>
-                                )}
-                                <button
-                                    onClick={handleSavePrompt}
-                                    disabled={isSavingPrompt}
-                                    style={{
-                                        padding: '12px 24px',
-                                        borderRadius: '12px',
-                                        border: 'none',
-                                        background: 'var(--accent)',
-                                        color: 'white',
-                                        fontWeight: '700',
-                                        fontSize: '0.9rem',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        boxShadow: '0 4px 12px var(--accent-light)'
-                                    }}
-                                >
-                                    {isSavingPrompt ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Nova Versão'}
-                                </button>
-                            </div>
-                        </div>
+                        {/* Chat Builder */}
+                        <PromptBuilderChat
+                            companyId={authUser.company_id!}
+                            currentPrompt={promptHistory.length > 0 ? promptHistory[0].content : ''}
+                            onSavePrompt={async (content: string) => {
+                                const { error } = await supabase
+                                    .from('sp3_prompts')
+                                    .insert([{ company_id: authUser.company_id, content }]);
+                                if (error) throw error;
+                                await fetchPromptHistory();
+                            }}
+                        />
 
                         {/* Histórico Lateral */}
                         <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
@@ -2065,19 +1877,19 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                             <span style={{ fontSize: '0.7rem', fontWeight: '800', color: i === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
-                                                {i === 0 ? '🚀 ATIVA AGORA' : `Versão #${promptHistory.length - i}`}
+                                                {i === 0 ? 'ATIVA AGORA' : `Versão #${promptHistory.length - i}`}
                                             </span>
                                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                                                 {new Date(v.created_at).toLocaleDateString('pt-BR')} {new Date(v.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
                                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                            {parsePromptData(v.content).basePrompt}
+                                            {v.content.substring(0, 120)}...
                                         </div>
                                     </div>
                                 ))}
                                 {promptHistory.length === 0 && (
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Salve sua primeira versão para iniciar o histórico.</p>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Use o chat ao lado para criar seu primeiro prompt.</p>
                                 )}
                             </div>
                         </div>
@@ -2131,7 +1943,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                         borderRadius: '8px',
                                                         border: '1px solid',
                                                         borderColor: isActive ? 'var(--accent)' : 'var(--border-soft)',
-                                                        backgroundColor: isActive ? 'var(--accent-soft)' : 'white',
+                                                        backgroundColor: isActive ? 'var(--accent-soft)' : 'var(--bg-primary)',
                                                         color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
                                                         fontSize: '0.75rem',
                                                         fontWeight: '700',
@@ -2170,579 +1982,31 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
                         </div>
 
-                        {/* SEÇÃO: Modo de Follow-up */}
-                        <div className="glass-card" style={{ padding: '2rem' }}>
-                            <h3 style={{ fontSize: '1.15rem', fontWeight: '800', marginBottom: '0.5rem' }}>Modo de Follow-up</h3>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                                Escolha como gerenciar seus follow-ups automáticos.
-                            </p>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                {/* Opção: Modo Simples */}
-                                <div
-                                    onClick={async () => {
-                                        setUseVisualFlows(false);
-                                        await supabase.from('sp3_followup_settings').update({ use_visual_flows: false }).eq('company_id', authUser.company_id);
-                                    }}
-                                    style={{
-                                        flex: 1, padding: '16px', borderRadius: '12px', cursor: 'pointer',
-                                        border: !useVisualFlows ? '2px solid var(--accent)' : '2px solid var(--border-soft)',
-                                        backgroundColor: !useVisualFlows ? 'rgba(99,102,241,0.05)' : 'transparent',
-                                        transition: 'all 0.2s',
-                                    }}
-                                >
-                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px', color: 'var(--text-primary)' }}>
-                                        Etapas Lineares
-                                    </div>
-                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                                        Configure etapas sequenciais (1, 2, 3...) com tempo de espera entre cada uma. Mais simples e direto.
-                                    </div>
-                                    {!useVisualFlows && (
-                                        <div style={{ marginTop: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)' }}>Ativo</div>
-                                    )}
-                                </div>
-                                {/* Opção: Modo Visual */}
-                                <div
-                                    onClick={async () => {
-                                        setUseVisualFlows(true);
-                                        await supabase.from('sp3_followup_settings').update({ use_visual_flows: true }).eq('company_id', authUser.company_id);
-                                    }}
-                                    style={{
-                                        flex: 1, padding: '16px', borderRadius: '12px', cursor: 'pointer',
-                                        border: useVisualFlows ? '2px solid var(--accent)' : '2px solid var(--border-soft)',
-                                        backgroundColor: useVisualFlows ? 'rgba(99,102,241,0.05)' : 'transparent',
-                                        transition: 'all 0.2s',
-                                    }}
-                                >
-                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px', color: 'var(--text-primary)' }}>
-                                        Flow Builder Visual
-                                    </div>
-                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                                        Monte fluxos visuais com condições, ramificações e múltiplos caminhos. Mais flexível e poderoso.
-                                    </div>
-                                    {useVisualFlows && (
-                                        <div style={{ marginTop: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)' }}>Ativo</div>
-                                    )}
-                                </div>
-                            </div>
-                            {useVisualFlows && (
-                                <div style={{
-                                    marginTop: '12px', padding: '12px 16px', borderRadius: '10px',
-                                    backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                }}>
-                                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                                        Gerencie seus fluxos visuais na página <strong>Fluxos</strong> no menu lateral.
-                                    </span>
-                                </div>
+                        {/* Botão Salvar */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
+                            {followupSuccess && (
+                                <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>Configurações salvas!</span>
                             )}
+                            <button
+                                onClick={handleSaveFollowup}
+                                disabled={isSavingFollowup}
+                                style={{
+                                    padding: '12px 24px', borderRadius: '12px', border: 'none',
+                                    background: 'var(--accent)', color: 'white', fontWeight: '700',
+                                    fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+                                }}
+                            >
+                                {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
+                            </button>
                         </div>
 
-                        {/* SEÇÃO 2: Follow-up Automático — Step Builder (visível apenas no modo simples) */}
-                        {!useVisualFlows && (
-                            <div className="glass-card" style={{ padding: '2rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                    <div>
-                                        <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '0.5rem' }}>Follow-up Automático</h3>
-                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                            Configure até 15 etapas de follow-up com texto, áudio, vídeo e imagem. O lead para de receber se responder.
-                                        </p>
-                                    </div>
-                                    {followupSteps.length < 15 && (
-                                        <button
-                                            onClick={addFollowupStep}
-                                            style={{
-                                                padding: '10px 16px', borderRadius: '10px', border: 'none',
-                                                background: 'var(--accent)', color: 'white', fontWeight: '700',
-                                                fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
-                                            }}
-                                        >
-                                            <Plus size={16} /> Adicionar Etapa
-                                        </button>
-                                    )}
-                                </div>
-
-                                {isLoadingSteps ? (
-                                    <div style={{ padding: '3rem', textAlign: 'center' }}><Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
-                                ) : followupSteps.length === 0 ? (
-                                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                        <p style={{ marginBottom: '1rem' }}>Nenhuma etapa configurada.</p>
-                                        <button onClick={addFollowupStep} style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: 'white', fontWeight: '700', cursor: 'pointer' }}>
-                                            Criar Primeira Etapa
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                        {followupSteps.map((step, stepIdx) => {
-                                            const isExpanded = expandedStep === step.step_number;
-                                            return (
-                                                <div key={step.id || stepIdx} style={{
-                                                    border: '1px solid', borderColor: isExpanded ? 'var(--accent)' : 'var(--border-soft)',
-                                                    borderRadius: '14px', overflow: 'visible', transition: 'all 0.25s ease',
-                                                    background: isExpanded ? '#fafbff' : 'white'
-                                                }}>
-                                                    {/* Header da Etapa (sempre visível) */}
-                                                    <div
-                                                        style={{
-                                                            display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 18px',
-                                                            cursor: 'pointer', userSelect: 'none'
-                                                        }}
-                                                        onClick={() => setExpandedStep(isExpanded ? null : step.step_number)}
-                                                    >
-                                                        {isExpanded ? <ChevronDown size={18} style={{ color: 'var(--accent)' }} /> : <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />}
-
-                                                        <span style={{
-                                                            fontSize: '0.9rem', fontWeight: '800',
-                                                            color: isExpanded ? 'var(--accent)' : 'var(--text-primary)',
-                                                            minWidth: '70px'
-                                                        }}>
-                                                            Etapa {step.step_number}
-                                                        </span>
-
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }} onClick={e => e.stopPropagation()}>
-                                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>Após</span>
-                                                            <input
-                                                                type="number"
-                                                                min={0}
-                                                                max={step.delay_unit === 'minutes' ? 9999 : step.delay_unit === 'hours' ? 999 : 365}
-                                                                value={step.delay_days}
-                                                                onChange={(e) => {
-                                                                    const updated = [...followupSteps];
-                                                                    updated[stepIdx].delay_days = Math.max(0, parseInt(e.target.value) || 0);
-                                                                    setFollowupSteps(updated);
-                                                                }}
-                                                                style={{
-                                                                    width: '55px', padding: '5px 8px', borderRadius: '8px',
-                                                                    border: '1px solid var(--border-soft)', textAlign: 'center',
-                                                                    fontSize: '0.8rem', fontWeight: '700'
-                                                                }}
-                                                            />
-                                                            <select
-                                                                value={step.delay_unit || 'days'}
-                                                                onChange={(e) => {
-                                                                    const updated = [...followupSteps];
-                                                                    updated[stepIdx].delay_unit = e.target.value as 'minutes' | 'hours' | 'days';
-                                                                    setFollowupSteps(updated);
-                                                                }}
-                                                                style={{
-                                                                    padding: '5px 8px', borderRadius: '8px',
-                                                                    border: '1px solid var(--border-soft)',
-                                                                    fontSize: '0.75rem', fontWeight: '600',
-                                                                    color: 'var(--text-muted)', background: 'var(--bg-secondary)',
-                                                                    cursor: 'pointer', outline: 'none'
-                                                                }}
-                                                            >
-                                                                <option value="minutes">min</option>
-                                                                <option value="hours">horas</option>
-                                                                <option value="days">dias</option>
-                                                            </select>
-                                                        </div>
-
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: '20px', backgroundColor: '#f1f5f9' }}>
-                                                                {step.messages.length} msg{step.messages.length !== 1 ? 's' : ''}
-                                                            </span>
-                                                        </div>
-
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={e => e.stopPropagation()}>
-                                                            {/* Toggle ativo */}
-                                                            <button
-                                                                onClick={() => {
-                                                                    const updated = [...followupSteps];
-                                                                    updated[stepIdx].active = !updated[stepIdx].active;
-                                                                    setFollowupSteps(updated);
-                                                                }}
-                                                                title={step.active ? 'Ativo' : 'Inativo'}
-                                                                style={{
-                                                                    background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
-                                                                    color: step.active ? '#10b981' : '#94a3b8'
-                                                                }}
-                                                            >
-                                                                {step.active ? <Power size={16} /> : <PowerOff size={16} />}
-                                                            </button>
-
-                                                            {/* Excluir */}
-                                                            <button
-                                                                onClick={() => removeFollowupStep(stepIdx)}
-                                                                title="Excluir etapa"
-                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#ef4444' }}
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Conteúdo expandido */}
-                                                    {isExpanded && (
-                                                        <div style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid var(--border-soft)' }}>
-                                                            {step.messages.map((msg, msgIdx) => (
-                                                                <div key={msgIdx} style={{
-                                                                    marginTop: msgIdx === 0 ? '14px' : 0,
-                                                                    padding: '14px', borderRadius: '12px',
-                                                                    background: 'var(--bg-secondary)', border: '1px solid var(--border-soft)',
-                                                                    position: 'relative'
-                                                                }}>
-                                                                    {/* Header da mensagem */}
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                                                                        <span style={{
-                                                                            fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase',
-                                                                            color: msg.message_type === 'text' ? 'var(--accent)' :
-                                                                                msg.message_type === 'audio' ? '#f59e0b' :
-                                                                                    msg.message_type === 'video' ? '#ef4444' : '#10b981',
-                                                                            padding: '3px 8px', borderRadius: '6px',
-                                                                            backgroundColor: msg.message_type === 'text' ? 'var(--accent-soft)' :
-                                                                                msg.message_type === 'audio' ? '#fef3c7' :
-                                                                                    msg.message_type === 'video' ? '#fef2f2' : '#f0fdf4'
-                                                                        }}>
-                                                                            {msg.message_type === 'text' && '📝 Texto'}
-                                                                            {msg.message_type === 'audio' && '🎙 Áudio PTT'}
-                                                                            {msg.message_type === 'video' && '🎬 Vídeo'}
-                                                                            {msg.message_type === 'image' && '🖼 Imagem'}
-                                                                        </span>
-                                                                        <span style={{ flex: 1 }} />
-                                                                        {step.messages.length > 1 && (
-                                                                            <button
-                                                                                onClick={() => removeFollowupMessage(stepIdx, msgIdx)}
-                                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px' }}
-                                                                                title="Remover mensagem"
-                                                                            >
-                                                                                <X size={14} />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-
-                                                                    {/* Corpo: TEXTO */}
-                                                                    {msg.message_type === 'text' && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                                            <textarea
-                                                                                value={msg.text_content || ''}
-                                                                                onChange={(e) => updateFollowupMessage(stepIdx, msgIdx, 'text_content', e.target.value)}
-                                                                                rows={3}
-                                                                                placeholder="Digite a mensagem de follow-up..."
-                                                                                style={{
-                                                                                    padding: '10px 14px', borderRadius: '10px',
-                                                                                    border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)',
-                                                                                    fontSize: '0.85rem', lineHeight: '1.5',
-                                                                                    fontFamily: 'inherit', resize: 'vertical', outline: 'none'
-                                                                                }}
-                                                                            />
-                                                                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                                                {FOLLOWUP_VARIABLES.map(v => (
-                                                                                    <button
-                                                                                        key={v.token}
-                                                                                        onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
-                                                                                        style={{
-                                                                                            padding: '4px 10px', borderRadius: '6px', fontSize: '0.7rem',
-                                                                                            border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)',
-                                                                                            color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600'
-                                                                                        }}
-                                                                                    >
-                                                                                        + {v.label}
-                                                                                    </button>
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Corpo: ÁUDIO */}
-                                                                    {msg.message_type === 'audio' && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                                            {msg.media_url ? (
-                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '10px', backgroundColor: '#fef3c7' }}>
-                                                                                    <audio controls src={msg.media_url} style={{ flex: 1, height: '36px' }} />
-                                                                                    <button
-                                                                                        onClick={() => {
-                                                                                            const updated = [...followupSteps];
-                                                                                            updated[stepIdx].messages[msgIdx] = { ...msg, media_url: undefined, media_name: undefined, media_mime: undefined };
-                                                                                            setFollowupSteps(updated);
-                                                                                        }}
-                                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
-                                                                                    >
-                                                                                        <Trash2 size={14} />
-                                                                                    </button>
-                                                                                </div>
-                                                                            ) : recordingKey === `${stepIdx}_${msgIdx}` ? (
-                                                                                /* Gravando ao vivo */
-                                                                                <div style={{
-                                                                                    display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px',
-                                                                                    borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5'
-                                                                                }}>
-                                                                                    <div style={{
-                                                                                        width: '12px', height: '12px', borderRadius: '50%',
-                                                                                        backgroundColor: '#ef4444',
-                                                                                        animation: 'pulse 1s infinite'
-                                                                                    }} />
-                                                                                    <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#b91c1c', fontFamily: 'monospace' }}>
-                                                                                        {formatRecTime(recordingTime)}
-                                                                                    </span>
-                                                                                    <span style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: '600' }}>Gravando...</span>
-                                                                                    <span style={{ flex: 1 }} />
-                                                                                    <button
-                                                                                        onClick={stopRecording}
-                                                                                        style={{
-                                                                                            padding: '8px 18px', borderRadius: '10px', border: 'none',
-                                                                                            background: '#ef4444', color: 'white', fontWeight: '700',
-                                                                                            fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
-                                                                                        }}
-                                                                                    >
-                                                                                        <Square size={14} fill="white" /> Parar
-                                                                                    </button>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div>
-                                                                                    <input
-                                                                                        type="file"
-                                                                                        accept="audio/*"
-                                                                                        ref={el => { followupMediaRefs.current[`${stepIdx}_${msgIdx}`] = el; }}
-                                                                                        style={{ display: 'none' }}
-                                                                                        onChange={(e) => {
-                                                                                            const f = e.target.files?.[0];
-                                                                                            if (f) handleFollowupMediaUpload(f, stepIdx, msgIdx);
-                                                                                        }}
-                                                                                    />
-                                                                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                                                                        <button
-                                                                                            onClick={() => startRecording(stepIdx, msgIdx)}
-                                                                                            disabled={!!recordingKey}
-                                                                                            style={{
-                                                                                                padding: '10px 16px', borderRadius: '10px',
-                                                                                                border: 'none', background: '#ef4444',
-                                                                                                color: 'white', fontWeight: '700', fontSize: '0.8rem',
-                                                                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-                                                                                            }}
-                                                                                        >
-                                                                                            <Mic size={16} /> Gravar Áudio
-                                                                                        </button>
-                                                                                        <button
-                                                                                            onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
-                                                                                            disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
-                                                                                            style={{
-                                                                                                padding: '10px 16px', borderRadius: '10px',
-                                                                                                border: '1px dashed var(--border-soft)', background: '#fffbeb',
-                                                                                                color: '#b45309', fontWeight: '600', fontSize: '0.8rem',
-                                                                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-                                                                                            }}
-                                                                                        >
-                                                                                            {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                                                                                            Enviar Arquivo
-                                                                                        </button>
-                                                                                    </div>
-                                                                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                                                                                        Grave na hora ou envie um arquivo (.ogg, .mp3). Será enviado como voz (PTT) no WhatsApp.
-                                                                                    </p>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Corpo: IMAGEM */}
-                                                                    {msg.message_type === 'image' && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                                            {msg.media_url ? (
-                                                                                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                                                                    <img src={msg.media_url} alt="Preview" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border-soft)' }} />
-                                                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{msg.media_name}</span>
-                                                                                        <textarea
-                                                                                            value={msg.caption || ''}
-                                                                                            onChange={(e) => updateFollowupMessage(stepIdx, msgIdx, 'caption', e.target.value)}
-                                                                                            rows={2}
-                                                                                            placeholder="Legenda (opcional)..."
-                                                                                            style={{
-                                                                                                padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)',
-                                                                                                backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
-                                                                                            }}
-                                                                                        />
-                                                                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                                                            {FOLLOWUP_VARIABLES.map(v => (
-                                                                                                <button key={v.token} onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
-                                                                                                    style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
-                                                                                                    + {v.label}
-                                                                                                </button>
-                                                                                            ))}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <button onClick={() => {
-                                                                                        const updated = [...followupSteps];
-                                                                                        updated[stepIdx].messages[msgIdx] = { ...msg, media_url: undefined, media_name: undefined, media_mime: undefined };
-                                                                                        setFollowupSteps(updated);
-                                                                                    }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}>
-                                                                                        <Trash2 size={14} />
-                                                                                    </button>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div>
-                                                                                    <input type="file" accept="image/*"
-                                                                                        ref={el => { followupMediaRefs.current[`${stepIdx}_${msgIdx}`] = el; }}
-                                                                                        style={{ display: 'none' }}
-                                                                                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFollowupMediaUpload(f, stepIdx, msgIdx); }}
-                                                                                    />
-                                                                                    <button
-                                                                                        onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
-                                                                                        disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
-                                                                                        style={{
-                                                                                            padding: '10px 16px', borderRadius: '10px',
-                                                                                            border: '1px dashed var(--border-soft)', background: '#f0fdf4',
-                                                                                            color: '#065f46', fontWeight: '600', fontSize: '0.8rem',
-                                                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-                                                                                        }}
-                                                                                    >
-                                                                                        {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
-                                                                                        Enviar Imagem
-                                                                                    </button>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Corpo: VÍDEO */}
-                                                                    {msg.message_type === 'video' && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                                            {msg.media_url ? (
-                                                                                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                                                                    <video src={msg.media_url} style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border-soft)' }} controls />
-                                                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{msg.media_name}</span>
-                                                                                        <textarea
-                                                                                            value={msg.caption || ''}
-                                                                                            onChange={(e) => updateFollowupMessage(stepIdx, msgIdx, 'caption', e.target.value)}
-                                                                                            rows={2}
-                                                                                            placeholder="Legenda (opcional)..."
-                                                                                            style={{
-                                                                                                padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)',
-                                                                                                backgroundColor: 'var(--bg-tertiary)', fontSize: '0.8rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none'
-                                                                                            }}
-                                                                                        />
-                                                                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                                                            {FOLLOWUP_VARIABLES.map(v => (
-                                                                                                <button key={v.token} onClick={() => insertVariable(stepIdx, msgIdx, v.token)}
-                                                                                                    style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.65rem', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}>
-                                                                                                    + {v.label}
-                                                                                                </button>
-                                                                                            ))}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <button onClick={() => {
-                                                                                        const updated = [...followupSteps];
-                                                                                        updated[stepIdx].messages[msgIdx] = { ...msg, media_url: undefined, media_name: undefined, media_mime: undefined };
-                                                                                        setFollowupSteps(updated);
-                                                                                    }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}>
-                                                                                        <Trash2 size={14} />
-                                                                                    </button>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div>
-                                                                                    <input type="file" accept="video/*"
-                                                                                        ref={el => { followupMediaRefs.current[`${stepIdx}_${msgIdx}`] = el; }}
-                                                                                        style={{ display: 'none' }}
-                                                                                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFollowupMediaUpload(f, stepIdx, msgIdx); }}
-                                                                                    />
-                                                                                    <button
-                                                                                        onClick={() => followupMediaRefs.current[`${stepIdx}_${msgIdx}`]?.click()}
-                                                                                        disabled={uploadingMedia === `step_${stepIdx}_msg_${msgIdx}`}
-                                                                                        style={{
-                                                                                            padding: '10px 16px', borderRadius: '10px',
-                                                                                            border: '1px dashed var(--border-soft)', background: '#fef2f2',
-                                                                                            color: '#b91c1c', fontWeight: '600', fontSize: '0.8rem',
-                                                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-                                                                                        }}
-                                                                                    >
-                                                                                        {uploadingMedia === `step_${stepIdx}_msg_${msgIdx}` ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
-                                                                                        Enviar Vídeo
-                                                                                    </button>
-                                                                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>Máximo 16MB (limite do WhatsApp)</p>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-
-                                                            {/* Botão adicionar mensagem */}
-                                                            <div style={{ position: 'relative', marginTop: '4px' }}>
-                                                                <button
-                                                                    onClick={() => setShowMsgTypeMenu(showMsgTypeMenu === stepIdx ? null : stepIdx)}
-                                                                    style={{
-                                                                        padding: '8px 14px', borderRadius: '10px',
-                                                                        border: '1px dashed var(--accent)', background: 'transparent',
-                                                                        color: 'var(--accent)', fontWeight: '700', fontSize: '0.8rem',
-                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
-                                                                    }}
-                                                                >
-                                                                    <Plus size={14} /> Adicionar Mensagem
-                                                                </button>
-                                                                {showMsgTypeMenu === stepIdx && (
-                                                                    <div style={{
-                                                                        position: 'absolute', top: '100%', left: 0, marginTop: '4px',
-                                                                        background: 'var(--bg-secondary)', borderRadius: '10px', border: '1px solid var(--border-soft)',
-                                                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, overflow: 'hidden', minWidth: '180px'
-                                                                    }}>
-                                                                        {[
-                                                                            { type: 'text' as const, icon: <Type size={16} />, label: 'Texto', color: 'var(--accent)' },
-                                                                            { type: 'audio' as const, icon: <Mic size={16} />, label: 'Áudio (PTT)', color: '#f59e0b' },
-                                                                            { type: 'image' as const, icon: <ImageIcon size={16} />, label: 'Imagem', color: '#10b981' },
-                                                                            { type: 'video' as const, icon: <Video size={16} />, label: 'Vídeo', color: '#ef4444' },
-                                                                        ].map(opt => (
-                                                                            <button
-                                                                                key={opt.type}
-                                                                                onClick={() => addFollowupMessage(stepIdx, opt.type)}
-                                                                                style={{
-                                                                                    display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                                                                                    padding: '10px 14px', border: 'none', background: 'transparent',
-                                                                                    cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: opt.color,
-                                                                                    textAlign: 'left'
-                                                                                }}
-                                                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                                                            >
-                                                                                {opt.icon} {opt.label}
-                                                                            </button>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                        <div ref={stepBuilderEndRef} />
-                                    </div>
-                                )}
-
-                                {/* Animação do indicador de gravação */}
-                                <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
-
-                                {/* Variáveis disponíveis */}
-                                <div style={{ marginTop: '1.5rem', padding: '12px 16px', borderRadius: '10px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)' }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Variáveis disponíveis nas mensagens:</span>
-                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-                                        {FOLLOWUP_VARIABLES.map(v => (
-                                            <span key={v.token} style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '6px', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: '700', fontFamily: 'monospace' }}>
-                                                {v.token}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Botão Salvar */}
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: '2rem', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
-                                    {followupSuccess && (
-                                        <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: '600' }}>Configurações salvas!</span>
-                                    )}
-                                    <button
-                                        onClick={async () => { await handleSaveFollowup(); await handleSaveFollowupSteps(); }}
-                                        disabled={isSavingFollowup}
-                                        style={{
-                                            padding: '12px 24px', borderRadius: '12px', border: 'none',
-                                            background: 'var(--accent)', color: 'white', fontWeight: '700',
-                                            fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-                                        }}
-                                    >
-                                        {isSavingFollowup ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Alterações'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                        {/* Banner: Fluxos Visuais */}
+                        <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Activity size={16} style={{ color: 'var(--accent)' }} />
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                Os follow-ups agora funcionam via <strong>Fluxos Visuais</strong>. Gerencie na aba <strong>Fluxos</strong> no menu lateral.
+                            </span>
+                        </div>
                     </div>
                 )}
 
@@ -3164,7 +2428,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 key={key}
                                                 type="button"
                                                 onClick={() => setNewUserPermissions(prev => ({ ...prev, [key]: !prev[key] }))}
-                                                style={{ padding: '6px 14px', borderRadius: '20px', border: '1.5px solid', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', backgroundColor: newUserPermissions[key] ? 'var(--accent)' : 'white', color: newUserPermissions[key] ? 'white' : 'var(--text-secondary)', borderColor: newUserPermissions[key] ? 'var(--accent)' : 'var(--border-soft)' }}
+                                                style={{ padding: '6px 14px', borderRadius: '20px', border: '1.5px solid', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', backgroundColor: newUserPermissions[key] ? 'var(--accent)' : 'var(--bg-primary)', color: newUserPermissions[key] ? 'white' : 'var(--text-secondary)', borderColor: newUserPermissions[key] ? 'var(--accent)' : 'var(--border-soft)' }}
                                             >
                                                 {SECTION_LABELS[key]}
                                             </button>
@@ -3205,22 +2469,22 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Ações destrutivas para gerenciamento de dados do sistema.</p>
                         </div>
 
-                        <div style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid #fee2e2', backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--error-soft)', backgroundColor: 'var(--error-soft)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#b91c1c' }}>Zerar Histórico de Conversas (IA)</h4>
-                                <p style={{ fontSize: '0.85rem', color: '#7f1d1d', marginTop: '4px' }}>
-                                    Apaga permanentemente <strong>todo o histórico de conversas</strong> do banco de dados (n8n_chat_histories).
-                                    Isso fará com que a IA esqueça todas as conversas anteriores e inicie os atendimentos totalmente do zero. Útil para limpar dados de ambiente de teste.
+                                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--error)' }}>Zerar Todos os Dados de Clientes</h4>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                    Apaga permanentemente <strong>todos os leads, conversas, execuções de fluxo</strong> e dados salvos nos cards (etiquetas, observações, campos customizados, agendamentos).
+                                    A empresa fica como nova — ideal para limpar testes. <strong>Configurações</strong> (fluxos, prompts, IA, horários) são mantidas.
                                 </p>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                                 <button
                                     onClick={handleResetChats}
                                     disabled={isResettingChats}
-                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#ef4444', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--error)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                                 >
                                     {isResettingChats ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                                    {isResettingChats ? 'Apagando...' : 'Apagar Todo o Histórico'}
+                                    {isResettingChats ? 'Apagando...' : 'Zerar Dados de Clientes'}
                                 </button>
                             </div>
                         </div>
@@ -3377,9 +2641,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
             {dialog && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
-                        <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+                    <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--border)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{dialog.title}</h3>
+                        <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
 
                         {dialog.type === 'prompt' && (
                             <input
@@ -3388,7 +2652,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 value={promptInput}
                                 onChange={(e) => setPromptInput(e.target.value)}
                                 placeholder={dialog.placeholder || 'Digite...'}
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #d1d5db', marginBottom: '20px', fontSize: '0.95rem', outline: 'none' }}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', marginBottom: '20px', fontSize: '0.95rem', outline: 'none' }}
                                 onKeyDown={(e) => { if (e.key === 'Enter') dialog.onConfirm(promptInput); }}
                             />
                         )}
@@ -3397,14 +2661,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             {dialog.type !== 'alert' && (
                                 <button
                                     onClick={dialog.onCancel}
-                                    style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
+                                    style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '500' }}
                                 >
                                     Cancelar
                                 </button>
                             )}
                             <button
                                 onClick={() => dialog.onConfirm(promptInput)}
-                                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '500' }}
                             >
                                 OK
                             </button>
@@ -3413,20 +2677,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 </div>
             )}
             {activeSubTab === 'logs' && (
-                <div className="glass-card" style={{ padding: '2rem' }}>
-                    <div style={{ marginBottom: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '4px' }}>Logs de Execução (Webhook)</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Monitore as comunicações entre o N8N e o servidor de mensagens.</p>
-                    </div>
-
-                    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
-                        <div style={{ marginBottom: '1rem', color: 'var(--accent)' }}><Activity size={48} /></div>
-                        <h4 style={{ fontWeight: '700', marginBottom: '8px' }}>Monitoramento em Tempo Real</h4>
-                        <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: '400px', margin: '0 auto' }}>
-                            A tabela de logs do sistema está sendo inicializada. Uma vez ativa, você verá aqui falhas de entrega, payloads e erros de processamento da IA.
-                        </p>
-                    </div>
-                </div>
+                <ExecutionLogsPanel companyId={authUser.company_id!} />
             )}
         </div>
     );

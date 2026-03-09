@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, Phone, MapPin, Building2, DollarSign, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, CheckSquare, Square, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play } from 'lucide-react';
+import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2 } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday, isYesterday, isSameDay } from 'date-fns';
@@ -84,6 +84,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const timerRef = useRef<any>(null);
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
     const [chatFilter, setChatFilter] = useState<'all' | 'ia' | 'followup'>('all');
     const [dialog, setDialog] = useState<{
         type: 'alert' | 'confirm' | 'prompt';
@@ -483,6 +484,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 // Append direto se é a conversa aberta (sem refetch)
                 if (currentLead && newMsg.session_id === currentLead.telefone) {
                     const parsed = parseMessage(newMsg);
+
+                    // Tocar som de recebimento se for mensagem do cliente (não enviado pelo CRM/IA)
+                    if (!parsed.sentByCRM && parsed.type !== 'system') {
+                        playSystemSound('receive');
+                    }
+
                     setMessages(prev => {
                         if (prev.some(m => m.id === parsed.id)) return prev;
                         return [...prev, parsed];
@@ -529,7 +536,15 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     // ORDENAÇÃO DINÂMICA (Performance Otimizada)
     const sortedLeads = useMemo(() => {
         const filtered = leads.filter(lead => {
-            // Exibir leads fechados no chat? O usuário só pediu "filtro de todos", "na ia", "followup", e que quem fechar vai para o Kanban. Mas se fechar, soma do chat? Vamos manter no All se quiser, ou sumir? Vamos sumir do chat os fechados se `closed` for true? O usuário disse: "fechar covnersa e quando fechar colocr o motivo do fechamento e no kanban ele ir para uma kanban separado de leads fechados" - Vou manter visível se não me pedirem para esconder, mas normalmente `closed` exclui da aba ativa. Vou esconder chamadas `closed`.
+            // Filtro de Busca
+            if (searchTerm) {
+                const search = searchTerm.toLowerCase();
+                const matchesName = (lead.nome || '').toLowerCase().includes(search);
+                const matchesPhone = (lead.telefone || '').toLowerCase().includes(search);
+                if (!matchesName && !matchesPhone) return false;
+            }
+
+            // Exibir leads fechados no chat?
             if ((lead as any).closed) return false;
             if (chatFilter === 'all') return true;
             if (chatFilter === 'ia') return lead.ia_active === true;
@@ -542,7 +557,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const dateB = new Date(b.last_interaction_at || b.stage_updated_at || b.created_at || 0).getTime();
             return dateB - dateA;
         });
-    }, [leads, chatFilter]);
+    }, [leads, chatFilter, searchTerm]);
 
     const stats = useMemo(() => {
         const activeLeads = leads.filter(l => !(l as any).closed);
@@ -902,6 +917,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     message: JSON.stringify({ type: 'ai', content: messageToSend, sender: authUser.nome, sentByCRM: true })
                 }]);
 
+            playSystemSound('send');
+
             // Exibir Sarah pensando brevemente para feedback visual se a IA estiver ativa
             if (selectedLead.ia_active) {
                 setIsSarahThinking(true);
@@ -980,6 +997,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     })
                 }]);
 
+            playSystemSound('send');
             // Forçar atualização local das mensagens
             fetchMessages();
 
@@ -992,46 +1010,53 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     // LÓGICA DE ÁUDIO
-    const playRecordSound = (type: 'start' | 'stop') => {
+    const playSystemSound = (type: 'send' | 'cancel' | 'receive' | 'start' | 'stop') => {
         try {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            if (!AudioContextClass) return;
-            const audioCtx = new AudioContextClass();
+            // Se for start/stop de gravação, mantemos o som gerado via oscilador para ser instantâneo
+            if (type === 'start' || type === 'stop') {
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioContextClass) return;
+                const audioCtx = new AudioContextClass();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                const now = audioCtx.currentTime;
 
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
+                if (type === 'start') {
+                    oscillator.frequency.setValueAtTime(600, now);
+                    oscillator.frequency.setValueAtTime(800, now + 0.1);
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                    gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.2);
+                } else {
+                    oscillator.frequency.setValueAtTime(600, now);
+                    oscillator.frequency.exponentialRampToValueAtTime(300, now + 0.2);
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                    gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.2);
+                }
+                return;
+            }
 
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            // Para outros sons, usamos MP3s estilo WhatsApp
+            let url = '';
+            if (type === 'send') url = 'https://raw.githubusercontent.com/fajadit/whatsapp-clone/master/public/sounds/send.mp3';
+            if (type === 'receive') url = 'https://raw.githubusercontent.com/fajadit/whatsapp-clone/master/public/sounds/receive.mp3';
+            if (type === 'cancel') url = 'https://www.soundjay.com/buttons/sounds/button-7.mp3';
 
-            oscillator.type = 'sine';
-            const now = audioCtx.currentTime;
-
-            if (type === 'start') {
-                // Som de início (beep duplo sutil, estilo whatsapp)
-                oscillator.frequency.setValueAtTime(600, now);
-                oscillator.frequency.setValueAtTime(800, now + 0.1);
-
-                gainNode.gain.setValueAtTime(0, now);
-                gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
-                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
-
-                oscillator.start(now);
-                oscillator.stop(now + 0.2);
-            } else {
-                // Som de parada (beep descendente sutil)
-                oscillator.frequency.setValueAtTime(600, now);
-                oscillator.frequency.exponentialRampToValueAtTime(300, now + 0.2);
-
-                gainNode.gain.setValueAtTime(0, now);
-                gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
-                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
-
-                oscillator.start(now);
-                oscillator.stop(now + 0.2);
+            if (url) {
+                const audio = new Audio(url);
+                audio.volume = 0.4;
+                audio.play().catch(e => console.warn("Erro ao reproduzir som:", e));
             }
         } catch (e) {
-            console.warn("AudioContext init failed", e);
+            console.warn("Audio error", e);
         }
     };
 
@@ -1055,7 +1080,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             };
 
             mediaRecorder.start();
-            playRecordSound('start');
+            playSystemSound('start');
             setIsRecording(true);
             setRecordingTime(0);
             timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
@@ -1067,7 +1092,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
-            playRecordSound('stop');
+            playSystemSound('stop');
             setIsRecording(false);
             clearInterval(timerRef.current);
         }
@@ -1077,6 +1102,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.onstop = null; // Ignora o envio
             mediaRecorderRef.current.stop();
+            playSystemSound('cancel');
             setIsRecording(false);
             clearInterval(timerRef.current);
             audioChunksRef.current = [];
@@ -1123,6 +1149,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         })
                     }]);
 
+                playSystemSound('send');
                 fetchMessages(); // Atualiza na hora
             }
         } catch (err) {
@@ -1144,981 +1171,979 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     return (
-        <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr 300px', gap: isMobile ? 0 : '1.5rem', height: isMobile ? '100%' : 'calc(100vh - 180px)' }}>
+        <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr 340px', gap: 0, height: isMobile ? '100%' : '100vh', backgroundColor: 'var(--bg-primary)', overflow: 'hidden' }}>
             {/* Sidebar de Conversas */}
-            {(!isMobile || mobilePanel === 'list') && <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ padding: '1.25rem 1.25rem 0.5rem 1.25rem', borderBottom: '1px solid var(--border-soft)' }}>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>Conversas ({sortedLeads.length})</h4>
-                    <div style={{ display: 'flex', gap: '4px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
-                        <button
-                            onClick={() => setChatFilter('all')}
-                            style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', backgroundColor: chatFilter === 'all' ? 'var(--accent)' : 'var(--bg-secondary)', color: chatFilter === 'all' ? 'white' : 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-                        >
-                            Todos <span style={{ backgroundColor: chatFilter === 'all' ? 'rgba(255,255,255,0.2)' : '#e2e8f0', padding: '1px 5px', borderRadius: '8px', fontSize: '0.65rem' }}>{stats.all}</span>
-                        </button>
-                        <button
-                            onClick={() => setChatFilter('ia')}
-                            style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', backgroundColor: chatFilter === 'ia' ? '#10b981' : 'var(--bg-secondary)', color: chatFilter === 'ia' ? 'white' : 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-                        >
-                            Na IA <span style={{ backgroundColor: chatFilter === 'ia' ? 'rgba(255,255,255,0.2)' : '#e2e8f0', padding: '1px 5px', borderRadius: '8px', fontSize: '0.65rem' }}>{stats.ia}</span>
-                        </button>
-                        <button
-                            onClick={() => setChatFilter('followup')}
-                            style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', backgroundColor: chatFilter === 'followup' ? '#8b5cf6' : 'var(--bg-secondary)', color: chatFilter === 'followup' ? 'white' : 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-                        >
-                            Follow-up <span style={{ backgroundColor: chatFilter === 'followup' ? 'rgba(255,255,255,0.2)' : '#e2e8f0', padding: '1px 5px', borderRadius: '8px', fontSize: '0.65rem' }}>{stats.followup}</span>
-                        </button>
-                    </div>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {sortedLeads.map(lead => (
-                        <div
-                            key={lead.id}
-                            onClick={() => handleSelectLead(lead)}
-                            style={{
-                                padding: '1rem',
-                                borderBottom: '1px solid var(--border-soft)',
-                                cursor: 'pointer',
-                                backgroundColor: selectedLead?.id === lead.id ? 'var(--accent-soft)' : 'transparent',
-                                display: 'flex',
-                                alignItems: 'center', gap: '12px',
-                                transition: 'all 0.2s ease',
-                                borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : '3px solid transparent'
-                            }}
-                            onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.015)' }}
-                            onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'transparent' }}
-                        >
-                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: selectedLead?.id === lead.id ? 'var(--accent)' : 'var(--bg-primary)', color: selectedLead?.id === lead.id ? 'white' : 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '1.1rem', boxShadow: selectedLead?.id === lead.id ? 'var(--shadow-md)' : 'none' }}>
-                                {(lead.nome || 'L')[0].toUpperCase()}
-                            </div>
-                            <div style={{ overflow: 'hidden', flex: 1 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.nome || 'Lead s/ nome'}</div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        {unreadCounts[lead.telefone] > 0 && (
-                                            <div style={{ backgroundColor: '#10b981', color: 'white', fontSize: '0.62rem', fontWeight: 'bold', padding: '2px 5px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '16px' }}>
-                                                {unreadCounts[lead.telefone]}
-                                            </div>
-                                        )}
-                                        {!lead.ia_active && <PowerOff size={14} color="var(--error)" />}
-                                    </div>
-                                </div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{lead.telefone}</div>
+            {(!isMobile || mobilePanel === 'list') && (
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)' }}>
+                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <h4 style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Conversas</h4>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <Search size={14} style={{ color: 'var(--text-muted)' }} />
                             </div>
                         </div>
-                    ))}
+
+                        <div style={{ position: 'relative', marginBottom: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Buscar..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '6px 12px 6px 32px',
+                                    fontSize: '0.75rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border)',
+                                    backgroundColor: 'var(--bg-primary)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    transition: 'all 0.2s',
+                                    boxShadow: 'var(--shadow-sm)'
+                                }}
+                                onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                                onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                            />
+                            <Search size={12} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        </div>
+                        <div style={{ display: 'flex', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', padding: '2px', border: '1px solid var(--border)', marginBottom: '4px' }}>
+                            <button
+                                onClick={() => setChatFilter('all')}
+                                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', border: 'none', backgroundColor: chatFilter === 'all' ? 'var(--bg-primary)' : 'transparent', color: chatFilter === 'all' ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: chatFilter === 'all' ? '700' : '500', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: chatFilter === 'all' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.1s' }}
+                            >
+                                Todos <span style={{ backgroundColor: chatFilter === 'all' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 'var(--radius-xl)', fontSize: '0.65rem', border: '1px solid var(--border)' }}>{stats.all}</span>
+                            </button>
+                            <button
+                                onClick={() => setChatFilter('ia')}
+                                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', border: 'none', backgroundColor: chatFilter === 'ia' ? 'var(--bg-primary)' : 'transparent', color: chatFilter === 'ia' ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: chatFilter === 'ia' ? '700' : '500', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: chatFilter === 'ia' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.1s' }}
+                            >
+                                IA <span style={{ backgroundColor: chatFilter === 'ia' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 'var(--radius-xl)', fontSize: '0.65rem', border: '1px solid var(--border)' }}>{stats.ia}</span>
+                            </button>
+                            <button
+                                onClick={() => setChatFilter('followup')}
+                                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', border: 'none', backgroundColor: chatFilter === 'followup' ? 'var(--bg-primary)' : 'transparent', color: chatFilter === 'followup' ? 'var(--warning)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: chatFilter === 'followup' ? '700' : '500', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: chatFilter === 'followup' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.1s' }}
+                            >
+                                F.UP <span style={{ backgroundColor: chatFilter === 'followup' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 'var(--radius-xl)', fontSize: '0.65rem', border: '1px solid var(--border)' }}>{stats.followup}</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                        {sortedLeads.map(lead => (
+                            <div
+                                key={lead.id}
+                                onClick={() => handleSelectLead(lead)}
+                                style={{
+                                    padding: '0.75rem 1rem',
+                                    borderBottom: '1px solid var(--border-soft)',
+                                    cursor: 'pointer',
+                                    backgroundColor: selectedLead?.id === lead.id ? 'var(--accent-soft)' : 'transparent',
+                                    display: 'flex',
+                                    alignItems: 'center', gap: '12px',
+                                    transition: 'all 0.2s ease',
+                                    borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : '3px solid transparent'
+                                }}
+                                onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)' }}
+                                onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'transparent' }}
+                            >
+                                <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead?.id === lead.id ? 'var(--accent)' : 'var(--bg-tertiary)', color: selectedLead?.id === lead.id ? 'var(--bg-primary)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '1.1rem', border: '1px solid var(--border)' }}>
+                                    {(lead.nome || 'L')[0].toUpperCase()}
+                                </div>
+                                <div style={{ overflow: 'hidden', flex: 1 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.nome || 'Lead s/ nome'}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            {unreadCounts[lead.telefone] > 0 && (
+                                                <div style={{ backgroundColor: 'var(--success)', color: 'white', fontSize: '0.62rem', fontWeight: 'bold', padding: '2px 5px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '16px' }}>
+                                                    {unreadCounts[lead.telefone]}
+                                                </div>
+                                            )}
+                                            {!lead.ia_active && <PowerOff size={14} color="var(--error)" />}
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{lead.telefone}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            </div>}
+            )}
 
             {/* Janela de Chat */}
-            {(!isMobile || mobilePanel === 'chat') && <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#efeae2' }}>
-                {selectedLead ? (
-                    <>
-                        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f2f5', zIndex: 10 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                {isMobile && (
-                                    <button onClick={() => setMobilePanel('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px', display: 'flex', alignItems: 'center' }}>
-                                        <ArrowLeft size={22} />
-                                    </button>
-                                )}
-                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                                    {(selectedLead.nome || 'L')[0].toUpperCase()}
-                                </div>
-                                <div>
-                                    {isEditingName ? (
-                                        <input
-                                            autoFocus
-                                            value={tempName}
-                                            onChange={e => setTempName(e.target.value)}
-                                            onBlur={handleSaveName}
-                                            onKeyDown={e => e.key === 'Enter' && handleSaveName()}
-                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: '#111b21', border: '1px solid var(--accent)', borderRadius: '4px', padding: '2px 6px', outline: 'none' }}
-                                        />
-                                    ) : (
-                                        <h4
-                                            onDoubleClick={() => { setTempName(selectedLead.nome || ''); setIsEditingName(true); }}
-                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: '#111b21', cursor: 'text' }}
-                                            title="Clique duplo para editar nome"
-                                        >
-                                            {selectedLead.nome || selectedLead.telefone}
-                                        </h4>
+            {(!isMobile || mobilePanel === 'chat') && (
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}>
+                    {selectedLead ? (
+                        <>
+                            <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-primary)', zIndex: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    {isMobile && (
+                                        <button onClick={() => setMobilePanel('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                                            <ArrowLeft size={22} />
+                                        </button>
                                     )}
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{selectedLead.telefone}</span>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: selectedLead.ia_active ? '#dcfce7' : '#fee2e2', color: selectedLead.ia_active ? '#15803d' : '#b91c1c', fontSize: '0.7rem', fontWeight: '800' }}>
-                                    <Bot size={14} /> {selectedLead.ia_active ? 'IA ATIVA' : 'IA PAUSADA'}
-                                </div>
-                                {activeFlowExec && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#eef2ff', color: '#4338ca', fontSize: '0.7rem', fontWeight: '800' }}>
-                                        <GitBranch size={14} /> FLUXO ATIVO
+                                    <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                                        {(selectedLead.nome || 'L')[0].toUpperCase()}
                                     </div>
-                                )}
-                                <div style={{ position: 'relative' }} ref={followupSelectorRef}>
-                                    {selectedLead.followup_locked ? (
-                                        <div
-                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer' }}
-                                            title="Clique para alterar etapa do follow-up"
-                                        >
-                                            <Lock size={14} /> FOLLOW-UP TRAVADO
-                                        </div>
-                                    ) : selectedLead.followup_stage && selectedLead.followup_stage > 0 ? (
-                                        <div
-                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer' }}
-                                            title="Clique para alterar etapa do follow-up"
-                                        >
-                                            <Clock size={14} /> F.UP: {selectedLead.followup_stage}ª ETAPA
-                                        </div>
-                                    ) : (
-                                        <div
-                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#f0fdf4', color: '#15803d', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid #86efac' }}
-                                            title="Clique para definir etapa do follow-up"
-                                        >
-                                            <Clock size={14} /> F.UP
-                                        </div>
-                                    )}
-
-                                    {showFollowupSelector && (
-                                        <div style={{
-                                            position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                            background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                            border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
-                                        }}>
-                                            <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
-                                                Definir Etapa
-                                            </div>
-                                            <div
-                                                onClick={() => handleChangeFollowupStage(0)}
-                                                style={{
-                                                    padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
-                                                    display: 'flex', alignItems: 'center', gap: '8px',
-                                                    backgroundColor: (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? '#f0fdf4' : 'transparent',
-                                                    color: '#15803d'
-                                                }}
-                                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9fafb')}
-                                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? '#f0fdf4' : 'transparent')}
+                                    <div>
+                                        {isEditingName ? (
+                                            <input
+                                                autoFocus
+                                                value={tempName}
+                                                onChange={e => setTempName(e.target.value)}
+                                                onBlur={handleSaveName}
+                                                onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                                                style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', border: '1px solid var(--accent)', borderRadius: '4px', padding: '2px 6px', outline: 'none', background: 'var(--bg-primary)' }}
+                                            />
+                                        ) : (
+                                            <h4
+                                                onDoubleClick={() => { setTempName(selectedLead.nome || ''); setIsEditingName(true); }}
+                                                style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', cursor: 'text' }}
+                                                title="Clique duplo para editar nome"
                                             >
-                                                🔄 Remover follow-up
-                                            </div>
-                                            {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
-                                                <div
-                                                    key={stage}
-                                                    onClick={() => handleChangeFollowupStage(stage)}
-                                                    style={{
-                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
-                                                        display: 'flex', alignItems: 'center', gap: '8px',
-                                                        backgroundColor: selectedLead.followup_stage === stage ? '#e0f2fe' : 'transparent',
-                                                        color: selectedLead.followup_stage === stage ? '#0369a1' : '#374151'
-                                                    }}
-                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
-                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? '#e0f2fe' : 'transparent')}
-                                                >
-                                                    {selectedLead.followup_stage === stage ? '✓ ' : ''}{stage}ª Etapa
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div style={{ position: 'relative' }} ref={stageSelectorRef}>
-                                    <div
-                                        onClick={() => setShowStageSelector(!showStageSelector)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid #bfdbfe' }}
-                                        title="Clique para definir o status do funil"
-                                    >
-                                        <TrendingUp size={14} /> {selectedLead.stage || 'SEM ETAPA'}
+                                                {selectedLead.nome || selectedLead.telefone}
+                                            </h4>
+                                        )}
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{selectedLead.telefone}</span>
                                     </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div
+                                        onClick={handleToggleIA}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead.ia_active ? 'var(--bg-primary)' : 'var(--bg-tertiary)', color: selectedLead.ia_active ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', border: '1px solid var(--border)', transition: 'all 0.1s' }}
+                                    >
+                                        {selectedLead.ia_active ? <Power size={14} /> : <PowerOff size={14} />} {selectedLead.ia_active ? 'IA ATIVA' : 'IA PAUSADA'}
+                                    </div>
+                                    {activeFlowExec && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-primary)', color: 'var(--accent)', border: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '800' }}>
+                                            <GitBranch size={14} /> FLUXO ATIVO
+                                        </div>
+                                    )}
+                                    <div style={{ position: 'relative' }} ref={followupSelectorRef}>
+                                        <div
+                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--bg-primary)' : 'var(--bg-tertiary)', color: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--warning)' : 'var(--text-muted)', border: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', transition: 'all 0.1s' }}
+                                        >
+                                            <Clock size={14} /> {(selectedLead.followup_stage && selectedLead.followup_stage > 0) ? `F.UP: ${selectedLead.followup_stage}ª` : 'F.UP'} {selectedLead.followup_locked && <Lock size={12} />}
+                                        </div>
 
-                                    {showStageSelector && (
-                                        <div style={{
-                                            position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                            background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                            border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
-                                        }}>
-                                            <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
-                                                Definir Etapa do Funil
-                                            </div>
-                                            {AVAILABLE_STAGES.map(stage => (
+                                        {showFollowupSelector && (
+                                            <div style={{
+                                                position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+                                                background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                                border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
+                                            }}>
+                                                <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
+                                                    Definir Etapa
+                                                </div>
                                                 <div
-                                                    key={stage}
-                                                    onClick={() => handleChangeStage(stage)}
+                                                    onClick={() => handleChangeFollowupStage(0)}
                                                     style={{
                                                         padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
                                                         display: 'flex', alignItems: 'center', gap: '8px',
-                                                        backgroundColor: selectedLead.stage === stage ? '#e0f2fe' : 'transparent',
-                                                        color: selectedLead.stage === stage ? '#0369a1' : '#374151'
+                                                        backgroundColor: (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent',
+                                                        color: 'var(--success)'
                                                     }}
-                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
-                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.stage === stage ? '#e0f2fe' : 'transparent')}
+                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent')}
                                                 >
-                                                    {selectedLead.stage === stage ? '✓ ' : ''}{stage}
+                                                    🔄 Remover follow-up
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                            </div>
-                        </div>
-
-                        <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: '#f4f7fa', backgroundBlendMode: 'overlay' }}>
-                            {messages.map((msg, index) => {
-                                const prevMsg = messages[index - 1];
-                                const showDateDivider = !prevMsg || !isSameDay(msg.timestamp, prevMsg.timestamp);
-                                const dateLabel = isToday(msg.timestamp) ? 'Hoje' :
-                                    isYesterday(msg.timestamp) ? 'Ontem' :
-                                        format(msg.timestamp, "dd 'de' MMMM", { locale: ptBR });
-
-                                return (
-                                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {showDateDivider && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '15px 0', alignSelf: 'stretch' }}>
-                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.08)' }} />
-                                                <span style={{
-                                                    fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)',
-                                                    backgroundColor: 'rgba(255,255,255,0.9)', padding: '4px 14px', borderRadius: '12px',
-                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)', textTransform: 'uppercase',
-                                                    letterSpacing: '0.02em'
-                                                }}>
-                                                    {dateLabel}
-                                                </span>
-                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.08)' }} />
+                                                {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
+                                                    <div
+                                                        key={stage}
+                                                        onClick={() => handleChangeFollowupStage(stage)}
+                                                        style={{
+                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                                                            display: 'flex', alignItems: 'center', gap: '8px',
+                                                            backgroundColor: selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent',
+                                                            color: selectedLead.followup_stage === stage ? 'var(--accent)' : 'var(--text-primary)'
+                                                        }}
+                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent')}
+                                                    >
+                                                        {selectedLead.followup_stage === stage ? '✓ ' : ''}{stage}ª Etapa
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
+                                    </div>
 
-                                        {msg.type === 'system' ? (
-                                            // Separador horizontal estilo Kommo
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0', alignSelf: 'stretch' }}>
-                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
-                                                <span style={{
-                                                    fontSize: '0.68rem', fontWeight: '700', whiteSpace: 'nowrap',
-                                                    padding: '3px 12px', borderRadius: '20px',
-                                                    ...(msg.msgStyle === 'error' ? { color: '#b91c1c', backgroundColor: '#fee2e2' } :
-                                                        msg.msgStyle === 'success' ? { color: '#15803d', backgroundColor: '#dcfce7' } :
-                                                            msg.msgStyle === 'warning' ? { color: '#92400e', backgroundColor: '#fef3c7' } :
-                                                                msg.msgStyle === 'info' ? { color: '#0369a1', backgroundColor: '#e0f2fe' } :
-                                                                    msg.msgStyle === 'followup' ? { color: '#7c3aed', backgroundColor: '#ede9fe', border: '1px solid #c4b5fd' } :
-                                                                        { color: 'var(--text-secondary)', backgroundColor: 'rgba(255,255,255,0.9)' })
-                                                }}>
-                                                    {msg.text}
-                                                </span>
-                                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.1)' }} />
-                                            </div>
-                                        ) : (
-                                            // Mensagem com avatar + nome do remetente
+                                    <div style={{ position: 'relative' }} ref={stageSelectorRef}>
+                                        <div
+                                            onClick={() => setShowStageSelector(!showStageSelector)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent)', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid var(--border)' }}
+                                            title="Clique para definir o status do funil"
+                                        >
+                                            <TrendingUp size={14} /> {selectedLead.stage || 'SEM ETAPA'}
+                                        </div>
+
+                                        {showStageSelector && (
                                             <div style={{
-                                                display: 'flex',
-                                                alignItems: 'flex-end',
-                                                gap: '7px',
-                                                alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end',
-                                                maxWidth: '80%',
-                                                flexDirection: msg.type === 'human' ? 'row' : 'row-reverse',
-                                                marginBottom: '4px'
+                                                position: 'absolute', top: '100%', right: 0, marginTop: '8px',
+                                                background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                                                border: '1px solid var(--border)', zIndex: 999, minWidth: '200px', overflow: 'hidden', padding: '8px'
                                             }}>
-                                                {/* Avatar */}
-                                                <div style={{
-                                                    width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    fontWeight: '700', fontSize: '0.75rem',
-                                                    backgroundColor: msg.type === 'human' ? 'var(--chat-icon-bg-user)' : (msg.sentByCRM ? 'var(--chat-icon-bg-crm)' : 'var(--chat-icon-bg-bot)'),
-                                                    color: msg.type === 'human' ? 'var(--chat-icon-text-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
-                                                }}>
-                                                    {msg.type === 'human'
-                                                        ? (selectedLead.nome || 'C')[0].toUpperCase()
-                                                        : msg.sentByCRM ? <User size={15} /> : <Bot size={15} />
-                                                    }
+                                                <div style={{ padding: '8px 12px', fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Estágio no Funil
                                                 </div>
+                                                {AVAILABLE_STAGES.map(stage => (
+                                                    <div
+                                                        key={stage}
+                                                        onClick={() => handleChangeStage(stage)}
+                                                        style={{
+                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: selectedLead.stage === stage ? '700' : '500',
+                                                            display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-sm)',
+                                                            backgroundColor: selectedLead.stage === stage ? 'var(--bg-tertiary)' : 'transparent',
+                                                            color: selectedLead.stage === stage ? 'var(--accent)' : 'var(--text-primary)',
+                                                            transition: 'all 0.1s'
+                                                        }}
+                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.stage === stage ? 'var(--bg-tertiary)' : 'transparent')}
+                                                    >
+                                                        {stage}
+                                                        {selectedLead.stage === stage && <CheckCircle2 size={12} style={{ marginLeft: 'auto' }} />}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                    {/* Nome do remetente */}
+                                </div>
+                            </div>
+
+                            <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: 'var(--bg-primary)', backgroundBlendMode: 'overlay', opacity: 0.9 }}>
+                                {messages.map((msg, index) => {
+                                    const prevMsg = messages[index - 1];
+                                    const showDateDivider = !prevMsg || !isSameDay(msg.timestamp, prevMsg.timestamp);
+                                    const dateLabel = isToday(msg.timestamp) ? 'Hoje' :
+                                        isYesterday(msg.timestamp) ? 'Ontem' :
+                                            format(msg.timestamp, "dd 'de' MMMM", { locale: ptBR });
+
+                                    return (
+                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {showDateDivider && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0', alignSelf: 'stretch' }}>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                                                    <span style={{
+                                                        fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)',
+                                                        backgroundColor: 'var(--bg-primary)', padding: '4px 12px', borderRadius: 'var(--radius-xl)',
+                                                        border: '1px solid var(--border)', textTransform: 'uppercase',
+                                                        letterSpacing: '0.05em'
+                                                    }}>
+                                                        {dateLabel}
+                                                    </span>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                                                </div>
+                                            )}
+
+                                            {msg.type === 'system' ? (
+                                                // Separador horizontal estilo Kommo
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0', alignSelf: 'stretch' }}>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                                                    <span style={{
+                                                        fontSize: '0.65rem', fontWeight: '800', whiteSpace: 'nowrap',
+                                                        padding: '4px 12px', borderRadius: 'var(--radius-xl)',
+                                                        border: '1px solid var(--border)',
+                                                        ...(msg.msgStyle === 'error' ? { color: 'var(--error)', backgroundColor: 'var(--bg-primary)' } :
+                                                            msg.msgStyle === 'success' ? { color: 'var(--success)', backgroundColor: 'var(--bg-primary)' } :
+                                                                msg.msgStyle === 'warning' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
+                                                                    msg.msgStyle === 'info' ? { color: 'var(--accent)', backgroundColor: 'var(--bg-primary)' } :
+                                                                        msg.msgStyle === 'followup' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
+                                                                            { color: 'var(--text-muted)', backgroundColor: 'var(--bg-secondary)' })
+                                                    }}>
+                                                        {msg.text}
+                                                    </span>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                                                </div>
+                                            ) : (
+                                                // Mensagem com avatar + nome do remetente
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'flex-end',
+                                                    gap: '7px',
+                                                    alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end',
+                                                    maxWidth: '80%',
+                                                    flexDirection: msg.type === 'human' ? 'row' : 'row-reverse',
+                                                    marginBottom: '4px'
+                                                }}>
+                                                    {/* Avatar */}
                                                     <div style={{
-                                                        fontSize: '0.63rem', fontWeight: '700',
-                                                        paddingLeft: msg.type === 'human' ? '4px' : '0',
-                                                        paddingRight: msg.type === 'human' ? '0' : '4px',
-                                                        textAlign: msg.type === 'human' ? 'left' : 'right',
-                                                        color: msg.type === 'human' ? 'var(--chat-name-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
+                                                        width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', flexShrink: 0,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontWeight: '700', fontSize: '0.75rem', border: '1px solid var(--border)',
+                                                        backgroundColor: msg.type === 'human' ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                                                        color: 'var(--text-secondary)'
                                                     }}>
                                                         {msg.type === 'human'
-                                                            ? (selectedLead.nome || selectedLead.telefone)
-                                                            : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
+                                                            ? (selectedLead.nome || 'C')[0].toUpperCase()
+                                                            : msg.sentByCRM ? <User size={14} /> : <Bot size={14} />
                                                         }
-                                                        {msg.isFollowup && (
-                                                            <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: '#7c3aed', backgroundColor: '#ede9fe', padding: '1px 6px', borderRadius: '8px' }}>
-                                                                Follow-up {msg.followupStep}
-                                                            </span>
-                                                        )}
                                                     </div>
 
-                                                    {/* Balão */}
-                                                    <div className="chat-bubble-custom" style={{
-                                                        position: 'relative',
-                                                        padding: msg.isImage ? '4px 4px 20px 4px' : '8px 12px 18px 12px',
-                                                        borderRadius: msg.type === 'human' ? '0 8px 8px 8px' : '8px 0 8px 8px',
-                                                        fontSize: '0.92rem',
-                                                        backgroundColor: msg.type === 'human' ? 'var(--chat-bg-user)' : (msg.sentByCRM ? 'var(--chat-bg-crm)' : 'var(--chat-bg-bot)'),
-                                                        color: 'var(--chat-text-primary)',
-                                                        boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
-                                                        whiteSpace: 'pre-wrap'
-                                                    }}>
-                                                        {msg.isImage ? (
-                                                            <img
-                                                                src={msg.text.trim()}
-                                                                alt="imagem"
-                                                                style={{ maxWidth: '240px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
-                                                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                            />
-                                                        ) : msg.isVideo || msg.type === 'video' ? (
-                                                            <video
-                                                                controls
-                                                                src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
-                                                                style={{ maxWidth: '280px', maxHeight: '300px', borderRadius: '6px', display: 'block' }}
-                                                                onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
-                                                            />
-                                                        ) : msg.isAudio ? (
-                                                            <div style={{ padding: '8px 0', minWidth: '350px', width: '100%', maxWidth: '400px' }}>
-                                                                <audio
-                                                                    controls
-                                                                    src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
-                                                                    style={{ width: '100%', height: '40px' }}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        {/* Nome do remetente */}
+                                                        <div style={{
+                                                            fontSize: '0.63rem', fontWeight: '700',
+                                                            paddingLeft: msg.type === 'human' ? '4px' : '0',
+                                                            paddingRight: msg.type === 'human' ? '0' : '4px',
+                                                            textAlign: msg.type === 'human' ? 'left' : 'right',
+                                                            color: msg.type === 'human' ? 'var(--chat-name-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
+                                                        }}>
+                                                            {msg.type === 'human'
+                                                                ? (selectedLead.nome || selectedLead.telefone)
+                                                                : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
+                                                            }
+                                                            {msg.isFollowup && (
+                                                                <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: 'var(--warning)', backgroundColor: 'var(--warning-soft)', padding: '1px 6px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                                                    Follow-up {msg.followupStep}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Balão */}
+                                                        <div className="chat-bubble-custom" style={{
+                                                            position: 'relative',
+                                                            padding: msg.isImage ? '4px' : '10px 14px 22px 14px',
+                                                            borderRadius: 'var(--radius-md)',
+                                                            fontSize: '0.9rem',
+                                                            backgroundColor: msg.type === 'human' ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+                                                            color: 'var(--text-primary)',
+                                                            border: '1px solid var(--border)',
+                                                            boxShadow: 'var(--shadow-sm)',
+                                                            whiteSpace: 'pre-wrap',
+                                                            transition: 'all 0.1s'
+                                                        }}>
+                                                            {msg.isImage ? (
+                                                                <img
+                                                                    src={msg.text.trim()}
+                                                                    alt="imagem"
+                                                                    style={{ maxWidth: '280px', maxHeight: '350px', borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                                 />
-                                                            </div>
-                                                        ) : msg.isAudioSent ? (
-                                                            <>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: '600' }}>
-                                                                    <Mic size={13} /> Enviado como áudio
+                                                            ) : msg.isVideo || msg.type === 'video' ? (
+                                                                <video
+                                                                    controls
+                                                                    src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
+                                                                    style={{ maxWidth: '280px', maxHeight: '350px', borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                                    onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                                                                />
+                                                            ) : msg.isAudio ? (
+                                                                <div style={{ padding: '4px 0', minWidth: '280px', width: '100%' }}>
+                                                                    <audio
+                                                                        controls
+                                                                        src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
+                                                                        style={{ width: '100%', height: '36px' }}
+                                                                    />
                                                                 </div>
-                                                                <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>{msg.text}</div>
-                                                            </>
-                                                        ) : msg.text}
-                                                        <span style={{ position: 'absolute', bottom: '2px', right: '6px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{msg.time}</span>
+                                                            ) : msg.isAudioSent ? (
+                                                                <>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700' }}>
+                                                                        <Mic size={13} /> Áudio Enviado
+                                                                    </div>
+                                                                    <div style={{ color: 'var(--text-secondary)' }}>{msg.text}</div>
+                                                                </>
+                                                            ) : msg.text}
+                                                            <span style={{ position: 'absolute', bottom: '6px', right: '10px', fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: '600', opacity: 0.8 }}>{msg.time}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
+                                    );
+                                })}
+
+                                {isSarahThinking && (
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'flex-end',
+                                        gap: '2px',
+                                        marginBottom: '4px',
+                                        animation: 'fadeIn 0.3s ease-out'
+                                    }}>
+                                        <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingRight: '4px' }}>Sarah IA</div>
+                                        <div className="sarah-thinking">
+                                            <div className="dot"></div>
+                                            <div className="dot"></div>
+                                            <div className="dot"></div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {(() => {
+                                if (!selectedLead) return null;
+                                const pendingTasks = (selectedLead.tasks || []).filter((t: any) => {
+                                    if (t.completed) return false;
+                                    const targetDate = new Date(t.due_date);
+                                    return isPast(targetDate) || isToday(targetDate);
+                                });
+                                if (pendingTasks.length === 0) return null;
+                                return (
+                                    <div className="animate-pulse" style={{ backgroundColor: 'var(--error-soft)', borderTop: '2px solid var(--error)', color: 'var(--error)', padding: '10px 16px', fontSize: '0.85rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
+                                        <AlertCircle size={18} /> ATENÇÃO: Lead com {pendingTasks.length} {pendingTasks.length === 1 ? 'tarefa vencendo ou em atraso' : 'tarefas vencendo ou em atraso'}!
                                     </div>
                                 );
-                            })}
+                            })()}
 
-                            {isSarahThinking && (
-                                <div style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'flex-end',
-                                    gap: '2px',
-                                    marginBottom: '4px',
-                                    animation: 'fadeIn 0.3s ease-out'
-                                }}>
-                                    <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingRight: '4px' }}>Sarah IA</div>
-                                    <div className="sarah-thinking">
-                                        <div className="dot"></div>
-                                        <div className="dot"></div>
-                                        <div className="dot"></div>
+                            <div ref={inputBarRef} style={{ padding: '1rem', display: 'flex', gap: '12px', backgroundColor: 'var(--bg-primary)', borderTop: '1px solid var(--border)', alignItems: 'center', position: 'relative' }}>
+                                {showEmojiPicker && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: '100%',
+                                        left: isMobile ? '1rem' : '0',
+                                        marginBottom: '10px',
+                                        zIndex: 1000,
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                                        borderRadius: '12px',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <Suspense fallback={<div style={{ width: 320, height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}><Loader2 className="animate-spin" /></div>}>
+                                            <EmojiPicker
+                                                theme={Theme.LIGHT}
+                                                onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
+                                                width={isMobile ? 'calc(100vw - 2rem)' : 320}
+                                                height={350}
+                                            />
+                                        </Suspense>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                )}
 
-                        {(() => {
-                            if (!selectedLead) return null;
-                            const pendingTasks = (selectedLead.tasks || []).filter((t: any) => {
-                                if (t.completed) return false;
-                                const targetDate = new Date(t.due_date);
-                                return isPast(targetDate) || isToday(targetDate);
-                            });
-                            if (pendingTasks.length === 0) return null;
-                            return (
-                                <div className="animate-pulse" style={{ backgroundColor: '#fef2f2', borderTop: '2px solid #fecaca', color: '#b91c1c', padding: '10px 16px', fontSize: '0.85rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
-                                    <AlertCircle size={18} /> ATENÇÃO: Lead com {pendingTasks.length} {pendingTasks.length === 1 ? 'tarefa vencendo ou em atraso' : 'tarefas vencendo ou em atraso'}!
-                                </div>
-                            );
-                        })()}
+                                <button
+                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                >
+                                    <Smile size={24} />
+                                </button>
 
-                        <div ref={inputBarRef} style={{ padding: '0.75rem 1rem', display: 'flex', gap: '8px', backgroundColor: '#f0f2f5', alignItems: 'center', position: 'relative' }}>
-                            {showEmojiPicker && (
-                                <div style={{
-                                    position: 'absolute',
-                                    bottom: '100%',
-                                    left: isMobile ? '1rem' : '0',
-                                    marginBottom: '10px',
-                                    zIndex: 1000,
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                                    borderRadius: '12px',
-                                    overflow: 'hidden'
-                                }}>
-                                    <Suspense fallback={<div style={{ width: 320, height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}><Loader2 className="animate-spin" /></div>}>
-                                        <EmojiPicker
-                                            theme={Theme.LIGHT}
-                                            onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
-                                            width={isMobile ? 'calc(100vw - 2rem)' : 320}
-                                            height={350}
-                                        />
-                                    </Suspense>
-                                </div>
-                            )}
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isUploading || isSending}
+                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                >
+                                    {isUploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
+                                </button>
 
-                            <button
-                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                            >
-                                <Smile size={24} />
-                            </button>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleImageUpload}
+                                    accept="image/*,video/*"
+                                    style={{ display: 'none' }}
+                                />
 
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploading || isSending}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                            >
-                                {isUploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
-                            </button>
-
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleImageUpload}
-                                accept="image/*,video/*"
-                                style={{ display: 'none' }}
-                            />
-
-                            {isRecording ? (
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 16px' }}>
-                                    <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }}></div>
-                                    <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Gravando... {formatTime(recordingTime)}</span>
-                                    <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
-                                        <X size={20} />
-                                    </button>
-                                    <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: '#16a34a', cursor: 'pointer' }}>
-                                        <StopCircle size={24} />
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    {showQuickMessagesStore && quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).length > 0 && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            bottom: '100%',
-                                            left: isMobile ? '0' : '60px',
-                                            right: isMobile ? '0' : '60px',
-                                            marginBottom: '10px',
-                                            background: 'var(--bg-secondary)',
-                                            borderRadius: '12px',
-                                            boxShadow: '0 -4px 15px rgba(0,0,0,0.1)',
-                                            maxHeight: '200px',
-                                            overflowY: 'auto',
-                                            zIndex: 2000,
-                                            border: '1px solid var(--border-soft)'
-                                        }}>
-                                            <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)' }}>
-                                                Mensagens Rápidas
-                                            </div>
-                                            {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
-                                                <div
-                                                    key={msg.id}
-                                                    onClick={() => {
-                                                        const parsedMsg = parseTextVariables(msg.content, selectedLead);
-                                                        const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, parsedMsg);
-                                                        setInputValue(newVal);
-                                                        setShowQuickMessagesStore(false);
-                                                    }}
-                                                    style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}
-                                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--accent-soft)')}
-                                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                                >
-                                                    <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parseTextVariables(msg.content, selectedLead)}</span>
+                                {isRecording ? (
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 16px' }}>
+                                        <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--error)' }}></div>
+                                        <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Gravando... {formatTime(recordingTime)}</span>
+                                        <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer' }}>
+                                            <X size={20} />
+                                        </button>
+                                        <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer' }}>
+                                            <Send size={22} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {showQuickMessagesStore && quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).length > 0 && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: '100%',
+                                                left: isMobile ? '0' : '60px',
+                                                right: isMobile ? '0' : '60px',
+                                                marginBottom: '10px',
+                                                background: 'var(--bg-secondary)',
+                                                borderRadius: '12px',
+                                                boxShadow: '0 -4px 15px rgba(0,0,0,0.1)',
+                                                maxHeight: '200px',
+                                                overflowY: 'auto',
+                                                zIndex: 2000,
+                                                border: '1px solid var(--border-soft)'
+                                            }}>
+                                                <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)' }}>
+                                                    Mensagens Rápidas
                                                 </div>
-                                            ))}
+                                                {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
+                                                    <div
+                                                        key={msg.id}
+                                                        onClick={() => {
+                                                            const parsedMsg = parseTextVariables(msg.content, selectedLead);
+                                                            const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, parsedMsg);
+                                                            setInputValue(newVal);
+                                                            setShowQuickMessagesStore(false);
+                                                        }}
+                                                        style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}
+                                                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--accent-soft)')}
+                                                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                    >
+                                                        <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parseTextVariables(msg.content, selectedLead)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '4px 12px', border: '1px solid var(--border)', transition: 'all 0.1s' }}>
+                                            <input
+                                                type="text"
+                                                value={inputValue}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setInputValue(val);
+                                                    const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
+                                                    if (match) {
+                                                        setShowQuickMessagesStore(true);
+                                                        setQuickMessageFilter(match[1]);
+                                                    } else {
+                                                        setShowQuickMessagesStore(false);
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                                placeholder="Envie uma mensagem (Intervenção)... (Digite / para atalhos)"
+                                                disabled={isSending}
+                                                style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem' }}
+                                            />
                                         </div>
-                                    )}
-                                    <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: '8px', padding: '4px 12px' }}>
-                                        <input
-                                            type="text"
-                                            value={inputValue}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setInputValue(val);
-                                                const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
-                                                if (match) {
-                                                    setShowQuickMessagesStore(true);
-                                                    setQuickMessageFilter(match[1]);
-                                                } else {
-                                                    setShowQuickMessagesStore(false);
-                                                }
-                                            }}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                            placeholder="Envie uma mensagem (Intervenção)... (Digite / para atalhos)"
-                                            disabled={isSending}
-                                            style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem' }}
-                                        />
-                                    </div>
 
-                                    {inputValue.trim() ? (
-                                        <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                            {isSending ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onTouchStart={startRecording}
-                                            onMouseDown={startRecording}
-                                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                                        >
-                                            <Mic size={24} />
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </>
-                ) : (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Selecione uma conversa para começar</div>
-                )}
-            </div>}
+                                        {inputValue.trim() ? (
+                                            <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                {isSending ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onTouchStart={startRecording}
+                                                onMouseDown={startRecording}
+                                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                            >
+                                                <Mic size={24} />
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Selecione uma conversa para começar</div>
+                    )}
+                </div>
+            )}
 
             {/* Painel lateral — apenas desktop */}
-            {!isMobile && <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', overflowY: 'auto' }}>
-                {selectedLead && (
-                    <>
-                        <div>
-                            <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Perfil do Lead</h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <InfoItem icon={Building2} label="Clínica" value={selectedLead.nome || 'Coletando...'} />
-                                <InfoItem icon={MapPin} label="Localização" value={(selectedLead as any).cidade || 'Não informada'} />
-                                <InfoItem icon={Phone} label="WhatsApp" value={selectedLead.telefone} />
-                                <InfoItem icon={DollarSign} label="Estágio" value={selectedLead.stage || selectedLead.status || 'Novo Lead'} />
-                            </div>
-
-                            {/* Etiquetas de Follow-up — clicável para alterar etapa */}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '16px' }}>
-                                <select
-                                    value={selectedLead.followup_stage || 0}
-                                    onChange={e => handleChangeFollowupStage(Number(e.target.value))}
-                                    style={{
-                                        fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer',
-                                        border: '1px solid ' + (
-                                            !selectedLead.followup_stage || selectedLead.followup_stage === 0 ? '#86efac'
-                                                : selectedLead.followup_stage >= 3 ? '#ef4444' : '#fca5a5'
-                                        ),
-                                        backgroundColor: !selectedLead.followup_stage || selectedLead.followup_stage === 0 ? '#f0fdf4'
-                                            : selectedLead.followup_stage >= 3 ? '#fca5a5' : '#fee2e2',
-                                        color: !selectedLead.followup_stage || selectedLead.followup_stage === 0 ? '#15803d'
-                                            : selectedLead.followup_stage >= 3 ? '#7f1d1d' : '#991b1b',
-                                        outline: 'none', appearance: 'none', WebkitAppearance: 'none',
-                                        backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%276%27%3E%3Cpath d=%27M0 0l5 6 5-6z%27 fill=%27%23666%27/%3E%3C/svg%3E")',
-                                        backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', paddingRight: '24px'
-                                    }}
-                                >
-                                    <option value={0}>Sem follow-up</option>
-                                    {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
-                                        <option key={stage} value={stage}>
-                                            {stage >= 3 ? '🚨' : '⏱'} {stage}º Follow-up
-                                        </option>
-                                    ))}
-                                </select>
-                                {selectedLead.followup_locked && (
-                                    <span style={{ fontSize: '0.65rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: '700', border: '1px solid #fcd34d' }}>
-                                        🔒 Follow-up travado
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Contexto IA */}
-                        <div style={{ padding: '1rem', borderRadius: '12px', background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)', border: '1px solid #ddd6fe' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: '#6d28d9', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Bot size={14} /> Contexto IA
-                                </h4>
-                                {!aiSummary && (
-                                    <button
-                                        onClick={handleGenerateAiSummary}
-                                        disabled={isGeneratingSummary}
-                                        style={{ background: 'var(--bg-secondary)', border: '1px solid #c4b5fd', borderRadius: '6px', fontSize: '0.65rem', padding: '2px 8px', fontWeight: '800', cursor: 'pointer', color: '#6d28d9' }}
-                                    >
-                                        {isGeneratingSummary ? 'Processando...' : 'Gerar Resumo'}
-                                    </button>
-                                )}
-                            </div>
-                            <p style={{ fontSize: '0.8rem', color: '#4c1d95', lineHeight: '1.4', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic' }}>
-                                {aiSummary || 'Pressione o botão acima para analisar a conversa e gerar um resumo estratégico.'}
-                            </p>
-                            {aiSummary && (
-                                <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-                                    <button
-                                        onClick={handleGenerateAiSummary}
-                                        disabled={isGeneratingSummary}
-                                        style={{ background: 'none', border: 'none', fontSize: '0.6rem', color: '#8b5cf6', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer' }}
-                                    >
-                                        Atualizar Resumo
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Observações */}
-                        <div>
-                            <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Observações</h4>
-                            <textarea
-                                value={observacoesInput}
-                                onChange={(e) => setObservacoesInput(e.target.value)}
-                                placeholder="Anotações sobre este lead (URLs, detalhes coletados, etc.)..."
-                                rows={5}
-                                style={{
-                                    width: '100%',
-                                    padding: '10px 12px',
-                                    borderRadius: '10px',
-                                    border: '1px solid var(--border-soft)',
-                                    backgroundColor: 'var(--bg-tertiary)',
-                                    fontSize: '0.82rem',
-                                    lineHeight: '1.5',
-                                    fontFamily: 'inherit',
-                                    resize: 'vertical',
-                                    outline: 'none',
-                                    boxSizing: 'border-box'
-                                }}
-                            />
-                            <button
-                                onClick={handleSaveObservacoes}
-                                disabled={isSavingObs}
-                                style={{
-                                    marginTop: '8px',
-                                    width: '100%',
-                                    padding: '8px',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    backgroundColor: 'var(--accent)',
-                                    color: 'white',
-                                    fontWeight: '700',
-                                    fontSize: '0.78rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px'
-                                }}
-                            >
-                                {isSavingObs ? <Loader2 size={14} className="animate-spin" /> : '💾 Salvar Observações'}
-                            </button>
-                        </div>
-
-                        {/* Campos Extra */}
-                        <div>
-                            <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Campos Extra</h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {CUSTOM_FIELDS_CONFIG.map(field => (
-                                    <div key={field.key}>
-                                        <label style={{ fontSize: '0.65rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '2px' }}>{field.label}</label>
-                                        {field.type === 'select' ? (
-                                            <select
-                                                value={(selectedLead.custom_fields || {})[field.key] || ''}
-                                                onChange={e => handleUpdateCustomField(field.key, e.target.value)}
-                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', background: 'var(--bg-secondary)' }}
-                                            >
-                                                <option value="">-- Selecione --</option>
-                                                {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                            </select>
-                                        ) : (
-                                            <input
-                                                type={field.type}
-                                                placeholder={field.placeholder}
-                                                value={(selectedLead.custom_fields || {})[field.key] || ''}
-                                                onChange={e => handleUpdateCustomField(field.key, e.target.value)}
-                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }}
-                                            />
-                                        )}
+            {
+                !isMobile && <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', backgroundColor: 'var(--bg-primary)' }}>
+                    {selectedLead && (
+                        <>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                                    <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                                        {(selectedLead.nome || 'L')[0].toUpperCase()}
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Tarefas */}
-                        <div>
-                            <h4 style={{ fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Lembretes & Tarefas</h4>
-
-                            {/* Nova Tarefa */}
-                            <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
-                                <input type="text" placeholder="Ex: Ligar para confirmar..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
-                                <input type="datetime-local" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', boxSizing: 'border-box' }} />
-                                <button
-                                    disabled={!newTaskTitle || !newTaskDate}
-                                    onClick={handleAddTask}
-                                    style={{ padding: '6px', borderRadius: '6px', backgroundColor: '#6366f1', color: 'white', border: 'none', fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer', opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1, marginTop: '2px' }}
-                                >
-                                    Adicionar
-                                </button>
-                            </div>
-
-                            {/* Lista de Tarefas */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {(!selectedLead.tasks || selectedLead.tasks.length === 0) ? (
-                                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center' }}>Nenhum lembrete.</p>
-                                ) : (
-                                    [...selectedLead.tasks].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()).map(task => {
-                                        const isOverdue = !task.completed && isPast(new Date(task.due_date));
-                                        const isDueToday = !task.completed && isToday(new Date(task.due_date));
-
-                                        return (
-                                            <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px', borderRadius: '8px', backgroundColor: task.completed ? 'var(--bg-tertiary)' : 'white', border: `1px solid ${task.completed ? '#e2e8f0' : (isOverdue ? '#fca5a5' : '#e2e8f0')}`, opacity: task.completed ? 0.7 : 1 }}>
-                                                <button
-                                                    onClick={() => handleToggleTask(task.id)}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: task.completed ? '#10b981' : '#94a3b8', display: 'flex', alignItems: 'center' }}
-                                                >
-                                                    {task.completed ? <CheckSquare size={16} /> : <Square size={16} />}
-                                                </button>
-                                                <div style={{ flex: 1 }}>
-                                                    <p style={{ fontSize: '0.8rem', fontWeight: '600', color: task.completed ? '#94a3b8' : '#1e293b', textDecoration: task.completed ? 'line-through' : 'none', marginBottom: '2px', lineHeight: '1.2' }}>{task.title}</p>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: task.completed ? '#94a3b8' : (isOverdue ? '#ef4444' : (isDueToday ? '#f59e0b' : '#64748b')), fontWeight: (!task.completed && (isOverdue || isDueToday)) ? '700' : '500' }}>
-                                                        <Clock size={10} />
-                                                        {format(new Date(task.due_date), "dd/MMM 'às' HH:mm", { locale: ptBR })}
-                                                        {isOverdue && ' (Atrasada)'}
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleDeleteTask(task.id)}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px', opacity: 0.5 }}
-                                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <button
-                                onClick={handleToggleIA}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px',
-                                    borderRadius: '12px',
-                                    border: 'none',
-                                    backgroundColor: selectedLead.ia_active ? '#fee2e2' : '#dcfce7',
-                                    color: selectedLead.ia_active ? '#b91c1c' : '#15803d',
-                                    fontWeight: '700',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {selectedLead.ia_active ? <PowerOff size={18} /> : <Power size={18} />}
-                                {selectedLead.ia_active ? 'Pausar Sarah para este Lead' : 'Ativar Sarah para este Lead'}
-                            </button>
-
-                            <button
-                                onClick={handleToggleFollowup}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px',
-                                    borderRadius: '12px',
-                                    border: 'none',
-                                    backgroundColor: selectedLead.followup_locked ? '#dcfce7' : '#fef3c7',
-                                    color: selectedLead.followup_locked ? '#15803d' : '#92400e',
-                                    fontWeight: '700',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {selectedLead.followup_locked ? <Unlock size={18} /> : <Lock size={18} />}
-                                {selectedLead.followup_locked ? 'Desbloquear Follow-up' : 'Travar Follow-up'}
-                            </button>
-
-                            {/* Fluxo Visual */}
-                            {activeFlowExec ? (
-                                <div style={{
-                                    width: '100%', padding: '12px', borderRadius: '12px',
-                                    backgroundColor: '#eef2ff', border: '1px solid #c7d2fe',
-                                    display: 'flex', flexDirection: 'column', gap: '8px',
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <GitBranch size={16} style={{ color: '#6366f1' }} />
-                                        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#4338ca' }}>
-                                            Fluxo Ativo
-                                        </span>
-                                        <span style={{
-                                            fontSize: '0.6rem', padding: '2px 8px', borderRadius: '20px',
-                                            backgroundColor: activeFlowExec.status === 'running' ? '#dcfce7' : '#fef3c7',
-                                            color: activeFlowExec.status === 'running' ? '#15803d' : '#92400e',
-                                            fontWeight: '700',
-                                        }}>
-                                            {activeFlowExec.status === 'running' ? 'Executando' : 'Pausado'}
-                                        </span>
+                                    <div style={{ minWidth: 0 }}>
+                                        <h3 style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{selectedLead.nome || 'Lead s/ nome'}</h3>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{selectedLead.telefone}</p>
                                     </div>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#1e1b4b' }}>
-                                        {activeFlowExec.flow_name || `Fluxo #${activeFlowExec.flow_id}`}
-                                    </span>
-                                    {activeFlowExec.next_run_at && (
-                                        <span style={{ fontSize: '0.65rem', color: '#6366f1' }}>
-                                            Próx. ação: {new Date(activeFlowExec.next_run_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                    )}
-                                    <button
-                                        onClick={handleCancelFlow}
-                                        style={{
-                                            padding: '6px', borderRadius: '8px', border: '1px solid #fca5a5',
-                                            backgroundColor: 'transparent', color: '#ef4444',
-                                            fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
-                                        }}
-                                    >
-                                        <StopCircle size={14} /> Cancelar Fluxo
-                                    </button>
                                 </div>
-                            ) : companyFlows.length > 0 ? (
-                                <div style={{ position: 'relative' }}>
-                                    <button
-                                        onClick={() => setShowFlowSelector(!showFlowSelector)}
-                                        disabled={isStartingFlow}
-                                        style={{
-                                            width: '100%', padding: '12px', borderRadius: '12px',
-                                            border: 'none', backgroundColor: '#eef2ff', color: '#4338ca',
-                                            fontWeight: '700', display: 'flex', alignItems: 'center',
-                                            justifyContent: 'center', gap: '8px', cursor: 'pointer',
-                                        }}
-                                    >
-                                        {isStartingFlow ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
-                                        Iniciar Fluxo Visual
-                                    </button>
-                                    {showFlowSelector && (
-                                        <div style={{
-                                            position: 'absolute', bottom: '100%', left: 0, right: 0,
-                                            marginBottom: '6px', background: 'var(--bg-secondary)', borderRadius: '12px',
-                                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb',
-                                            zIndex: 999, overflow: 'hidden',
-                                        }}>
-                                            <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
-                                                Selecione um fluxo
-                                            </div>
-                                            {companyFlows.map(flow => (
-                                                <div
-                                                    key={flow.id}
-                                                    onClick={() => handleStartFlow(flow.id)}
-                                                    style={{
-                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem',
-                                                        fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px',
-                                                        color: '#374151',
-                                                    }}
-                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
-                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                                >
-                                                    <GitBranch size={14} style={{ color: '#6366f1' }} />
-                                                    {flow.name}
-                                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                                    <InfoItem icon={Building2} label="Status no Funil" value={selectedLead.stage || 'Sem estágio'} />
+                                    <InfoItem icon={MapPin} label="Localização" value={(selectedLead as any).cidade || 'Não informada'} />
+                                    <InfoItem icon={Clock} label="Criado em" value={selectedLead.created_at ? format(new Date(selectedLead.created_at), "dd/MM/yyyy HH:mm") : '-'} />
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                                    <div style={{ position: 'relative', flex: 1 }}>
+                                        <select
+                                            value={selectedLead.followup_stage || 0}
+                                            onChange={e => handleChangeFollowupStage(Number(e.target.value))}
+                                            style={{
+                                                width: '100%', fontSize: '0.75rem', padding: '6px 12px', borderRadius: 'var(--radius-md)', fontWeight: '700', cursor: 'pointer',
+                                                border: '1px solid var(--border)',
+                                                backgroundColor: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning-soft)' : 'var(--bg-tertiary)',
+                                                color: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning)' : 'var(--text-muted)',
+                                                outline: 'none', appearance: 'none', WebkitAppearance: 'none', transition: 'all 0.1s'
+                                            }}
+                                        >
+                                            <option value={0}>Sem follow-up</option>
+                                            {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
+                                                <option key={stage} value={stage}>
+                                                    {stage}º Follow-up
+                                                </option>
                                             ))}
+                                        </select>
+                                        <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }}>
+                                            <ArrowLeft size={10} style={{ transform: 'rotate(-90deg)' }} />
+                                        </div>
+                                    </div>
+                                    {selectedLead.followup_locked && (
+                                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--warning)', cursor: 'help' }} title="Follow-up travado">
+                                            <Lock size={14} />
                                         </div>
                                     )}
                                 </div>
-                            ) : null}
+                            </div>
 
-                            {selectedLead.closed ? (
-                                <div style={{
-                                    width: '100%', padding: '12px', borderRadius: '12px',
-                                    backgroundColor: '#f3f4f6', color: '#4b5563', fontWeight: '700',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                                }}>
-                                    <XCircle size={18} /> Fechado: {selectedLead.closed_reason || 'Sem motivo'}
+                            {/* Contexto IA */}
+                            <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                    <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
+                                        <Bot size={14} /> Resumo Sarah
+                                    </h4>
+                                    <button
+                                        onClick={handleGenerateAiSummary}
+                                        disabled={isGeneratingSummary}
+                                        style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '0.65rem', padding: '4px 10px', fontWeight: '700', cursor: 'pointer', color: 'var(--text-primary)', transition: 'all 0.1s' }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                    >
+                                        {isGeneratingSummary ? <Loader2 size={12} className="animate-spin" /> : (aiSummary ? 'Atualizar' : 'Gerar')}
+                                    </button>
                                 </div>
-                            ) : (
-                                <button
-                                    onClick={handleCloseConversation}
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px',
-                                        borderRadius: '12px',
-                                        border: 'none',
-                                        backgroundColor: '#fee2e2',
-                                        color: '#b91c1c',
-                                        fontWeight: '700',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    <X size={18} /> Fechar Conversa
-                                </button>
-                            )}
-
-                            <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: selectedLead.ia_active ? '#f0fdf4' : '#fff7ed', border: '1px solid ' + (selectedLead.ia_active ? '#dcfce7' : '#ffedd5') }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                    <Bot size={18} color={selectedLead.ia_active ? '#16a34a' : '#ea580c'} />
-                                    <span style={{ fontWeight: '800', fontSize: '0.7rem', color: selectedLead.ia_active ? '#16a34a' : '#ea580c' }}>
-                                        {selectedLead.ia_active ? 'Sarah está no comando' : 'Humano no comando'}
-                                    </span>
-                                </div>
-                                <p style={{ fontSize: '0.8rem', color: selectedLead.ia_active ? '#15803d' : '#9a3412', lineHeight: '1.5' }}>
-                                    {selectedLead.ia_active
-                                        ? 'Sarah está extraindo dados. Evite intervir agora para não quebrar o fluxo da IA.'
-                                        : 'A IA foi pausada. O cliente está esperando sua resposta manual.'}
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.6', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic', margin: 0 }}>
+                                    {aiSummary || 'Analise a conversa para obter um resumo estratégico e próximos passos.'}
                                 </p>
                             </div>
-                        </div>
-                    </>
-                )}
-            </div>}
 
-            {showCloseChatModal && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ background: 'var(--bg-secondary)', padding: '24px', borderRadius: '16px', width: '90%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>Fechar Conversa</h3>
-                        <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>
-                            Por qual motivo você está fechando esta conversa?
-                        </p>
-                        <select
-                            value={selectedCloseReason}
-                            onChange={(e) => setSelectedCloseReason(e.target.value)}
-                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '20px', fontSize: '0.95rem', outline: 'none' }}
-                        >
-                            {closingReasons.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => setShowCloseChatModal(false)}
-                                style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '600' }}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={confirmCloseConversation}
-                                style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
-                            >
-                                Confirmar
-                            </button>
+                            {/* Observações */}
+                            <div>
+                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '0.05em' }}>Observações</h4>
+                                <textarea
+                                    value={observacoesInput}
+                                    onChange={(e) => setObservacoesInput(e.target.value)}
+                                    placeholder="Anotações estratégicas sobre este lead..."
+                                    rows={4}
+                                    style={{
+                                        width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                        backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem', lineHeight: '1.5',
+                                        fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'all 0.1s'
+                                    }}
+                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                                />
+                                <button
+                                    onClick={handleSaveObservacoes}
+                                    disabled={isSavingObs}
+                                    style={{
+                                        marginTop: '8px', width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                        backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.75rem',
+                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: 'all 0.1s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                >
+                                    {isSavingObs ? <Loader2 size={14} className="animate-spin" /> : '💾 Salvar Notas'}
+                                </button>
+                            </div>
+
+                            {/* Campos Extra */}
+                            <div>
+                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '0.05em' }}>Campos Extra</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {CUSTOM_FIELDS_CONFIG.map(field => (
+                                        <div key={field.key}>
+                                            <label style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>{field.label}</label>
+                                            {field.type === 'select' ? (
+                                                <div style={{ position: 'relative' }}>
+                                                    <select
+                                                        value={(selectedLead.custom_fields || {})[field.key] || ''}
+                                                        onChange={e => handleUpdateCustomField(field.key, e.target.value)}
+                                                        style={{
+                                                            width: '100%', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                                            backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem',
+                                                            outline: 'none', appearance: 'none', WebkitAppearance: 'none', transition: 'all 0.1s'
+                                                        }}
+                                                    >
+                                                        <option value="">Selecione</option>
+                                                        {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                    </select>
+                                                    <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }}>
+                                                        <ArrowLeft size={10} style={{ transform: 'rotate(-90deg)' }} />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <input
+                                                    type={field.type}
+                                                    placeholder={field.placeholder}
+                                                    value={(selectedLead.custom_fields || {})[field.key] || ''}
+                                                    onChange={e => handleUpdateCustomField(field.key, e.target.value)}
+                                                    style={{
+                                                        width: '100%', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                                        backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem',
+                                                        outline: 'none', boxSizing: 'border-box', transition: 'all 0.1s'
+                                                    }}
+                                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Tarefas */}
+                            <div>
+                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Tarefas</h4>
+
+                                {/* Nova Tarefa */}
+                                <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                                    <input type="text" placeholder="O que precisa ser feito?" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', fontSize: '0.75rem', outline: 'none' }} />
+                                    <input type="datetime-local" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', fontSize: '0.75rem', outline: 'none' }} />
+                                    <button
+                                        disabled={!newTaskTitle || !newTaskDate}
+                                        onClick={handleAddTask}
+                                        style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent)', color: 'white', border: 'none', fontWeight: '800', fontSize: '0.7rem', cursor: 'pointer', opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1, transition: 'all 0.1s' }}
+                                    >
+                                        Adicionar Tarefa
+                                    </button>
+                                </div>
+
+                                {/* Lista de Tarefas */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {(!selectedLead.tasks || selectedLead.tasks.length === 0) ? (
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', margin: '10px 0' }}>Sem tarefas pendentes.</p>
+                                    ) : (
+                                        [...selectedLead.tasks].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()).map(task => {
+                                            const isOverdue = !task.completed && isPast(new Date(task.due_date));
+                                            const isDueToday = !task.completed && isToday(new Date(task.due_date));
+
+                                            return (
+                                                <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: task.completed ? 'var(--bg-tertiary)' : 'var(--bg-primary)', border: '1px solid var(--border)', opacity: task.completed ? 0.6 : 1, transition: 'all 0.1s' }}>
+                                                    <button
+                                                        onClick={() => handleToggleTask(task.id)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: task.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', marginTop: '2px' }}
+                                                    >
+                                                        {task.completed ? <CheckCircle2 size={16} /> : <div style={{ width: '14px', height: '14px', borderRadius: 'var(--radius-xs)', border: '1.5px solid currentColor' }} />}
+                                                    </button>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <p style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', marginBottom: '2px', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</p>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: isOverdue ? 'var(--error)' : (isDueToday ? 'var(--warning)' : 'var(--text-muted)'), fontWeight: '700' }}>
+                                                            <Clock size={10} />
+                                                            {format(new Date(task.due_date), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleDeleteTask(task.id)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '2px', opacity: 0.4, transition: 'all 0.1s' }}
+                                                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                        onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <button
+                                        onClick={handleToggleIA}
+                                        style={{
+                                            padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                            backgroundColor: selectedLead.ia_active ? 'var(--error-soft)' : 'var(--success-soft)',
+                                            color: selectedLead.ia_active ? 'var(--error)' : 'var(--success)',
+                                            fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                        }}
+                                    >
+                                        {selectedLead.ia_active ? <PowerOff size={14} /> : <Power size={14} />}
+                                        {selectedLead.ia_active ? 'Pausar Sarah' : 'Ativar Sarah'}
+                                    </button>
+
+                                    <button
+                                        onClick={handleToggleFollowup}
+                                        style={{
+                                            padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                            backgroundColor: selectedLead.followup_locked ? 'var(--success-soft)' : 'var(--warning-soft)',
+                                            color: selectedLead.followup_locked ? 'var(--success)' : 'var(--warning)',
+                                            fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                        }}
+                                    >
+                                        {selectedLead.followup_locked ? <Unlock size={14} /> : <Lock size={14} />}
+                                        {selectedLead.followup_locked ? 'Liberar F/U' : 'Travar F/U'}
+                                    </button>
+                                </div>
+
+                                {/* Sarah Intervention Block */}
+                                <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead.ia_active ? 'var(--success-soft)' : 'var(--warning-soft)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: selectedLead.ia_active ? 'var(--success)' : 'var(--warning)', boxShadow: `0 0 10px ${selectedLead.ia_active ? 'var(--success)' : 'var(--warning)'}` }} />
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: '800', color: selectedLead.ia_active ? 'var(--success)' : 'var(--warning)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            {selectedLead.ia_active ? 'Sarah Ativa' : 'Intervenção Humana'}
+                                        </span>
+                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+                                            {selectedLead.ia_active ? 'IA conduzindo a conversa' : 'Aguardando ação manual'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Fluxo Visual */}
+                                {activeFlowExec ? (
+                                    <div style={{
+                                        width: '100%', padding: '12px', borderRadius: 'var(--radius-md)',
+                                        backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+                                        display: 'flex', flexDirection: 'column', gap: '8px',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <GitBranch size={16} style={{ color: 'var(--accent)' }} />
+                                            <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--accent)', letterSpacing: '0.02em' }}>
+                                                Fluxo Ativo
+                                            </span>
+                                            <span style={{
+                                                fontSize: '0.6rem', padding: '2px 8px', borderRadius: 'var(--radius-xl)',
+                                                backgroundColor: activeFlowExec.status === 'running' ? 'var(--success-soft)' : 'var(--warning-soft)',
+                                                color: activeFlowExec.status === 'running' ? 'var(--success)' : 'var(--warning)',
+                                                fontWeight: '700', border: '1px solid var(--border)'
+                                            }}>
+                                                {activeFlowExec.status === 'running' ? 'Rodando' : 'Pausado'}
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                                            {activeFlowExec.flow_name || `Fluxo #${activeFlowExec.flow_id}`}
+                                        </span>
+                                        <button
+                                            onClick={handleCancelFlow}
+                                            style={{
+                                                padding: '6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                                                backgroundColor: 'var(--bg-primary)', color: 'var(--error)',
+                                                fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                                            }}
+                                        >
+                                            <StopCircle size={14} /> Cancelar Fluxo
+                                        </button>
+                                    </div>
+                                ) : companyFlows.length > 0 ? (
+                                    <div style={{ position: 'relative' }}>
+                                        <button
+                                            onClick={() => setShowFlowSelector(!showFlowSelector)}
+                                            disabled={isStartingFlow}
+                                            style={{
+                                                width: '100%', padding: '10px', borderRadius: 'var(--radius-md)',
+                                                border: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)', color: 'var(--accent)',
+                                                fontWeight: '800', fontSize: '0.75rem', display: 'flex', alignItems: 'center',
+                                                justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.1s'
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                        >
+                                            {isStartingFlow ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                                            Iniciar Fluxo Visual
+                                        </button>
+                                        {showFlowSelector && (
+                                            <div style={{
+                                                position: 'absolute', bottom: '100%', left: 0, right: 0,
+                                                marginBottom: '8px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)',
+                                                boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
+                                                zIndex: 999, overflow: 'hidden', padding: '6px'
+                                            }}>
+                                                <div style={{ padding: '8px 10px', fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Escolha um fluxo
+                                                </div>
+                                                {companyFlows.map(flow => (
+                                                    <div
+                                                        key={flow.id}
+                                                        onClick={() => handleStartFlow(flow.id)}
+                                                        style={{
+                                                            padding: '10px 12px', cursor: 'pointer', fontSize: '0.8rem',
+                                                            fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px',
+                                                            color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)',
+                                                            transition: 'all 0.1s'
+                                                        }}
+                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                    >
+                                                        <GitBranch size={14} style={{ color: 'var(--accent)' }} />
+                                                        {flow.name}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : null}
+
+                                {!selectedLead.closed ? (
+                                    <button
+                                        onClick={handleCloseConversation}
+                                        style={{
+                                            width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                            backgroundColor: 'var(--bg-primary)', color: 'var(--error)', fontWeight: '800', fontSize: '0.75rem',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--error-soft)'}
+                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                    >
+                                        <X size={16} /> Encerrar Caso
+                                    </button>
+                                ) : (
+                                    <div style={{
+                                        width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                    }}>
+                                        <XCircle size={16} /> Lead Encerrado: {selectedLead.closed_reason || 'Sem motivo'}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            }
+
+            {
+                showCloseChatModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+                        <div className="glass-card fade-in" style={{ padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+                            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: '800', letterSpacing: '-0.02em' }}>Encerrar Conversa</h3>
+                            <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                                Por qual motivo você está encerrando este atendimento? Esta ação não pode ser desfeita.
+                            </p>
+                            <div style={{ position: 'relative', marginBottom: '20px' }}>
+                                <select
+                                    value={selectedCloseReason}
+                                    onChange={(e) => setSelectedCloseReason(e.target.value)}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}
+                                >
+                                    <option value="" disabled>Escolha um motivo</option>
+                                    {closingReasons.map((r: string) => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                                <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }}>
+                                    <ArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setShowCloseChatModal(false)}
+                                    style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmCloseConversation}
+                                    disabled={!selectedCloseReason}
+                                    style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: 'none', backgroundColor: 'var(--error)', color: 'white', cursor: 'pointer', fontWeight: '800', fontSize: '0.8rem', opacity: !selectedCloseReason ? 0.5 : 1 }}
+                                >
+                                    Encerrar Agora
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )
+                )
             }
 
             {
                 dialog && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-                        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-                            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
-                            <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(2px)' }}>
+                        <div className="glass-card fade-in" style={{ padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-lg)' }}>
+                            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: '800', letterSpacing: '-0.01em' }}>{dialog.title}</h3>
+                            <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5' }}>{dialog.message}</p>
 
                             {dialog.type === 'prompt' && (
                                 <input
                                     autoFocus
                                     type="text"
                                     placeholder={dialog.placeholder}
-                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '20px', boxSizing: 'border-box', fontSize: '0.95rem' }}
+                                    style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', marginBottom: '20px', boxSizing: 'border-box', fontSize: '0.9rem', outline: 'none' }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') dialog.onConfirm((e.target as HTMLInputElement).value);
                                     }}
                                     onChange={(e) => {
-                                        // temporary store the value
                                         (dialog as any).inputValue = e.target.value;
                                     }}
                                 />
@@ -2128,16 +2153,16 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 {dialog.type !== 'alert' && (
                                     <button
                                         onClick={dialog.onCancel}
-                                        style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
+                                        style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}
                                     >
                                         Cancelar
                                     </button>
                                 )}
                                 <button
                                     onClick={() => dialog.onConfirm((dialog as any).inputValue)}
-                                    style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                                    style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '800', fontSize: '0.8rem' }}
                                 >
-                                    OK
+                                    Confirmar
                                 </button>
                             </div>
                         </div>

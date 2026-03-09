@@ -283,6 +283,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         try { return localStorage.getItem(`sp3_evo_global_key_${authUser.company_id}`) || ''; } catch { return ''; }
     });
     const [showEvoGlobalKey, setShowEvoGlobalKey] = useState(false);
+    const [evoKeySaved, setEvoKeySaved] = useState(false);
 
     // Estados de Dados
     const [isResettingChats, setIsResettingChats] = useState(false);
@@ -718,19 +719,17 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const configureInstanceWebhookAndSettings = async (apiUrl: string, instanceName: string, apiKey: string) => {
-        // Configurar webhook para o n8n (Evolution API v2 format)
+        // Configurar webhook para o n8n (Evolution API v2 — flat, snake_case)
         try {
             await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
-                    webhook: {
-                        enabled: true,
-                        url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
-                        webhookByEvents: false,
-                        webhookBase64: true,
-                        events: ['MESSAGES_UPSERT']
-                    }
+                    enabled: true,
+                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                    webhook_by_events: false,
+                    webhook_base64: true,
+                    events: ['MESSAGES_UPSERT']
                 })
             });
         } catch (whErr) {
@@ -1376,8 +1375,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         fetchInstances(); // Always fetch instances on mount
         fetchClosingReasons();
 
-        // Pré-preencher chave global da Evolution API do banco (se não tem no localStorage)
-        if (!evoGlobalKey && authUser.role === 'master') {
+        // Pré-preencher chave global da Evolution API do banco (somente super admin)
+        if (!evoGlobalKey && isSuperAdmin) {
             supabase.rpc('get_evo_global_key').then(({ data }) => {
                 if (data) {
                     setEvoGlobalKey(data);
@@ -1639,7 +1638,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <div style={{ color: '#b91c1c', fontSize: '0.85rem', marginBottom: evoError.includes('Chave Global') ? '12px' : 0 }}>
                                         <strong>Erro:</strong> {evoError}
                                     </div>
-                                    {evoError.includes('Chave Global') && authUser.role === 'master' && (
+                                    {evoError.includes('Chave Global') && isSuperAdmin && (
                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                             <div style={{ flex: 1, position: 'relative' }}>
                                                 <input
@@ -1689,8 +1688,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             )}
                         </div>
 
-                        {/* Card 2: Chave Global da Evolution API (Master Only) */}
-                        {authUser.role === 'master' && (
+                        {/* Card 2: Chave Global da Evolution API (Super Admin Only) */}
+                        {isSuperAdmin && (
                             <div className="glass-card" style={{ padding: '2rem' }}>
                                 <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '0.5rem' }}>Chave Global de Automação</h3>
                                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1rem' }}>
@@ -1716,10 +1715,25 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             {showEvoGlobalKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                         </button>
                                     </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (!evoGlobalKey.trim()) return;
+                                            const { error } = await supabase.rpc('save_evo_global_key', { p_key: evoGlobalKey.trim() });
+                                            if (!error) {
+                                                setEvoError(null);
+                                                setEvoKeySaved(true);
+                                                setTimeout(() => setEvoKeySaved(false), 2000);
+                                            }
+                                        }}
+                                        disabled={!evoGlobalKey.trim()}
+                                        style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: evoGlobalKey.trim() ? 'var(--accent)' : '#e5e7eb', color: evoGlobalKey.trim() ? 'white' : '#9ca3af', fontWeight: '700', fontSize: '0.8rem', cursor: evoGlobalKey.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                                    >
+                                        Salvar
+                                    </button>
                                 </div>
                                 {evoGlobalKey && (
                                     <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <CheckCircle size={12} /> Chave salva localmente
+                                        <CheckCircle size={12} /> {evoKeySaved ? 'Chave salva no banco de dados!' : 'Chave configurada'}
                                     </div>
                                 )}
                             </div>

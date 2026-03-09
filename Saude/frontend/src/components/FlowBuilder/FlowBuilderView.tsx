@@ -400,20 +400,27 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
                 </button>
               )}
 
-              {/* Status badges */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                backgroundColor: selectedFlow.is_active ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)',
-                color: selectedFlow.is_active ? '#10b981' : '#64748b',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-              }}>
+              {/* Status toggle */}
+              <button
+                onClick={() => handleToggleActive(selectedFlow.id, !selectedFlow.is_active)}
+                title={selectedFlow.is_active ? 'Clique para desativar' : 'Clique para ativar'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 10px',
+                  borderRadius: '6px',
+                  backgroundColor: selectedFlow.is_active ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)',
+                  color: selectedFlow.is_active ? '#10b981' : '#64748b',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  border: '1px solid',
+                  borderColor: selectedFlow.is_active ? 'rgba(16,185,129,0.25)' : 'rgba(100,116,139,0.2)',
+                  cursor: 'pointer',
+                }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: selectedFlow.is_active ? '#10b981' : '#64748b' }} />
                 {selectedFlow.is_active ? 'Ativo' : 'Inativo'}
-              </div>
+              </button>
 
               {isDirty && (
                 <div style={{

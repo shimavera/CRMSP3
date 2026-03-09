@@ -52,17 +52,17 @@ interface Lead {
 // ─── CONFIG DAS COLUNAS ───────────────────────────────────────────────────────
 
 const DEFAULT_PIPELINE: { stage: Stage; color: string; bg: string; icon: any; description: string }[] = [
-    { stage: 'Novo Lead', color: '#6366f1', bg: '#eef2ff', icon: Users, description: 'Lead recém captado' },
-    { stage: 'Contato Iniciado', color: '#0ea5e9', bg: '#f0f9ff', icon: Phone, description: 'Primeiro contato feito' },
-    { stage: 'Em Follow-up', color: '#f97316', bg: '#fff7ed', icon: Bell, description: 'Aguardando retorno' },
-    { stage: 'Qualificando', color: '#8b5cf6', bg: '#f5f3ff', icon: TrendingUp, description: 'Coletando informações' },
-    { stage: 'Reunião Agendada', color: '#f59e0b', bg: '#fffbeb', icon: Calendar, description: 'Reunião marcada' },
-    { stage: 'No Show', color: '#ef4444', bg: '#fef2f2', icon: AlertCircle, description: 'Não compareceu' },
-    { stage: 'Reunião Realizada', color: '#10b981', bg: '#f0fdf4', icon: CheckCircle2, description: 'Reunião concluída' },
-    { stage: 'Proposta Enviada', color: '#f97316', bg: '#fff7ed', icon: FileText, description: 'Proposta em análise' },
-    { stage: 'Negociação', color: '#ec4899', bg: '#fdf4ff', icon: Handshake, description: 'Negociando contrato' },
-    { stage: 'Fechado', color: '#059669', bg: '#ecfdf5', icon: Trophy, description: 'Cliente convertido' },
-    { stage: 'Perdido', color: '#64748b', bg: '#f8fafc', icon: XCircle, description: 'Oportunidade perdida' },
+    { stage: 'Novo Lead', color: '#6366f1', bg: 'var(--bg-tertiary)', icon: Users, description: 'Lead recém captado' },
+    { stage: 'Contato Iniciado', color: '#0ea5e9', bg: 'var(--bg-tertiary)', icon: Phone, description: 'Primeiro contato feito' },
+    { stage: 'Em Follow-up', color: '#f97316', bg: 'var(--bg-tertiary)', icon: Bell, description: 'Aguardando retorno' },
+    { stage: 'Qualificando', color: '#8b5cf6', bg: 'var(--bg-tertiary)', icon: TrendingUp, description: 'Coletando informações' },
+    { stage: 'Reunião Agendada', color: '#f59e0b', bg: 'var(--bg-tertiary)', icon: Calendar, description: 'Reunião marcada' },
+    { stage: 'No Show', color: '#ef4444', bg: 'var(--bg-tertiary)', icon: AlertCircle, description: 'Não compareceu' },
+    { stage: 'Reunião Realizada', color: '#10b981', bg: 'var(--bg-tertiary)', icon: CheckCircle2, description: 'Reunião concluída' },
+    { stage: 'Proposta Enviada', color: '#f97316', bg: 'var(--bg-tertiary)', icon: FileText, description: 'Proposta em análise' },
+    { stage: 'Negociação', color: '#ec4899', bg: 'var(--bg-tertiary)', icon: Handshake, description: 'Negociando contrato' },
+    { stage: 'Fechado', color: '#059669', bg: 'var(--bg-tertiary)', icon: Trophy, description: 'Cliente convertido' },
+    { stage: 'Perdido', color: '#64748b', bg: 'var(--bg-tertiary)', icon: XCircle, description: 'Oportunidade perdida' },
 ];
 
 const FUNIS_DISPONIVEIS = [
@@ -138,10 +138,10 @@ const LeadCard = (props: {
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {lead.nome || 'Lead s/ nome'}
                             </div>
-                            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                                 {lead.telefone}
                             </div>
                         </div>
@@ -156,7 +156,7 @@ const LeadCard = (props: {
                     {/* Tags */}
                     <div style={{ display: 'flex', gap: '4px', marginTop: '10px', flexWrap: 'wrap' }}>
                         {lead.created_at && (
-                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: '600' }}>
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: '600', border: '1px solid var(--border)' }}>
                                 📥 Entrou em {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                             </span>
                         )}
@@ -212,12 +212,12 @@ const LeadCard = (props: {
                     </div>
 
                     {/* Tempo no estágio */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: daysInStage >= 5 ? '4px 8px' : '0', background: daysInStage >= 5 ? '#fff1f2' : 'transparent', borderRadius: '8px', width: 'fit-content' }}>
-                        <Clock size={11} color={daysInStage >= 3 ? '#ef4444' : '#94a3b8'} />
-                        <span style={{ fontSize: '0.65rem', color: daysInStage >= 3 ? '#ef4444' : '#94a3b8', fontWeight: daysInStage >= 5 ? '800' : '500' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: daysInStage >= 5 ? '4px 8px' : '0', background: daysInStage >= 5 ? 'var(--error-soft)' : 'transparent', borderRadius: '8px', width: 'fit-content' }}>
+                        <Clock size={11} color={daysInStage >= 3 ? 'var(--error)' : 'var(--text-muted)'} />
+                        <span style={{ fontSize: '0.65rem', color: daysInStage >= 3 ? 'var(--error)' : 'var(--text-muted)', fontWeight: daysInStage >= 5 ? '800' : '500' }}>
                             {daysInStage === 0 ? 'Atualizado hoje' : `${daysInStage}d parado`}
                         </span>
-                        {daysInStage >= 5 && <AlertCircle size={10} color="#ef4444" style={{ animation: 'bounce 1s infinite' }} />}
+                        {daysInStage >= 5 && <AlertCircle size={10} color="var(--error)" style={{ animation: 'bounce 1s infinite' }} />}
                     </div>
 
                     {/* Menu de ações rápidas */}
@@ -226,12 +226,12 @@ const LeadCard = (props: {
                             onClick={(e) => e.stopPropagation()}
                             style={{
                                 position: 'absolute', top: '36px', right: '8px', zIndex: 100,
-                                background: 'var(--bg-secondary)', borderRadius: '10px',
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', padding: '6px',
-                                minWidth: '180px', border: '1px solid #f1f5f9'
+                                background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
+                                boxShadow: 'var(--shadow-lg)', padding: '6px',
+                                minWidth: '180px', border: '1px solid var(--border)'
                             }}
                         >
-                            <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>Mover para</div>
+                            <div style={{ fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', padding: '4px 8px', textTransform: 'uppercase' }}>Mover para</div>
                             {(currentPipeline || []).filter((p: any) => p.stage !== lead.stage).map((p: any) => (
                                 <button
                                     key={p.stage}
@@ -239,26 +239,26 @@ const LeadCard = (props: {
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: '8px',
                                         width: '100%', padding: '6px 8px', background: 'none',
-                                        border: 'none', cursor: 'pointer', borderRadius: '6px',
-                                        fontSize: '0.78rem', color: '#374151', textAlign: 'left'
+                                        border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                                        fontSize: '0.78rem', color: 'var(--text-primary)', textAlign: 'left'
                                     }}
-                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
                                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                                 >
                                     <ArrowRight size={12} color={p.color} />
                                     {p.stage}
                                 </button>
                             ))}
-                            <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
+                            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                             <button
                                 onClick={() => { onDelete(lead.id); setShowMenu(false); }}
                                 style={{
                                     display: 'flex', alignItems: 'center', gap: '8px',
                                     width: '100%', padding: '6px 8px', background: 'none',
-                                    border: 'none', cursor: 'pointer', borderRadius: '6px',
-                                    fontSize: '0.78rem', color: '#ef4444', textAlign: 'left'
+                                    border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.78rem', color: 'var(--error)', textAlign: 'left'
                                 }}
-                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fef2f2')}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--error-soft)')}
                                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                             >
                                 <Trash2 size={12} /> Remover lead
@@ -317,10 +317,10 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
             <div style={{ background: 'var(--bg-secondary)', borderRadius: '16px', padding: '2rem', width: '480px', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <div>
-                        <h3 style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b' }}>{lead.nome || 'Lead s/ nome'}</h3>
-                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{lead.telefone}</span>
+                        <h3 style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text-primary)' }}>{lead.nome || 'Lead s/ nome'}</h3>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{lead.telefone}</span>
                     </div>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8' }}>×</button>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--text-primary)' }}>×</button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
@@ -334,20 +334,20 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                 {activeTab === 'details' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div>
-                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Estágio</label>
-                            <select value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Stage }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Estágio</label>
+                            <select value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Stage }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
                                 {currentPipeline.map(p => <option key={p.stage} value={p.stage}>{p.stage}</option>)}
                             </select>
                         </div>
 
                         <div>
-                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>📅 Data da Reunião</label>
-                            <input type="datetime-local" value={form.meeting_datetime ? form.meeting_datetime.slice(0, 16) : ''} onChange={e => setForm(f => ({ ...f, meeting_datetime: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>📅 Data da Reunião</label>
+                            <input type="datetime-local" value={form.meeting_datetime ? form.meeting_datetime.slice(0, 16) : ''} onChange={e => setForm(f => ({ ...f, meeting_datetime: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--bg-primary)', color: 'var(--text-primary)' }} />
                         </div>
 
                         <div>
-                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>🔗 Link da Reunião</label>
-                            <input type="url" value={form.meeting_link || ''} onChange={e => setForm(f => ({ ...f, meeting_link: e.target.value }))} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>🔗 Link da Reunião</label>
+                            <input type="url" value={form.meeting_link || ''} onChange={e => setForm(f => ({ ...f, meeting_link: e.target.value }))} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--bg-primary)', color: 'var(--text-primary)' }} />
                         </div>
 
                         <div>
@@ -378,7 +378,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                         )}
 
                         {form.meeting_link && (
-                            <a href={form.meeting_link} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#f0fdf4', borderRadius: '10px', color: '#059669', fontWeight: '700', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid #dcfce7' }}>
+                            <a href={form.meeting_link} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', color: 'var(--success)', fontWeight: '700', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid var(--border)' }}>
                                 <Video size={16} /> Entrar na Reunião
                             </a>
                         )}
@@ -482,7 +482,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                     </div>
                 )}
 
-                <button onClick={handleSave} disabled={saving} style={{ marginTop: '1.5rem', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}>
+                <button onClick={handleSave} disabled={saving} style={{ marginTop: '1.5rem', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}>
                     {saving ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
             </div>
@@ -514,7 +514,7 @@ const MetricsBar = ({ leads }: { leads: Lead[] }) => {
     return (
         <div style={{ display: 'flex', gap: '14px', marginBottom: '2rem', flexWrap: 'wrap' }}>
             {metrics.map(m => (
-                <div key={m.label} className="glass-card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '130px', flex: 1, borderTop: `3px solid ${m.color}` }}>
+                <div key={m.label} className="glass-card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '130px', flex: 1, borderTop: `1px solid var(--border)` }}>
                     <span style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</span>
                     <span style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>{m.value}</span>
                 </div>
@@ -663,7 +663,7 @@ const KanbanView = () => {
     }, [leads]);
 
     if (loading) return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px', color: '#6366f1' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px', color: 'var(--accent)' }}>
             <Loader2 className="animate-spin" size={28} /> <span style={{ fontWeight: '700' }}>Carregando pipeline...</span>
         </div>
     );
@@ -783,28 +783,28 @@ const KanbanView = () => {
                                         style={{
                                             minWidth: '240px',
                                             width: '240px',
-                                            backgroundColor: snapshot.isDraggingOver ? col.bg : '#f8fafc',
-                                            borderRadius: '12px',
+                                            backgroundColor: snapshot.isDraggingOver ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                            borderRadius: 'var(--radius-md)',
                                             padding: '12px',
-                                            border: snapshot.isDraggingOver ? `2px dashed ${col.color}` : '2px solid transparent',
-                                            transition: 'background-color 0.2s ease, border 0.2s ease',
+                                            border: snapshot.isDraggingOver ? `1px dashed var(--accent)` : '1px solid var(--border)',
+                                            transition: 'background-color 0.1s ease, border 0.1s ease',
                                             display: 'flex',
                                             flexDirection: 'column',
                                             maxHeight: '100%',
                                         }}
                                     >
                                         {/* Header da coluna */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: `2px solid ${col.color}20` }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: `1px solid var(--border)` }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${col.color}30` }}>
-                                                    <col.icon size={14} color={col.color} />
+                                                <div style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid var(--border)` }}>
+                                                    <col.icon size={14} color="var(--text-primary)" />
                                                 </div>
                                                 <div>
-                                                    <div style={{ fontWeight: '800', fontSize: '0.78rem', color: '#1e293b' }}>{col.stage}</div>
-                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{col.description}</div>
+                                                    <div style={{ fontWeight: '800', fontSize: '0.78rem', color: 'var(--text-primary)' }}>{col.stage}</div>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{col.description}</div>
                                                 </div>
                                             </div>
-                                            <span style={{ backgroundColor: col.bg, color: col.color, fontWeight: '800', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '20px', border: `1px solid ${col.color}30` }}>
+                                            <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: '800', fontSize: '0.75rem', padding: '2px 8px', borderRadius: 'var(--radius-xl)', border: `1px solid var(--border)` }}>
                                                 {colLeads.length}
                                             </span>
                                         </div>

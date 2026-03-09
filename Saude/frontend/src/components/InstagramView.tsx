@@ -523,10 +523,10 @@ export default function InstagramView({ authUser }: Props) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', marginBottom: '4px' }}>
               <Info size={14} /> Como configurar
             </div>
-            1. Acesse <strong>developers.facebook.com</strong> e crie um App tipo "Business"<br/>
-            2. Adicione os produtos <strong>Instagram</strong> e <strong>Webhooks</strong><br/>
-            3. Copie o <strong>App ID</strong> e <strong>App Secret</strong> de Settings {'>'} Basic<br/>
-            4. Em Webhooks: Instagram → comments → Callback: <code style={{ fontSize: '0.72rem' }}>{N8N_WEBHOOK_BASE}/webhook/instagram-events</code><br/>
+            1. Acesse <strong>developers.facebook.com</strong> e crie um App tipo "Business"<br />
+            2. Adicione os produtos <strong>Instagram</strong> e <strong>Webhooks</strong><br />
+            3. Copie o <strong>App ID</strong> e <strong>App Secret</strong> de Settings {'>'} Basic<br />
+            4. Em Webhooks: Instagram → comments → Callback: <code style={{ fontSize: '0.72rem' }}>{N8N_WEBHOOK_BASE}/webhook/instagram-events</code><br />
             5. Verify Token: <code style={{ fontSize: '0.72rem' }}>sp3_instagram_verify_2026</code>
           </div>
 
@@ -619,7 +619,7 @@ export default function InstagramView({ authUser }: Props) {
               </div>
               <div style={{
                 padding: '3px 10px', borderRadius: '20px',
-                background: '#dcfce7', color: '#166534',
+                background: 'var(--success-soft)', color: 'var(--success)',
                 fontSize: '0.7rem', fontWeight: '800'
               }}>
                 ATIVO
@@ -629,8 +629,8 @@ export default function InstagramView({ authUser }: Props) {
               onClick={handleDisconnectInstagram}
               style={{
                 padding: '8px 16px', borderRadius: '10px',
-                border: '1px solid #fecaca', background: '#fef2f2',
-                color: '#b91c1c', fontWeight: '600', fontSize: '0.8rem',
+                border: '1px solid var(--error-soft)', background: 'var(--bg-tertiary)',
+                color: 'var(--error)', fontWeight: '600', fontSize: '0.8rem',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
               }}
             >
@@ -763,8 +763,8 @@ export default function InstagramView({ authUser }: Props) {
                     style={{
                       padding: '4px 12px', borderRadius: '20px',
                       border: 'none', cursor: 'pointer',
-                      background: automation.active ? '#dcfce7' : '#f1f5f9',
-                      color: automation.active ? '#166534' : '#94a3b8',
+                      background: automation.active ? 'var(--success-soft)' : 'var(--bg-tertiary)',
+                      color: automation.active ? 'var(--success)' : 'var(--text-muted)',
                       fontSize: '0.7rem', fontWeight: '800'
                     }}
                   >
@@ -786,8 +786,8 @@ export default function InstagramView({ authUser }: Props) {
                     <button
                       onClick={() => handleDeleteAutomation(automation.id)}
                       style={{
-                        padding: '8px', borderRadius: '8px', border: '1px solid #fecaca',
-                        background: '#fef2f2', cursor: 'pointer', color: '#b91c1c',
+                        padding: '8px', borderRadius: '8px', border: '1px solid var(--error-soft)',
+                        background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--error)',
                         display: 'flex', alignItems: 'center'
                       }}
                     >
@@ -974,9 +974,9 @@ export default function InstagramView({ authUser }: Props) {
                       <span style={{
                         padding: '2px 8px', borderRadius: '6px',
                         background: msg.message_type === 'text' ? 'var(--accent-soft)' :
-                                   msg.message_type === 'image' ? '#fef3c7' : '#dbeafe',
+                          msg.message_type === 'image' ? 'var(--warning-soft)' : 'var(--accent-soft)',
                         color: msg.message_type === 'text' ? 'var(--accent)' :
-                               msg.message_type === 'image' ? '#92400e' : '#1e40af',
+                          msg.message_type === 'image' ? 'var(--warning)' : 'var(--accent)',
                         fontSize: '0.7rem', fontWeight: '800'
                       }}>
                         {msg.message_type === 'text' ? 'TEXTO' : msg.message_type === 'image' ? 'IMAGEM' : 'LINK'}
@@ -988,7 +988,7 @@ export default function InstagramView({ authUser }: Props) {
                         onClick={() => removeMessage(idx)}
                         style={{
                           background: 'none', border: 'none', cursor: 'pointer',
-                          color: '#b91c1c', padding: '4px'
+                          color: 'var(--error)', padding: '4px'
                         }}
                       >
                         <Trash2 size={14} />
@@ -1042,8 +1042,8 @@ export default function InstagramView({ authUser }: Props) {
                             onClick={() => updateMessage(idx, { media_url: '' })}
                             style={{
                               padding: '6px 12px', borderRadius: '8px',
-                              border: '1px solid #fecaca', background: '#fef2f2',
-                              cursor: 'pointer', color: '#b91c1c', fontSize: '0.75rem', fontWeight: '600'
+                              border: '1px solid var(--error-soft)', background: 'var(--bg-tertiary)',
+                              cursor: 'pointer', color: 'var(--error)', fontSize: '0.75rem', fontWeight: '600'
                             }}
                           >
                             Remover

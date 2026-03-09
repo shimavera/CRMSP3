@@ -41,17 +41,17 @@ const LoginView = () => {
             }}>
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                    <div className="logo-container" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                        <div className="logo-icon-wrapper">
+                    <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                        <div style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: '12px' }}>
                             <img
                                 src="/favicon.png"
-                                alt="Saúde AI Symbol"
+                                alt="Saúde IA Symbol"
                                 style={{ height: '52px', width: '52px', objectFit: 'contain', borderRadius: '12px' }}
                             />
                         </div>
-                        <span className="logo-text" style={{ fontSize: '2.5rem', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.04em', lineHeight: 1 }}>
-                            Saúde AI
-                        </span>
+                        <h1 style={{ fontSize: '2.5rem', fontWeight: '900', color: '#0f172a', margin: 0, lineHeight: 1 }}>
+                            Saúde IA
+                        </h1>
                     </div>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '500' }}>
                         Faça login para acessar o painel
@@ -156,7 +156,7 @@ const LoginView = () => {
                     Acesso restrito a usuários autorizados
                 </p>
                 <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.65rem', color: '#cbd5e1', fontWeight: '600' }}>
-                    Saúde AI v1.0
+                    Saúde IA v1.0
                 </p>
             </div>
         </div>

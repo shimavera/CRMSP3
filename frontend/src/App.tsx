@@ -488,12 +488,12 @@ function App() {
           <div className="logo-icon-wrapper" style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: 'var(--radius-sm)' }}>
             <img
               src="/favicon.png"
-              alt="Saúde AI Symbol"
+              alt="Saúde IA Symbol"
               style={{ height: '24px', width: '24px', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
             />
           </div>
           <span className="logo-text" style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.04em', lineHeight: 1 }}>
-            Saúde AI
+            Saúde IA
           </span>
         </div>
 
@@ -528,7 +528,7 @@ function App() {
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
 
           <div style={{ textAlign: 'center', marginTop: '0.75rem', opacity: 0.4, fontSize: '0.6rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>
-            SAÚDE AI v1.0
+            SAÚDE IA v1.0
           </div>
         </div>
       </aside>
