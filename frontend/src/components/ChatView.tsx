@@ -84,6 +84,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const timerRef = useRef<any>(null);
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
     const [chatFilter, setChatFilter] = useState<'all' | 'ia' | 'followup'>('all');
     const [dialog, setDialog] = useState<{
         type: 'alert' | 'confirm' | 'prompt';
@@ -529,7 +530,15 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     // ORDENAÇÃO DINÂMICA (Performance Otimizada)
     const sortedLeads = useMemo(() => {
         const filtered = leads.filter(lead => {
-            // Exibir leads fechados no chat? O usuário só pediu "filtro de todos", "na ia", "followup", e que quem fechar vai para o Kanban. Mas se fechar, soma do chat? Vamos manter no All se quiser, ou sumir? Vamos sumir do chat os fechados se `closed` for true? O usuário disse: "fechar covnersa e quando fechar colocr o motivo do fechamento e no kanban ele ir para uma kanban separado de leads fechados" - Vou manter visível se não me pedirem para esconder, mas normalmente `closed` exclui da aba ativa. Vou esconder chamadas `closed`.
+            // Filtro de Busca
+            if (searchTerm) {
+                const search = searchTerm.toLowerCase();
+                const matchesName = (lead.nome || '').toLowerCase().includes(search);
+                const matchesPhone = (lead.telefone || '').toLowerCase().includes(search);
+                if (!matchesName && !matchesPhone) return false;
+            }
+
+            // Exibir leads fechados no chat?
             if ((lead as any).closed) return false;
             if (chatFilter === 'all') return true;
             if (chatFilter === 'ia') return lead.ia_active === true;
@@ -542,7 +551,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const dateB = new Date(b.last_interaction_at || b.stage_updated_at || b.created_at || 0).getTime();
             return dateB - dateA;
         });
-    }, [leads, chatFilter]);
+    }, [leads, chatFilter, searchTerm]);
 
     const stats = useMemo(() => {
         const activeLeads = leads.filter(l => !(l as any).closed);
@@ -1151,7 +1160,33 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-secondary)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                             <h4 style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Conversas</h4>
-                            <Search size={14} style={{ color: 'var(--text-muted)', cursor: 'pointer' }} />
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <Search size={14} style={{ color: 'var(--text-muted)' }} />
+                            </div>
+                        </div>
+
+                        <div style={{ position: 'relative', marginBottom: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Buscar..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '6px 12px 6px 32px',
+                                    fontSize: '0.75rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border)',
+                                    backgroundColor: 'var(--bg-primary)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    transition: 'all 0.2s',
+                                    boxShadow: 'var(--shadow-sm)'
+                                }}
+                                onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                                onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                            />
+                            <Search size={12} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         </div>
                         <div style={{ display: 'flex', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', padding: '2px', border: '1px solid var(--border)', marginBottom: '4px' }}>
                             <button
