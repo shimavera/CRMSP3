@@ -39,15 +39,15 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
       alignItems: 'center',
       gap: '12px',
       padding: '12px 16px',
-      borderRadius: '12px',
+      borderRadius: 'var(--radius-md)',
       width: '100%',
       backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
-      color: active ? 'var(--accent)' : 'var(--text-secondary)',
+      color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
       fontWeight: active ? '600' : '500',
       textAlign: 'left',
       border: 'none',
       cursor: 'pointer',
-      transition: 'all 0.2s ease',
+      transition: 'all 0.1s ease',
       outline: 'none'
     }}
   >
@@ -485,11 +485,11 @@ function App() {
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''} ${!desktopSidebarOpen && !isMobile ? ' desktop-sidebar-closed' : ''}`}>
         <div className="logo-container" style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem' }}>
-          <div className="logo-icon-wrapper" style={{ padding: '6px', background: 'var(--accent-soft)', borderRadius: '8px' }}>
+          <div className="logo-icon-wrapper" style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: 'var(--radius-sm)' }}>
             <img
               src="/favicon.png"
               alt="Saúde AI Symbol"
-              style={{ height: '30px', width: '30px', objectFit: 'contain', borderRadius: '4px' }}
+              style={{ height: '30px', width: '30px', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
             />
           </div>
           <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.04em', lineHeight: 1 }}>
@@ -521,7 +521,7 @@ function App() {
             <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => navigate('settings')} />
           )}
           {/* Perfil do usuário logado */}
-          <div style={{ padding: '12px 16px', borderRadius: '14px', background: 'var(--bg-primary)', border: '1px solid var(--border)', marginBottom: '8px' }}>
+          <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginBottom: '8px' }}>
             <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '2px' }}>{authUser.nome}</div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>{authUser.role === 'master' ? '⭐ Administrador Master' : 'Operador'}</div>
           </div>
@@ -540,7 +540,7 @@ function App() {
               <button
                 className="desktop-only"
                 onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
-                style={{ background: 'var(--accent-soft)', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                style={{ background: 'var(--accent-soft)', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '8px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
                 title={desktopSidebarOpen ? "Ocultar Menu" : "Mostrar Menu"}
               >
                 <Menu size={22} />
@@ -571,20 +571,20 @@ function App() {
             <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
               >
                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
               </button>
               <button
                 onClick={handleExportLeads}
-                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 📥 Exportar
               </button>
               <button
                 onClick={fetchLeads}
-                style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
               >
                 Atualizar
               </button>
@@ -603,7 +603,7 @@ function App() {
         )}
 
         {error && (
-          <div style={{ padding: '1rem', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '12px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
+          <div style={{ padding: '1rem', background: '#fee2e2', border: '1px solid #fee2e2', borderRadius: 'var(--radius-md)', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
             <AlertCircle size={20} />
             <div>
               <p style={{ fontWeight: 'bold' }}>Atenção: Erro no Supabase</p>
@@ -698,13 +698,13 @@ function App() {
                 </div>
                 {addLeadError && <p style={{ color: '#b91c1c', fontSize: '0.82rem', marginBottom: '10px', fontWeight: '600' }}>{addLeadError}</p>}
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); setEditingLeadId(null); }} style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
+                  <button onClick={() => { setShowAddLead(false); setAddLeadError(null); setEditingLeadId(null); }} style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
                     Cancelar
                   </button>
                   <button
                     onClick={handleSaveLead}
                     disabled={isAddingLead}
-                    style={{ padding: '8px 18px', borderRadius: '10px', border: 'none', backgroundColor: isAddingLead ? '#93c5fd' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: isAddingLead ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: 'none', backgroundColor: isAddingLead ? 'var(--accent-muted)' : 'var(--accent)', color: 'var(--bg-primary)', fontWeight: '700', fontSize: '0.85rem', cursor: isAddingLead ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
                     {isAddingLead ? <><Loader2 size={14} className="animate-spin" /> Salvando...</> : (editingLeadId ? 'Salvar Alterações' : 'Criar Lead')}
                   </button>
@@ -747,7 +747,7 @@ function App() {
                         >
                           <td style={{ padding: '14px 16px', fontWeight: '700' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.85rem', flexShrink: 0 }}>
+                              <div style={{ width: '34px', height: '34px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.85rem', flexShrink: 0 }}>
                                 {(lead.nome || lead.telefone)[0].toUpperCase()}
                               </div>
                               {lead.nome || <span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>Sem nome</span>}

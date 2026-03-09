@@ -138,10 +138,10 @@ const LeadCard = (props: {
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {lead.nome || 'Lead s/ nome'}
                             </div>
-                            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                                 {lead.telefone}
                             </div>
                         </div>
@@ -226,12 +226,12 @@ const LeadCard = (props: {
                             onClick={(e) => e.stopPropagation()}
                             style={{
                                 position: 'absolute', top: '36px', right: '8px', zIndex: 100,
-                                background: 'var(--bg-secondary)', borderRadius: '10px',
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', padding: '6px',
-                                minWidth: '180px', border: '1px solid #f1f5f9'
+                                background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
+                                boxShadow: 'var(--shadow-lg)', padding: '6px',
+                                minWidth: '180px', border: '1px solid var(--border)'
                             }}
                         >
-                            <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>Mover para</div>
+                            <div style={{ fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', padding: '4px 8px', textTransform: 'uppercase' }}>Mover para</div>
                             {(currentPipeline || []).filter((p: any) => p.stage !== lead.stage).map((p: any) => (
                                 <button
                                     key={p.stage}
@@ -239,26 +239,26 @@ const LeadCard = (props: {
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: '8px',
                                         width: '100%', padding: '6px 8px', background: 'none',
-                                        border: 'none', cursor: 'pointer', borderRadius: '6px',
-                                        fontSize: '0.78rem', color: '#374151', textAlign: 'left'
+                                        border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                                        fontSize: '0.78rem', color: 'var(--text-primary)', textAlign: 'left'
                                     }}
-                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
                                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                                 >
                                     <ArrowRight size={12} color={p.color} />
                                     {p.stage}
                                 </button>
                             ))}
-                            <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
+                            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                             <button
                                 onClick={() => { onDelete(lead.id); setShowMenu(false); }}
                                 style={{
                                     display: 'flex', alignItems: 'center', gap: '8px',
                                     width: '100%', padding: '6px 8px', background: 'none',
-                                    border: 'none', cursor: 'pointer', borderRadius: '6px',
-                                    fontSize: '0.78rem', color: '#ef4444', textAlign: 'left'
+                                    border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.78rem', color: 'var(--error)', textAlign: 'left'
                                 }}
-                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fef2f2')}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--error-soft)')}
                                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                             >
                                 <Trash2 size={12} /> Remover lead
@@ -317,10 +317,10 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
             <div style={{ background: 'var(--bg-secondary)', borderRadius: '16px', padding: '2rem', width: '480px', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <div>
-                        <h3 style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b' }}>{lead.nome || 'Lead s/ nome'}</h3>
-                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{lead.telefone}</span>
+                        <h3 style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text-primary)' }}>{lead.nome || 'Lead s/ nome'}</h3>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{lead.telefone}</span>
                     </div>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8' }}>×</button>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--text-muted)' }}>×</button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
@@ -378,7 +378,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                         )}
 
                         {form.meeting_link && (
-                            <a href={form.meeting_link} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#f0fdf4', borderRadius: '10px', color: '#059669', fontWeight: '700', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid #dcfce7' }}>
+                            <a href={form.meeting_link} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', color: 'var(--success)', fontWeight: '700', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid var(--border)' }}>
                                 <Video size={16} /> Entrar na Reunião
                             </a>
                         )}
@@ -514,7 +514,7 @@ const MetricsBar = ({ leads }: { leads: Lead[] }) => {
     return (
         <div style={{ display: 'flex', gap: '14px', marginBottom: '2rem', flexWrap: 'wrap' }}>
             {metrics.map(m => (
-                <div key={m.label} className="glass-card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '130px', flex: 1, borderTop: `3px solid ${m.color}` }}>
+                <div key={m.label} className="glass-card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '130px', flex: 1, borderTop: `1px solid var(--border)` }}>
                     <span style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</span>
                     <span style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>{m.value}</span>
                 </div>
@@ -783,28 +783,28 @@ const KanbanView = () => {
                                         style={{
                                             minWidth: '240px',
                                             width: '240px',
-                                            backgroundColor: snapshot.isDraggingOver ? col.bg : '#f8fafc',
-                                            borderRadius: '12px',
+                                            backgroundColor: snapshot.isDraggingOver ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                            borderRadius: 'var(--radius-md)',
                                             padding: '12px',
-                                            border: snapshot.isDraggingOver ? `2px dashed ${col.color}` : '2px solid transparent',
-                                            transition: 'background-color 0.2s ease, border 0.2s ease',
+                                            border: snapshot.isDraggingOver ? `1px dashed var(--accent)` : '1px solid var(--border)',
+                                            transition: 'background-color 0.1s ease, border 0.1s ease',
                                             display: 'flex',
                                             flexDirection: 'column',
                                             maxHeight: '100%',
                                         }}
                                     >
                                         {/* Header da coluna */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: `2px solid ${col.color}20` }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: `1px solid var(--border)` }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${col.color}30` }}>
-                                                    <col.icon size={14} color={col.color} />
+                                                <div style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid var(--border)` }}>
+                                                    <col.icon size={14} color="var(--text-primary)" />
                                                 </div>
                                                 <div>
-                                                    <div style={{ fontWeight: '800', fontSize: '0.78rem', color: '#1e293b' }}>{col.stage}</div>
-                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{col.description}</div>
+                                                    <div style={{ fontWeight: '800', fontSize: '0.78rem', color: 'var(--text-primary)' }}>{col.stage}</div>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{col.description}</div>
                                                 </div>
                                             </div>
-                                            <span style={{ backgroundColor: col.bg, color: col.color, fontWeight: '800', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '20px', border: `1px solid ${col.color}30` }}>
+                                            <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: '800', fontSize: '0.75rem', padding: '2px 8px', borderRadius: 'var(--radius-xl)', border: `1px solid var(--border)` }}>
                                                 {colLeads.length}
                                             </span>
                                         </div>

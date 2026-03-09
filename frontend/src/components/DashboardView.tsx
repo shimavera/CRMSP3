@@ -125,21 +125,21 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                         Dashboard de Performance
                     </h2>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', background: 'white', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-secondary)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                     {(['7', '30', 'all'] as const).map(range => (
                         <button
                             key={range}
                             onClick={() => setDateRange(range)}
                             style={{
                                 padding: '6px 16px',
-                                borderRadius: '8px',
+                                borderRadius: 'var(--radius-sm)',
                                 border: 'none',
                                 background: dateRange === range ? 'var(--accent)' : 'transparent',
-                                color: dateRange === range ? 'white' : '#64748b',
+                                color: dateRange === range ? 'var(--bg-primary)' : 'var(--text-secondary)',
                                 fontSize: '0.85rem',
                                 fontWeight: '700',
                                 cursor: 'pointer',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.1s'
                             }}
                         >
                             {range === 'all' ? 'Tudo' : `${range} dias`}
@@ -216,10 +216,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                                     style={{ fontSize: '0.75rem', fontWeight: '700' }}
                                 />
                                 <RechartsTooltip
-                                    cursor={{ fill: '#f8fafc' }}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                    cursor={{ fill: 'var(--bg-tertiary)' }}
+                                    contentStyle={{ borderRadius: 'var(--radius-md)', border: `1px solid var(--border)`, backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--shadow-md)' }}
                                 />
-                                <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={20} label={{ position: 'right', style: { fontSize: '0.75rem', fontWeight: '800' } }} />
+                                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20} label={{ position: 'right', style: { fontSize: '0.75rem', fontWeight: '800', fill: 'var(--text-primary)' } }} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -241,9 +241,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                                 <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.7rem' }} tickFormatter={(val) => `R$${val / 1000}k`} />
                                 <RechartsTooltip
                                     formatter={(value: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                    contentStyle={{ borderRadius: 'var(--radius-md)', border: `1px solid var(--border)`, backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--shadow-md)' }}
                                 />
-                                <Bar dataKey="value" fill="var(--accent)" radius={[10, 10, 0, 0]} />
+                                <Bar dataKey="value" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -265,7 +265,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                                     <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fontWeight: '700' }} />
                                     <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.75rem' }} />
                                     <RechartsTooltip
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                        contentStyle={{ borderRadius: 'var(--radius-md)', border: `1px solid var(--border)`, backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--shadow-md)' }}
                                     />
                                     <Line
                                         type="monotone"
@@ -283,14 +283,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
             </div>
             {/* Modal de Detalhes da Métrica */}
             {selectedMetric && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div className="fade-in" style={{ backgroundColor: 'white', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', backdropFilter: 'blur(4px)' }}>
+                    <div className="fade-in" style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: '800px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', border: '1px solid var(--border)', boxShadow: 'var(--shadow-xl)' }}>
+                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <button onClick={() => setSelectedMetric(null)} style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer', color: '#64748b' }}><ArrowLeft size={18} /></button>
+                                <button onClick={() => setSelectedMetric(null)} style={{ background: 'var(--bg-tertiary)', border: 'none', padding: '8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-secondary)' }}><ArrowLeft size={18} /></button>
                                 <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>{selectedMetric.title}</h3>
                             </div>
-                            <button onClick={() => setSelectedMetric(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={24} /></button>
+                            <button onClick={() => setSelectedMetric(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={24} /></button>
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -341,15 +341,13 @@ const MetricCard = ({ title, value, icon, color, onClick }: any) => (
     <div
         onClick={onClick}
         className="glass-card"
-        style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderLeft: `5px solid ${color}`, cursor: 'pointer', transition: 'transform 0.2s' }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-4px)')}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+        style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderLeft: `1px solid var(--border)`, cursor: 'pointer', transition: 'all 0.1s' }}
     >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase' }}>{title}</span>
-            <div style={{ opacity: 0.8 }}>{icon}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</span>
+            <div style={{ color: color, opacity: 0.9 }}>{icon}</div>
         </div>
-        <div style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-primary)' }}>{value}</div>
+        <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{value}</div>
     </div>
 );
 

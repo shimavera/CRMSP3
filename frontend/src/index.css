@@ -1,90 +1,90 @@
 :root {
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --bg-sidebar: rgba(255, 255, 255, 0.75);
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-sidebar: #ffffff;
   --bg-header: rgba(255, 255, 255, 0.8);
-  --bg-gradient: radial-gradient(circle at top left, #f8fafc, #eef2f6);
-  --bg-tertiary: #f1f5f9;
+  --bg-gradient: none;
+  --bg-tertiary: #f5f5f5;
 
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --text-muted: #888888;
 
-  --accent: #6366f1;
-  --accent-hover: #4f46e5;
-  --accent-soft: #e0e7ff;
-  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --accent: #000000;
+  --accent-hover: #111111;
+  --accent-soft: #eaeaea;
+  --accent-gradient: none;
 
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
+  --success: #0070f3;
+  --warning: #f5a623;
+  --error: #ee0000;
 
-  --border: rgba(226, 232, 240, 0.8);
-  --border-soft: rgba(241, 245, 249, 0.6);
+  --border: #eaeaea;
+  --border-soft: #fafafa;
 
   /* Chat Bubble Variables */
-  --chat-bg-user: #ffffff;
-  --chat-bg-crm: #dbeafe;
-  --chat-bg-bot: #dcf8c6;
-  --chat-text-primary: #1f2937;
-  --chat-text-secondary: #4b5563;
-  --chat-icon-bg-user: #e2e8f0;
-  --chat-icon-bg-crm: #bfdbfe;
-  --chat-icon-bg-bot: #bbf7d0;
-  --chat-icon-text-user: #475569;
-  --chat-icon-text-crm: #1d4ed8;
-  --chat-icon-text-bot: #15803d;
-  --chat-name-user: #667781;
+  --chat-bg-user: #000000;
+  --chat-bg-crm: #fafafa;
+  --chat-bg-bot: #f5f5f5;
+  --chat-text-primary: #000000;
+  --chat-text-secondary: #666666;
+  --chat-icon-bg-user: #eaeaea;
+  --chat-icon-bg-crm: #fafafa;
+  --chat-icon-bg-bot: #eaeaea;
+  --chat-icon-text-user: #000000;
+  --chat-icon-text-crm: #0070f3;
+  --chat-icon-text-bot: #111111;
+  --chat-name-user: #666666;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 12px 24px rgba(17, 24, 39, 0.08), 0 4px 8px rgba(17, 24, 39, 0.04);
-  --shadow-xl: 0 24px 48px rgba(17, 24, 39, 0.12), 0 12px 24px rgba(17, 24, 39, 0.06);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 30px 60px rgba(0, 0, 0, 0.12);
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
 }
 
 .dark-mode {
   --bg-primary: #000000;
-  --bg-secondary: #111111;
-  --bg-sidebar: #050505;
-  --bg-header: #050505;
-  --bg-gradient: #000000;
-  --bg-tertiary: #1a1a1a;
+  --bg-secondary: #0a0a0a;
+  --bg-sidebar: #000000;
+  --bg-header: rgba(0, 0, 0, 0.8);
+  --bg-gradient: none;
+  --bg-tertiary: #111111;
 
-  --text-primary: #ededed;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1a1;
+  --text-muted: #666666;
 
-  --accent: #818cf8;
-  --accent-hover: #a5b4fc;
-  --accent-soft: rgba(129, 140, 248, 0.15);
-  --accent-gradient: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+  --accent: #ffffff;
+  --accent-hover: #ededed;
+  --accent-soft: #333333;
+  --accent-gradient: none;
 
   --border: #333333;
-  --border-soft: #222222;
+  --border-soft: #111111;
 
   /* Chat Bubble Dark Mode Variables */
-  --chat-bg-user: #1f2937;
-  --chat-bg-crm: #1e3a8a;
-  --chat-bg-bot: #005c4b;
-  --chat-text-primary: #f8fafc;
-  --chat-text-secondary: #cbd5e1;
-  --chat-icon-bg-user: #374151;
-  --chat-icon-bg-crm: #1e40af;
-  --chat-icon-bg-bot: #065f46;
-  --chat-icon-text-user: #cbd5e1;
-  --chat-icon-text-crm: #93c5fd;
-  --chat-icon-text-bot: #86efac;
-  --chat-name-user: #9ca3af;
+  --chat-bg-user: #ffffff;
+  --chat-bg-crm: #111111;
+  --chat-bg-bot: #0a0a0a;
+  --chat-text-primary: #ffffff;
+  --chat-text-secondary: #a1a1a1;
+  --chat-icon-bg-user: #333333;
+  --chat-icon-bg-crm: #111111;
+  --chat-icon-bg-bot: #1a1a1a;
+  --chat-icon-text-user: #ffffff;
+  --chat-icon-text-crm: #0070f3;
+  --chat-icon-text-bot: #ffffff;
+  --chat-name-user: #a1a1a1;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 2px rgba(255, 255, 255, 0.05);
+  --shadow-md: 0 4px 14px rgba(255, 255, 255, 0.1);
+  --shadow-lg: 0 8px 30px rgba(255, 255, 255, 0.12);
+  --shadow-xl: 0 30px 60px rgba(255, 255, 255, 0.12);
 }
 
 .dark-mode .glass-card {
