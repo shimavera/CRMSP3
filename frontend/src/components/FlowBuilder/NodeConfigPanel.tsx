@@ -272,8 +272,8 @@ function TriggerConfig({ data, update, selectStyle, labelStyle, sectionStyle, in
                 style={{ ...inputStyle, width: '80px' }}
                 type="number"
                 min={1}
-                value={data.config?.timeout_value || '30'}
-                onChange={e => update({ config: { ...data.config, timeout_value: e.target.value } })}
+                value={data.config?.timeout_value || 30}
+                onChange={e => update({ config: { ...data.config, timeout_value: parseInt(e.target.value) || 1 } })}
               />
               <select
                 style={{ ...selectStyle, flex: 1 }}
