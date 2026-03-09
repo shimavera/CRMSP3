@@ -484,6 +484,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 // Append direto se é a conversa aberta (sem refetch)
                 if (currentLead && newMsg.session_id === currentLead.telefone) {
                     const parsed = parseMessage(newMsg);
+
+                    // Tocar som de recebimento se for mensagem do cliente (não enviado pelo CRM/IA)
+                    if (!parsed.sentByCRM && parsed.type !== 'system') {
+                        playSystemSound('receive');
+                    }
+
                     setMessages(prev => {
                         if (prev.some(m => m.id === parsed.id)) return prev;
                         return [...prev, parsed];
@@ -911,6 +917,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     message: JSON.stringify({ type: 'ai', content: messageToSend, sender: authUser.nome, sentByCRM: true })
                 }]);
 
+            playSystemSound('send');
+
             // Exibir Sarah pensando brevemente para feedback visual se a IA estiver ativa
             if (selectedLead.ia_active) {
                 setIsSarahThinking(true);
@@ -989,6 +997,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     })
                 }]);
 
+            playSystemSound('send');
             // Forçar atualização local das mensagens
             fetchMessages();
 
@@ -1001,46 +1010,53 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     // LÓGICA DE ÁUDIO
-    const playRecordSound = (type: 'start' | 'stop') => {
+    const playSystemSound = (type: 'send' | 'cancel' | 'receive' | 'start' | 'stop') => {
         try {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            if (!AudioContextClass) return;
-            const audioCtx = new AudioContextClass();
+            // Se for start/stop de gravação, mantemos o som gerado via oscilador para ser instantâneo
+            if (type === 'start' || type === 'stop') {
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioContextClass) return;
+                const audioCtx = new AudioContextClass();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                const now = audioCtx.currentTime;
 
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
+                if (type === 'start') {
+                    oscillator.frequency.setValueAtTime(600, now);
+                    oscillator.frequency.setValueAtTime(800, now + 0.1);
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                    gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.2);
+                } else {
+                    oscillator.frequency.setValueAtTime(600, now);
+                    oscillator.frequency.exponentialRampToValueAtTime(300, now + 0.2);
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                    gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.2);
+                }
+                return;
+            }
 
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            // Para outros sons, usamos MP3s estilo WhatsApp
+            let url = '';
+            if (type === 'send') url = 'https://raw.githubusercontent.com/fajadit/whatsapp-clone/master/public/sounds/send.mp3';
+            if (type === 'receive') url = 'https://raw.githubusercontent.com/fajadit/whatsapp-clone/master/public/sounds/receive.mp3';
+            if (type === 'cancel') url = 'https://www.soundjay.com/buttons/sounds/button-7.mp3';
 
-            oscillator.type = 'sine';
-            const now = audioCtx.currentTime;
-
-            if (type === 'start') {
-                // Som de início (beep duplo sutil, estilo whatsapp)
-                oscillator.frequency.setValueAtTime(600, now);
-                oscillator.frequency.setValueAtTime(800, now + 0.1);
-
-                gainNode.gain.setValueAtTime(0, now);
-                gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
-                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
-
-                oscillator.start(now);
-                oscillator.stop(now + 0.2);
-            } else {
-                // Som de parada (beep descendente sutil)
-                oscillator.frequency.setValueAtTime(600, now);
-                oscillator.frequency.exponentialRampToValueAtTime(300, now + 0.2);
-
-                gainNode.gain.setValueAtTime(0, now);
-                gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
-                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
-
-                oscillator.start(now);
-                oscillator.stop(now + 0.2);
+            if (url) {
+                const audio = new Audio(url);
+                audio.volume = 0.4;
+                audio.play().catch(e => console.warn("Erro ao reproduzir som:", e));
             }
         } catch (e) {
-            console.warn("AudioContext init failed", e);
+            console.warn("Audio error", e);
         }
     };
 
@@ -1064,7 +1080,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             };
 
             mediaRecorder.start();
-            playRecordSound('start');
+            playSystemSound('start');
             setIsRecording(true);
             setRecordingTime(0);
             timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
@@ -1076,7 +1092,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
-            playRecordSound('stop');
+            playSystemSound('stop');
             setIsRecording(false);
             clearInterval(timerRef.current);
         }
@@ -1086,6 +1102,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.onstop = null; // Ignora o envio
             mediaRecorderRef.current.stop();
+            playSystemSound('cancel');
             setIsRecording(false);
             clearInterval(timerRef.current);
             audioChunksRef.current = [];
@@ -1132,6 +1149,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                         })
                     }]);
 
+                playSystemSound('send');
                 fetchMessages(); // Atualiza na hora
             }
         } catch (err) {
