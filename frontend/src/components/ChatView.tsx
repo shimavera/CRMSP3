@@ -1639,7 +1639,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             <X size={20} />
                                         </button>
                                         <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer' }}>
-                                            <StopCircle size={24} />
+                                            <Send size={22} />
                                         </button>
                                     </div>
                                 ) : (
