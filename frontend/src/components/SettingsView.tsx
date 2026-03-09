@@ -1212,6 +1212,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsLoadingSaas(false);
     };
 
+    const handleToggleFeature = async (companyId: string, feature: string, currentValue: boolean) => {
+        const { data: company } = await supabase.from('sp3_companies').select('features').eq('id', companyId).single();
+        const features = { ...(company?.features || {}), [feature]: !currentValue };
+        const { error } = await supabase.from('sp3_companies').update({ features }).eq('id', companyId);
+        if (!error) {
+            setSaasClientsList(prev => prev.map(c => c.id === companyId ? { ...c, features } : c));
+        }
+    };
+
     const handleCreateClient = async () => {
         if (!newClientName.trim() || !newClientEmail.trim() || !newClientPassword.trim() || !newClientEvo.trim()) return;
         if (newClientPassword.length < 6) {
@@ -2689,20 +2698,21 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>WhatsApp</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Cadastro</th>
+                                            <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Audio IA</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {isLoadingSaas ? (
                                             <tr>
-                                                <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                                <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                                                     <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto', marginBottom: '8px' }} />
                                                     Carregando clientes...
                                                 </td>
                                             </tr>
                                         ) : saasClientsList.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum cliente SaaS encontrado.</td>
+                                                <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum cliente SaaS encontrado.</td>
                                             </tr>
                                         ) : (
                                             saasClientsList.map(empresa => (
@@ -2733,6 +2743,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                     </td>
                                                     <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                                                         {new Date(empresa.created_at).toLocaleDateString('pt-BR')}
+                                                    </td>
+                                                    <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                                                        <button
+                                                            onClick={() => handleToggleFeature(empresa.id, 'ia_audio_enabled', !!empresa.features?.ia_audio_enabled)}
+                                                            title={empresa.features?.ia_audio_enabled ? 'Audio IA ativo — clique para desativar' : 'Audio IA desativado — clique para ativar'}
+                                                            style={{ padding: '6px 12px', borderRadius: '20px', border: 'none', background: empresa.features?.ia_audio_enabled ? '#dcfce7' : '#fee2e2', color: empresa.features?.ia_audio_enabled ? '#15803d' : '#b91c1c', fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer' }}
+                                                        >
+                                                            {empresa.features?.ia_audio_enabled ? 'Ativo' : 'Off'}
+                                                        </button>
                                                     </td>
                                                     <td style={{ padding: '14px 16px' }}>
                                                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>

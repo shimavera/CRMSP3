@@ -51,6 +51,7 @@ const parseTextVariables = (text: string, lead: any) => {
 };
 
 const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatViewProps) => {
+    const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
@@ -1707,13 +1708,17 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                                                 {isSending ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
                                             </button>
-                                        ) : (
+                                        ) : isSuperAdmin ? (
                                             <button
                                                 onTouchStart={startRecording}
                                                 onMouseDown={startRecording}
                                                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
                                             >
                                                 <Mic size={24} />
+                                            </button>
+                                        ) : (
+                                            <button onClick={handleSendMessage} disabled={isSending || !inputValue.trim()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.4 }}>
+                                                <Send size={24} />
                                             </button>
                                         )}
                                     </>
