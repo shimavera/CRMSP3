@@ -1185,7 +1185,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 transition: 'all 0.2s ease',
                                 borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : '3px solid transparent'
                             }}
-                            onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.015)' }}
+                            onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)' }}
                             onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'transparent' }}
                         >
                             <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead?.id === lead.id ? 'var(--accent)' : 'var(--bg-tertiary)', color: selectedLead?.id === lead.id ? 'var(--bg-primary)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '1.1rem', border: '1px solid var(--border)' }}>
@@ -1196,7 +1196,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.nome || 'Lead s/ nome'}</div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         {unreadCounts[lead.telefone] > 0 && (
-                                            <div style={{ backgroundColor: '#10b981', color: 'white', fontSize: '0.62rem', fontWeight: 'bold', padding: '2px 5px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '16px' }}>
+                                            <div style={{ backgroundColor: 'var(--success)', color: 'white', fontSize: '0.62rem', fontWeight: 'bold', padding: '2px 5px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '16px' }}>
                                                 {unreadCounts[lead.telefone]}
                                             </div>
                                         )}
@@ -1232,12 +1232,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             onChange={e => setTempName(e.target.value)}
                                             onBlur={handleSaveName}
                                             onKeyDown={e => e.key === 'Enter' && handleSaveName()}
-                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: '#111b21', border: '1px solid var(--accent)', borderRadius: '4px', padding: '2px 6px', outline: 'none' }}
+                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', border: '1px solid var(--accent)', borderRadius: '4px', padding: '2px 6px', outline: 'none', background: 'var(--bg-primary)' }}
                                         />
                                     ) : (
                                         <h4
                                             onDoubleClick={() => { setTempName(selectedLead.nome || ''); setIsEditingName(true); }}
-                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: '#111b21', cursor: 'text' }}
+                                            style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', cursor: 'text' }}
                                             title="Clique duplo para editar nome"
                                         >
                                             {selectedLead.nome || selectedLead.telefone}
@@ -1280,11 +1280,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                 style={{
                                                     padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
                                                     display: 'flex', alignItems: 'center', gap: '8px',
-                                                    backgroundColor: (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? '#f0fdf4' : 'transparent',
-                                                    color: '#15803d'
+                                                    backgroundColor: (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent',
+                                                    color: 'var(--success)'
                                                 }}
-                                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9fafb')}
-                                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? '#f0fdf4' : 'transparent')}
+                                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent')}
                                             >
                                                 🔄 Remover follow-up
                                             </div>
@@ -1295,11 +1295,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                     style={{
                                                         padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
                                                         display: 'flex', alignItems: 'center', gap: '8px',
-                                                        backgroundColor: selectedLead.followup_stage === stage ? '#e0f2fe' : 'transparent',
-                                                        color: selectedLead.followup_stage === stage ? '#0369a1' : '#374151'
+                                                        backgroundColor: selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent',
+                                                        color: selectedLead.followup_stage === stage ? 'var(--accent)' : 'var(--text-primary)'
                                                     }}
-                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
-                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? '#e0f2fe' : 'transparent')}
+                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent')}
                                                 >
                                                     {selectedLead.followup_stage === stage ? '✓ ' : ''}{stage}ª Etapa
                                                 </div>
@@ -1311,7 +1311,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 <div style={{ position: 'relative' }} ref={stageSelectorRef}>
                                     <div
                                         onClick={() => setShowStageSelector(!showStageSelector)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid #bfdbfe' }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent)', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid var(--border)' }}
                                         title="Clique para definir o status do funil"
                                     >
                                         <TrendingUp size={14} /> {selectedLead.stage || 'SEM ETAPA'}
@@ -1351,7 +1351,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             </div>
                         </div>
 
-                        <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: '#f4f7fa', backgroundBlendMode: 'overlay' }}>
+                        <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: 'var(--bg-primary)', backgroundBlendMode: 'overlay', opacity: 0.9 }}>
                             {messages.map((msg, index) => {
                                 const prevMsg = messages[index - 1];
                                 const showDateDivider = !prevMsg || !isSameDay(msg.timestamp, prevMsg.timestamp);
@@ -1434,7 +1434,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                             : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
                                                         }
                                                         {msg.isFollowup && (
-                                                            <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: '#7c3aed', backgroundColor: '#ede9fe', padding: '1px 6px', borderRadius: '8px' }}>
+                                                            <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: 'var(--warning)', backgroundColor: 'var(--warning-soft)', padding: '1px 6px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                                                                 Follow-up {msg.followupStep}
                                                             </span>
                                                         )}
@@ -1520,7 +1520,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             });
                             if (pendingTasks.length === 0) return null;
                             return (
-                                <div className="animate-pulse" style={{ backgroundColor: '#fef2f2', borderTop: '2px solid #fecaca', color: '#b91c1c', padding: '10px 16px', fontSize: '0.85rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
+                                <div className="animate-pulse" style={{ backgroundColor: 'var(--error-soft)', borderTop: '2px solid var(--error)', color: 'var(--error)', padding: '10px 16px', fontSize: '0.85rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
                                     <AlertCircle size={18} /> ATENÇÃO: Lead com {pendingTasks.length} {pendingTasks.length === 1 ? 'tarefa vencendo ou em atraso' : 'tarefas vencendo ou em atraso'}!
                                 </div>
                             );
@@ -1574,12 +1574,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
                             {isRecording ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 16px' }}>
-                                    <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }}></div>
+                                    <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--error)' }}></div>
                                     <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Gravando... {formatTime(recordingTime)}</span>
-                                    <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                                    <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer' }}>
                                         <X size={20} />
                                     </button>
-                                    <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: '#16a34a', cursor: 'pointer' }}>
+                                    <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer' }}>
                                         <StopCircle size={24} />
                                     </button>
                                 </div>

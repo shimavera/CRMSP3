@@ -34,25 +34,25 @@ import type { Lead, UserProfile } from './lib/supabase';
 const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) => (
   <button
     onClick={onClick}
+    className={`sidebar-nav-item ${active ? 'active' : ''}`}
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '12px',
-      padding: '12px 16px',
+      gap: '10px',
+      padding: '8px 12px',
       borderRadius: 'var(--radius-md)',
       width: '100%',
       backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
       color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-      fontWeight: active ? '600' : '500',
+      fontWeight: active ? '600' : '400',
       textAlign: 'left',
       border: 'none',
       cursor: 'pointer',
-      transition: 'all 0.1s ease',
       outline: 'none'
     }}
   >
-    <Icon size={20} />
-    <span style={{ fontSize: '0.9rem' }}>{label}</span>
+    <Icon size={18} strokeWidth={active ? 2.5 : 2} />
+    <span style={{ fontSize: '0.85rem', letterSpacing: '-0.01em' }}>{label}</span>
   </button>
 );
 
@@ -484,15 +484,15 @@ function App() {
     <div className={`dashboard-container ${!desktopSidebarOpen && !isMobile ? 'desktop-sidebar-closed' : ''}`}>
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''} ${!desktopSidebarOpen && !isMobile ? ' desktop-sidebar-closed' : ''}`}>
-        <div className="logo-container" style={{ padding: '0.5rem 1rem', marginBottom: '2.5rem' }}>
+        <div className="logo-container" style={{ padding: '0.5rem 0.75rem', marginBottom: '2rem' }}>
           <div className="logo-icon-wrapper" style={{ padding: '4px', background: 'var(--accent-soft)', borderRadius: 'var(--radius-sm)' }}>
             <img
               src="/favicon.png"
               alt="Saúde AI Symbol"
-              style={{ height: '30px', width: '30px', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+              style={{ height: '24px', width: '24px', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
             />
           </div>
-          <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.04em', lineHeight: 1 }}>
+          <span className="logo-text" style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.04em', lineHeight: 1 }}>
             Saúde AI
           </span>
         </div>
@@ -516,19 +516,19 @@ function App() {
           )}
         </nav>
 
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid var(--border-soft)', paddingTop: '1.5rem' }}>
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
           {authUser.permissions.settings && (
             <SidebarItem icon={Settings} label="Configurações" active={activeTab === 'settings'} onClick={() => navigate('settings')} />
           )}
           {/* Perfil do usuário logado */}
-          <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginBottom: '8px' }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '2px' }}>{authUser.nome}</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>{authUser.role === 'master' ? '⭐ Administrador Master' : 'Operador'}</div>
+          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginBottom: '4px', marginTop: '4px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '1px' }}>{authUser.nome}</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600' }}>{authUser.role === 'master' ? '⭐ Administrador Master' : 'Operador'}</div>
           </div>
           <SidebarItem icon={LogOut} label="Sair" onClick={handleLogout} />
 
-          <div style={{ textAlign: 'center', marginTop: '1rem', opacity: 0.5, fontSize: '0.65rem', fontWeight: 'bold' }}>
-            Saúde AI v1.0
+          <div style={{ textAlign: 'center', marginTop: '0.75rem', opacity: 0.4, fontSize: '0.6rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>
+            SAÚDE AI v1.0
           </div>
         </div>
       </aside>
@@ -793,7 +793,7 @@ function App() {
                                 <button
                                   onClick={() => handleDeleteLead(lead.id)}
                                   title="Excluir Lead"
-                                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #fee2e2', backgroundColor: 'white', color: '#ef4444', cursor: 'pointer' }}
+                                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--error-soft)', backgroundColor: 'var(--bg-primary)', color: 'var(--error)', cursor: 'pointer' }}
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -813,22 +813,22 @@ function App() {
 
       {dialog && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
-            <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--border)' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{dialog.title}</h3>
+            <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               {dialog.type !== 'alert' && (
                 <button
                   onClick={dialog.onCancel}
-                  style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
+                  style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '500' }}
                 >
                   Cancelar
                 </button>
               )}
               <button
                 onClick={() => dialog.onConfirm()}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '500' }}
               >
                 OK
               </button>

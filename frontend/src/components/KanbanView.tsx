@@ -52,17 +52,17 @@ interface Lead {
 // ─── CONFIG DAS COLUNAS ───────────────────────────────────────────────────────
 
 const DEFAULT_PIPELINE: { stage: Stage; color: string; bg: string; icon: any; description: string }[] = [
-    { stage: 'Novo Lead', color: '#6366f1', bg: '#eef2ff', icon: Users, description: 'Lead recém captado' },
-    { stage: 'Contato Iniciado', color: '#0ea5e9', bg: '#f0f9ff', icon: Phone, description: 'Primeiro contato feito' },
-    { stage: 'Em Follow-up', color: '#f97316', bg: '#fff7ed', icon: Bell, description: 'Aguardando retorno' },
-    { stage: 'Qualificando', color: '#8b5cf6', bg: '#f5f3ff', icon: TrendingUp, description: 'Coletando informações' },
-    { stage: 'Reunião Agendada', color: '#f59e0b', bg: '#fffbeb', icon: Calendar, description: 'Reunião marcada' },
-    { stage: 'No Show', color: '#ef4444', bg: '#fef2f2', icon: AlertCircle, description: 'Não compareceu' },
-    { stage: 'Reunião Realizada', color: '#10b981', bg: '#f0fdf4', icon: CheckCircle2, description: 'Reunião concluída' },
-    { stage: 'Proposta Enviada', color: '#f97316', bg: '#fff7ed', icon: FileText, description: 'Proposta em análise' },
-    { stage: 'Negociação', color: '#ec4899', bg: '#fdf4ff', icon: Handshake, description: 'Negociando contrato' },
-    { stage: 'Fechado', color: '#059669', bg: '#ecfdf5', icon: Trophy, description: 'Cliente convertido' },
-    { stage: 'Perdido', color: '#64748b', bg: '#f8fafc', icon: XCircle, description: 'Oportunidade perdida' },
+    { stage: 'Novo Lead', color: '#6366f1', bg: 'var(--bg-tertiary)', icon: Users, description: 'Lead recém captado' },
+    { stage: 'Contato Iniciado', color: '#0ea5e9', bg: 'var(--bg-tertiary)', icon: Phone, description: 'Primeiro contato feito' },
+    { stage: 'Em Follow-up', color: '#f97316', bg: 'var(--bg-tertiary)', icon: Bell, description: 'Aguardando retorno' },
+    { stage: 'Qualificando', color: '#8b5cf6', bg: 'var(--bg-tertiary)', icon: TrendingUp, description: 'Coletando informações' },
+    { stage: 'Reunião Agendada', color: '#f59e0b', bg: 'var(--bg-tertiary)', icon: Calendar, description: 'Reunião marcada' },
+    { stage: 'No Show', color: '#ef4444', bg: 'var(--bg-tertiary)', icon: AlertCircle, description: 'Não compareceu' },
+    { stage: 'Reunião Realizada', color: '#10b981', bg: 'var(--bg-tertiary)', icon: CheckCircle2, description: 'Reunião concluída' },
+    { stage: 'Proposta Enviada', color: '#f97316', bg: 'var(--bg-tertiary)', icon: FileText, description: 'Proposta em análise' },
+    { stage: 'Negociação', color: '#ec4899', bg: 'var(--bg-tertiary)', icon: Handshake, description: 'Negociando contrato' },
+    { stage: 'Fechado', color: '#059669', bg: 'var(--bg-tertiary)', icon: Trophy, description: 'Cliente convertido' },
+    { stage: 'Perdido', color: '#64748b', bg: 'var(--bg-tertiary)', icon: XCircle, description: 'Oportunidade perdida' },
 ];
 
 const FUNIS_DISPONIVEIS = [
@@ -156,7 +156,7 @@ const LeadCard = (props: {
                     {/* Tags */}
                     <div style={{ display: 'flex', gap: '4px', marginTop: '10px', flexWrap: 'wrap' }}>
                         {lead.created_at && (
-                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: '600' }}>
+                            <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: '20px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: '600', border: '1px solid var(--border)' }}>
                                 📥 Entrou em {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                             </span>
                         )}
@@ -212,12 +212,12 @@ const LeadCard = (props: {
                     </div>
 
                     {/* Tempo no estágio */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: daysInStage >= 5 ? '4px 8px' : '0', background: daysInStage >= 5 ? '#fff1f2' : 'transparent', borderRadius: '8px', width: 'fit-content' }}>
-                        <Clock size={11} color={daysInStage >= 3 ? '#ef4444' : '#94a3b8'} />
-                        <span style={{ fontSize: '0.65rem', color: daysInStage >= 3 ? '#ef4444' : '#94a3b8', fontWeight: daysInStage >= 5 ? '800' : '500' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: daysInStage >= 5 ? '4px 8px' : '0', background: daysInStage >= 5 ? 'var(--error-soft)' : 'transparent', borderRadius: '8px', width: 'fit-content' }}>
+                        <Clock size={11} color={daysInStage >= 3 ? 'var(--error)' : 'var(--text-muted)'} />
+                        <span style={{ fontSize: '0.65rem', color: daysInStage >= 3 ? 'var(--error)' : 'var(--text-muted)', fontWeight: daysInStage >= 5 ? '800' : '500' }}>
                             {daysInStage === 0 ? 'Atualizado hoje' : `${daysInStage}d parado`}
                         </span>
-                        {daysInStage >= 5 && <AlertCircle size={10} color="#ef4444" style={{ animation: 'bounce 1s infinite' }} />}
+                        {daysInStage >= 5 && <AlertCircle size={10} color="var(--error)" style={{ animation: 'bounce 1s infinite' }} />}
                     </div>
 
                     {/* Menu de ações rápidas */}
@@ -320,7 +320,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                         <h3 style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text-primary)' }}>{lead.nome || 'Lead s/ nome'}</h3>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{lead.telefone}</span>
                     </div>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--text-muted)' }}>×</button>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--text-primary)' }}>×</button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
@@ -334,20 +334,20 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                 {activeTab === 'details' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div>
-                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>Estágio</label>
-                            <select value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Stage }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Estágio</label>
+                            <select value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value as Stage }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
                                 {currentPipeline.map(p => <option key={p.stage} value={p.stage}>{p.stage}</option>)}
                             </select>
                         </div>
 
                         <div>
-                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>📅 Data da Reunião</label>
-                            <input type="datetime-local" value={form.meeting_datetime ? form.meeting_datetime.slice(0, 16) : ''} onChange={e => setForm(f => ({ ...f, meeting_datetime: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>📅 Data da Reunião</label>
+                            <input type="datetime-local" value={form.meeting_datetime ? form.meeting_datetime.slice(0, 16) : ''} onChange={e => setForm(f => ({ ...f, meeting_datetime: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--bg-primary)', color: 'var(--text-primary)' }} />
                         </div>
 
                         <div>
-                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '4px' }}>🔗 Link da Reunião</label>
-                            <input type="url" value={form.meeting_link || ''} onChange={e => setForm(f => ({ ...f, meeting_link: e.target.value }))} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>🔗 Link da Reunião</label>
+                            <input type="url" value={form.meeting_link || ''} onChange={e => setForm(f => ({ ...f, meeting_link: e.target.value }))} placeholder="https://meet.google.com/..." style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--bg-primary)', color: 'var(--text-primary)' }} />
                         </div>
 
                         <div>
@@ -482,7 +482,7 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                     </div>
                 )}
 
-                <button onClick={handleSave} disabled={saving} style={{ marginTop: '1.5rem', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}>
+                <button onClick={handleSave} disabled={saving} style={{ marginTop: '1.5rem', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' }}>
                     {saving ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
             </div>
@@ -663,7 +663,7 @@ const KanbanView = () => {
     }, [leads]);
 
     if (loading) return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px', color: '#6366f1' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '12px', color: 'var(--accent)' }}>
             <Loader2 className="animate-spin" size={28} /> <span style={{ fontWeight: '700' }}>Carregando pipeline...</span>
         </div>
     );

@@ -19,10 +19,10 @@ const SECTION_LABELS: Record<string, string> = {
 // ─── Execution Logs Panel ─────────────────────────────
 type LogStatusFilter = 'all' | 'running' | 'paused' | 'completed' | 'failed';
 const LOG_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-    running:   { label: 'Rodando',  color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-    paused:    { label: 'Pausado',  color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+    running: { label: 'Rodando', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+    paused: { label: 'Pausado', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
     completed: { label: 'Completo', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-    failed:    { label: 'Falhou',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+    failed: { label: 'Falhou', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
 };
 
 function ExecutionLogsPanel({ companyId }: { companyId: string }) {
@@ -1929,7 +1929,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                         borderRadius: '8px',
                                                         border: '1px solid',
                                                         borderColor: isActive ? 'var(--accent)' : 'var(--border-soft)',
-                                                        backgroundColor: isActive ? 'var(--accent-soft)' : 'white',
+                                                        backgroundColor: isActive ? 'var(--accent-soft)' : 'var(--bg-primary)',
                                                         color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
                                                         fontSize: '0.75rem',
                                                         fontWeight: '700',
@@ -2414,7 +2414,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 key={key}
                                                 type="button"
                                                 onClick={() => setNewUserPermissions(prev => ({ ...prev, [key]: !prev[key] }))}
-                                                style={{ padding: '6px 14px', borderRadius: '20px', border: '1.5px solid', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', backgroundColor: newUserPermissions[key] ? 'var(--accent)' : 'white', color: newUserPermissions[key] ? 'white' : 'var(--text-secondary)', borderColor: newUserPermissions[key] ? 'var(--accent)' : 'var(--border-soft)' }}
+                                                style={{ padding: '6px 14px', borderRadius: '20px', border: '1.5px solid', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', backgroundColor: newUserPermissions[key] ? 'var(--accent)' : 'var(--bg-primary)', color: newUserPermissions[key] ? 'white' : 'var(--text-secondary)', borderColor: newUserPermissions[key] ? 'var(--accent)' : 'var(--border-soft)' }}
                                             >
                                                 {SECTION_LABELS[key]}
                                             </button>
@@ -2455,10 +2455,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Ações destrutivas para gerenciamento de dados do sistema.</p>
                         </div>
 
-                        <div style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid #fee2e2', backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--error-soft)', backgroundColor: 'var(--error-soft)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#b91c1c' }}>Zerar Todos os Dados de Clientes</h4>
-                                <p style={{ fontSize: '0.85rem', color: '#7f1d1d', marginTop: '4px' }}>
+                                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--error)' }}>Zerar Todos os Dados de Clientes</h4>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                                     Apaga permanentemente <strong>todos os leads, conversas, execuções de fluxo</strong> e dados salvos nos cards (etiquetas, observações, campos customizados, agendamentos).
                                     A empresa fica como nova — ideal para limpar testes. <strong>Configurações</strong> (fluxos, prompts, IA, horários) são mantidas.
                                 </p>
@@ -2467,7 +2467,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 <button
                                     onClick={handleResetChats}
                                     disabled={isResettingChats}
-                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#ef4444', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'var(--error)', color: 'white', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                                 >
                                     {isResettingChats ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                                     {isResettingChats ? 'Apagando...' : 'Zerar Dados de Clientes'}
@@ -2627,9 +2627,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
             {dialog && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: '#111827', fontWeight: 'bold' }}>{dialog.title}</h3>
-                        <p style={{ margin: '0 0 20px 0', color: '#4b5563', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+                    <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--border)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{dialog.title}</h3>
+                        <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
 
                         {dialog.type === 'prompt' && (
                             <input
@@ -2638,7 +2638,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 value={promptInput}
                                 onChange={(e) => setPromptInput(e.target.value)}
                                 placeholder={dialog.placeholder || 'Digite...'}
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #d1d5db', marginBottom: '20px', fontSize: '0.95rem', outline: 'none' }}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', marginBottom: '20px', fontSize: '0.95rem', outline: 'none' }}
                                 onKeyDown={(e) => { if (e.key === 'Enter') dialog.onConfirm(promptInput); }}
                             />
                         )}
@@ -2647,14 +2647,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             {dialog.type !== 'alert' && (
                                 <button
                                     onClick={dialog.onCancel}
-                                    style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#f3f4f6', color: '#374151', cursor: 'pointer', fontWeight: '500' }}
+                                    style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '500' }}
                                 >
                                     Cancelar
                                 </button>
                             )}
                             <button
                                 onClick={() => dialog.onConfirm(promptInput)}
-                                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#6254f1', color: 'white', cursor: 'pointer', fontWeight: '500' }}
+                                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '500' }}
                             >
                                 OK
                             </button>

@@ -82,7 +82,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
         return order.map(name => ({
             name,
             value: stages[name] || 0,
-            fill: name === 'Ganho' ? '#10b981' : '#6366f1'
+            fill: name === 'Ganho' ? 'var(--success)' : 'var(--accent)'
         })).filter(s => s.value > 0);
     }, [filteredLeads]);
 
@@ -154,42 +154,42 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                     title="Total de Leads"
                     value={metrics.total.length}
                     icon={<Users size={20} />}
-                    color="#6366f1"
+                    color="var(--accent)"
                     onClick={() => setSelectedMetric({ title: 'Total de Leads', leads: metrics.total })}
                 />
                 <MetricCard
                     title="Forecast (Propostas)"
                     value={metrics.totalForecast.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     icon={<DollarSign size={20} />}
-                    color="#10b981"
+                    color="var(--success)"
                     onClick={() => setSelectedMetric({ title: 'Forecast (Proposta)', leads: filteredLeads.filter(l => parseFloat((l.custom_fields as any)?.proposta_valor || '0') > 0) })}
                 />
                 <MetricCard
                     title="Agendamentos"
                     value={metrics.comReuniao.length}
                     icon={<Activity size={20} />}
-                    color="#f59e0b"
+                    color="var(--warning)"
                     onClick={() => setSelectedMetric({ title: 'Agendamentos', leads: metrics.comReuniao })}
                 />
                 <MetricCard
                     title="Vendas (Ganhos)"
                     value={metrics.ganhos.length}
                     icon={<CheckCircle2 size={20} />}
-                    color="#ec4899"
+                    color="var(--accent)"
                     onClick={() => setSelectedMetric({ title: 'Vendas (Ganhos)', leads: metrics.ganhos })}
                 />
                 <MetricCard
                     title="Cobertura IA"
                     value={`${aiMetrics.coverage}%`}
                     icon={<Bot size={20} />}
-                    color="#8b5cf6"
+                    color="var(--accent)"
                     onClick={() => setSelectedMetric({ title: 'Lead sob Automação', leads: filteredLeads.filter(l => l.ia_active) })}
                 />
                 <MetricCard
                     title="Tempo IA (Média)"
                     value={aiMetrics.avgResponse}
                     icon={<Activity size={20} />}
-                    color="#06b6d4"
+                    color="var(--accent)"
                 />
             </div>
             {/* Gráficos */}
@@ -205,7 +205,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                     <div style={{ width: '100%', height: '280px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={funnelData} layout="vertical" margin={{ left: 40, right: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
                                 <XAxis type="number" hide />
                                 <YAxis
                                     dataKey="name"
@@ -213,7 +213,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                                     width={100}
                                     axisLine={false}
                                     tickLine={false}
-                                    style={{ fontSize: '0.75rem', fontWeight: '700' }}
+                                    style={{ fontSize: '0.75rem', fontWeight: '700', fill: 'var(--text-secondary)' }}
                                 />
                                 <RechartsTooltip
                                     cursor={{ fill: 'var(--bg-tertiary)' }}
@@ -236,9 +236,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                     <div style={{ width: '100%', height: '280px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={forecastByStage}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fontWeight: '700' }} />
-                                <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.7rem' }} tickFormatter={(val) => `R$${val / 1000}k`} />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fontWeight: '700', fill: 'var(--text-secondary)' }} />
+                                <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.7rem', fill: 'var(--text-muted)' }} tickFormatter={(val) => `R$${val / 1000}k`} />
                                 <RechartsTooltip
                                     formatter={(value: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
                                     contentStyle={{ borderRadius: 'var(--radius-md)', border: `1px solid var(--border)`, backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--shadow-md)' }}
@@ -261,9 +261,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                         <div style={{ width: '100%', height: '250px' }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={timelineData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fontWeight: '700' }} />
-                                    <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.75rem' }} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fontWeight: '700', fill: 'var(--text-secondary)' }} />
+                                    <YAxis axisLine={false} tickLine={false} style={{ fontSize: '0.75rem', fill: 'var(--text-muted)' }} />
                                     <RechartsTooltip
                                         contentStyle={{ borderRadius: 'var(--radius-md)', border: `1px solid var(--border)`, backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--shadow-md)' }}
                                     />
@@ -272,7 +272,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                                         dataKey="count"
                                         stroke="var(--accent)"
                                         strokeWidth={4}
-                                        dot={{ r: 6, fill: 'var(--accent)', strokeWidth: 2, stroke: '#fff' }}
+                                        dot={{ r: 6, fill: 'var(--accent)', strokeWidth: 2, stroke: 'var(--bg-primary)' }}
                                         activeDot={{ r: 8, strokeWidth: 0 }}
                                     />
                                 </LineChart>
@@ -295,31 +295,31 @@ const DashboardView: React.FC<DashboardViewProps> = ({ leads, onOpenChat }) => {
                         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
-                                    <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9' }}>
-                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b' }}>Lead</th>
-                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b' }}>Status</th>
-                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b' }}>Forecast</th>
+                                    <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border)' }}>
+                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Lead</th>
+                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Status</th>
+                                        <th style={{ padding: '12px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Forecast</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {selectedMetric.leads.length === 0 ? (
-                                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>Nenhum lead nesta categoria</td></tr>
+                                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Nenhum lead nesta categoria</td></tr>
                                     ) : (
                                         selectedMetric.leads.map(lead => (
                                             <tr
                                                 key={lead.id}
                                                 onClick={() => { onOpenChat(lead.telefone); setSelectedMetric(null); }}
-                                                style={{ borderBottom: '1px solid #f8fafc', cursor: 'pointer', transition: 'background 0.2s' }}
-                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                                style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.2s' }}
+                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                                                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                                 title="Clique para abrir conversa"
                                             >
                                                 <td style={{ padding: '12px' }}>
-                                                    <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>{lead.nome || lead.telefone}</div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{(lead.custom_fields as any)?.email || lead.telefone}</div>
+                                                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{lead.nome || lead.telefone}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{(lead.custom_fields as any)?.email || lead.telefone}</div>
                                                 </td>
                                                 <td style={{ padding: '12px' }}>
-                                                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', backgroundColor: '#f1f5f9', fontWeight: '700' }}>{lead.stage || lead.status || 'Novo'}</span>
+                                                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: '700' }}>{lead.stage || lead.status || 'Novo'}</span>
                                                 </td>
                                                 <td style={{ padding: '12px', fontWeight: '800', color: 'var(--accent)' }}>
                                                     {parseFloat((lead.custom_fields as any)?.proposta_valor || '0').toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
