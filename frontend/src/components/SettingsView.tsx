@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, Clock, ChevronDown, ChevronRight, User, PauseCircle } from 'lucide-react';
 import { supabase } from "../lib/supabase";
-import type { UserProfile, SocialProofVideo, QuickMessage, Instance } from '../lib/supabase';
+import type { UserProfile, SocialProofVideo, QuickMessage, Instance, IAGap } from '../lib/supabase';
 import PromptBuilderChat from './PromptBuilderChat';
 
 interface SettingsViewProps {
@@ -305,6 +305,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     // Estados do Prompt da IA
     const [promptHistory, setPromptHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+    // Estados de Lacunas da IA
+    const [iaGaps, setIaGaps] = useState<IAGap[]>([]);
+    const [iaGapCount, setIaGapCount] = useState(0);
 
     // Estados do Follow-up
     const [followupConfig, setFollowupConfig] = useState<any>({
@@ -640,6 +644,36 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 .from('sp3_prompts')
                 .insert([{ company_id: authUser.company_id, content }]);
             if (!error) await fetchPromptHistory();
+        }
+    };
+
+    // === Funções de Lacunas da IA ===
+    const fetchIaGaps = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('sp3_ia_gaps')
+                .select('*')
+                .eq('company_id', authUser.company_id)
+                .order('created_at', { ascending: false });
+            if (!error && data) {
+                setIaGaps(data);
+                setIaGapCount(data.filter((g: IAGap) => g.status === 'pending').length);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar lacunas:', err);
+        }
+    };
+
+    const handleUpdateGapStatus = async (gapId: number, newStatus: 'resolved' | 'dismissed') => {
+        const updateData: Record<string, string> = { status: newStatus };
+        if (newStatus === 'resolved') updateData.resolved_at = new Date().toISOString();
+        const { error } = await supabase
+            .from('sp3_ia_gaps')
+            .update(updateData)
+            .eq('id', gapId);
+        if (!error) {
+            setIaGaps(prev => prev.map(g => g.id === gapId ? { ...g, ...updateData } : g));
+            setIaGapCount(prev => Math.max(0, prev - 1));
         }
     };
 
@@ -1385,6 +1419,16 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             });
         }
 
+        // Buscar count de lacunas da IA para badge
+        supabase
+            .from('sp3_ia_gaps')
+            .select('id', { count: 'exact', head: true })
+            .eq('company_id', authUser.company_id)
+            .eq('status', 'pending')
+            .then(({ count }) => {
+                if (count !== null) setIaGapCount(count);
+            });
+
         return () => stopConnectionPolling(); // Cleanup for connection polling
     }, []);
 
@@ -1395,6 +1439,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             fetchUsers();
         } else if (activeSubTab === 'ia') {
             fetchPromptHistory();
+            fetchIaGaps();
         } else if (activeSubTab === 'followup') {
             fetchFollowupConfig();
         } else if (activeSubTab === 'videos') {
@@ -1439,6 +1484,22 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'ia' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'ia' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'ia' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                     >
                         <SettingsIcon size={18} /> Configuração da IA
+                        {iaGapCount > 0 && (
+                            <span style={{
+                                background: 'var(--error, #ee0000)',
+                                color: '#fff',
+                                fontSize: '0.65rem',
+                                fontWeight: '800',
+                                borderRadius: '10px',
+                                padding: '1px 6px',
+                                minWidth: '18px',
+                                textAlign: 'center',
+                                marginLeft: 'auto',
+                                lineHeight: '1.4'
+                            }}>
+                                {iaGapCount}
+                            </span>
+                        )}
                     </button>
                     <button
                         onClick={() => setActiveSubTab('followup')}
@@ -1749,12 +1810,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             {instances.length} instância(s) configurada(s)
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={() => setShowCreateInstance(!showCreateInstance)}
-                                        style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: showCreateInstance ? '#f1f5f9' : 'var(--accent)', color: showCreateInstance ? 'var(--text-secondary)' : 'white', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                    >
-                                        {showCreateInstance ? <><X size={16} /> Cancelar</> : <><Plus size={16} /> Nova Instância</>}
-                                    </button>
+                                    {isSuperAdmin && (
+                                        <button
+                                            onClick={() => setShowCreateInstance(!showCreateInstance)}
+                                            style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: showCreateInstance ? '#f1f5f9' : 'var(--accent)', color: showCreateInstance ? 'var(--text-secondary)' : 'white', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                            {showCreateInstance ? <><X size={16} /> Cancelar</> : <><Plus size={16} /> Nova Instância</>}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Formulário Nova Instância */}
@@ -1838,8 +1901,80 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 )}
 
                 {activeSubTab === 'ia' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', height: 'calc(100vh - 200px)' }}>
-                        {/* Chat Builder */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: 'calc(100vh - 200px)' }}>
+                        {/* Painel de Lacunas da IA */}
+                        {iaGaps.filter(g => g.status === 'pending').length > 0 && (
+                            <div className="glass-card" style={{
+                                padding: '16px 20px',
+                                background: 'rgba(238, 0, 0, 0.04)',
+                                border: '1px solid rgba(238, 0, 0, 0.15)',
+                                flexShrink: 0,
+                                maxHeight: '220px',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                                    <div style={{
+                                        width: '8px', height: '8px', borderRadius: '50%',
+                                        background: 'var(--error, #ee0000)',
+                                        boxShadow: '0 0 6px rgba(238,0,0,0.4)'
+                                    }} />
+                                    <h4 style={{ fontSize: '0.85rem', fontWeight: '800', margin: 0, color: 'var(--error, #ee0000)' }}>
+                                        Lacunas de Conhecimento ({iaGaps.filter(g => g.status === 'pending').length})
+                                    </h4>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                        A IA não soube responder estas perguntas
+                                    </span>
+                                </div>
+                                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {iaGaps.filter(g => g.status === 'pending').map((gap) => (
+                                        <div key={gap.id} style={{
+                                            display: 'flex', alignItems: 'center', gap: '12px',
+                                            padding: '10px 14px', borderRadius: '10px',
+                                            background: 'var(--bg-tertiary)',
+                                            border: '1px solid var(--border-soft)'
+                                        }}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    &ldquo;{gap.pergunta}&rdquo;
+                                                </div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                                    {gap.contexto_lead || 'Lead desconhecido'}
+                                                    {gap.telefone_lead ? ` · ${gap.telefone_lead}` : ''}
+                                                    {gap.created_at && ` · ${new Date(gap.created_at).toLocaleDateString('pt-BR')} ${new Date(gap.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleUpdateGapStatus(gap.id, 'resolved')}
+                                                title="Já adicionei ao prompt"
+                                                style={{
+                                                    padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)',
+                                                    background: 'rgba(16,185,129,0.1)', color: '#10b981',
+                                                    fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
+                                                }}
+                                            >
+                                                Resolvida
+                                            </button>
+                                            <button
+                                                onClick={() => handleUpdateGapStatus(gap.id, 'dismissed')}
+                                                title="Não relevante"
+                                                style={{
+                                                    padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-soft)',
+                                                    background: 'transparent', color: 'var(--text-muted)',
+                                                    fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
+                                                }}
+                                            >
+                                                Descartar
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Grid: Chat + Histórico */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', flex: 1, minHeight: 0 }}>
                         <PromptBuilderChat
                             companyId={authUser.company_id!}
                             currentPrompt={promptHistory.length > 0 ? promptHistory[0].content : ''}
@@ -1892,6 +2027,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Use o chat ao lado para criar seu primeiro prompt.</p>
                                 )}
                             </div>
+                        </div>
                         </div>
                     </div>
                 )}

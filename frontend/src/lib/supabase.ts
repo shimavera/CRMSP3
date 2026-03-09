@@ -281,3 +281,14 @@ export type FlowExecution = {
   created_at?: string;
   updated_at?: string;
 };
+
+export type IAGap = {
+  id: number;
+  company_id?: string;
+  pergunta: string;
+  contexto_lead?: string;
+  telefone_lead?: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  created_at?: string;
+  resolved_at?: string;
+};
