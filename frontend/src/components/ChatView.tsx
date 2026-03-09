@@ -1150,7 +1150,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)' }}>
                     <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-secondary)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <h4 style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Conversas</h4>
+                            <h4 style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Conversas</h4>
                             <Search size={14} style={{ color: 'var(--text-muted)', cursor: 'pointer' }} />
                         </div>
                         <div style={{ display: 'flex', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', padding: '2px', border: '1px solid var(--border)', marginBottom: '4px' }}>
