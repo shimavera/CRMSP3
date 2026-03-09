@@ -533,8 +533,8 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content" style={isMobile && activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : undefined}>
-        {!(isMobile && activeTab === 'chats') && (
+      <main className="main-content" style={activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : undefined}>
+        {activeTab !== 'chats' && (
           <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
