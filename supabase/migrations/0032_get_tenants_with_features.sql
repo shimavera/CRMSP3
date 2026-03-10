@@ -6,6 +6,8 @@
 -- por empresa (ex: ia_audio_enabled).
 -- =============================================================================
 
+DROP FUNCTION IF EXISTS get_all_tenants();
+
 CREATE OR REPLACE FUNCTION get_all_tenants()
 RETURNS TABLE (
   id UUID,
