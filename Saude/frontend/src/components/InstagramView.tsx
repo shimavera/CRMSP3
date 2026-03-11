@@ -27,7 +27,7 @@ import type {
   InstagramPost
 } from '../lib/supabase';
 
-const N8N_WEBHOOK_BASE = 'https://n8n-webhook.sp3company.shop';
+const N8N_WEBHOOK_BASE = import.meta.env.VITE_N8N_WEBHOOK_BASE;
 
 interface Props {
   authUser: UserProfile;

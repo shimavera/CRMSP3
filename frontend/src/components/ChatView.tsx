@@ -121,7 +121,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const { error } = await supabase
                 .from('sp3chat')
                 .update({ nome: tempName })
-                .eq('id', selectedLead.id);
+                .eq('id', selectedLead.id)
+                .eq('company_id', authUser.company_id);
             if (error) throw error;
             setSelectedLead({ ...selectedLead, nome: tempName });
         } catch (e: any) {
@@ -160,7 +161,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const updatedLead = { ...selectedLead, custom_fields: newCustomFields };
         setSelectedLead(updatedLead);
         setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
+        await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
     };
 
     const handleAddTask = async () => {
@@ -172,7 +173,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
         setNewTaskTitle('');
         setNewTaskDate('');
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
+        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
     };
 
     const handleToggleTask = async (taskId: string) => {
@@ -181,7 +182,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const updatedLead = { ...selectedLead, tasks: newTasks };
         setSelectedLead(updatedLead);
         setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
+        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
     };
 
     const handleDeleteTask = async (taskId: string) => {
@@ -190,7 +191,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const updatedLead = { ...selectedLead, tasks: newTasks };
         setSelectedLead(updatedLead);
         setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
+        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
     };
 
     const handleCloseConversation = () => {
@@ -208,7 +209,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             closed_reason: selectedCloseReason || 'Sem motivo informado',
             stage: 'Perdido' // or Fechado, let's just mark it as Perdido for generic closing
         };
-        const { error } = await supabase.from('sp3chat').update(updates).eq('id', selectedLead.id);
+        const { error } = await supabase.from('sp3chat').update(updates).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
         if (!error) {
             const updatedLead = { ...selectedLead, ...updates };
             setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
@@ -611,7 +612,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
         // Salvar no banco
         const newCustomFields = { ...(selectedLead.custom_fields || {}), ai_summary: summary };
-        const { error } = await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
+        const { error } = await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
 
         if (!error) {
             setAiSummary(summary);
@@ -636,7 +637,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update({ ia_active: newState })
-            .eq('id', selectedLead.id);
+            .eq('id', selectedLead.id)
+            .eq('company_id', authUser.company_id);
 
         if (error) {
             await showAlert('Erro ao atualizar status da IA: ' + error.message);
@@ -663,7 +665,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update({ followup_locked: newLocked })
-            .eq('id', selectedLead.id);
+            .eq('id', selectedLead.id)
+            .eq('company_id', authUser.company_id);
 
         if (error) {
             await showAlert('Erro ao atualizar follow-up: ' + error.message);
@@ -699,7 +702,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update(updates)
-            .eq('id', selectedLead.id);
+            .eq('id', selectedLead.id)
+            .eq('company_id', authUser.company_id);
 
         if (error) {
             await showAlert('Erro ao alterar etapa: ' + error.message);
@@ -817,7 +821,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3_flow_executions')
             .update({ status: 'cancelled', completed_at: new Date().toISOString() })
-            .eq('id', activeFlowExec.id);
+            .eq('id', activeFlowExec.id)
+            .eq('company_id', authUser.company_id);
 
         if (!error) {
             const firstName = authUser.nome.split(' ')[0];
@@ -844,7 +849,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update({ stage: newStage, stage_updated_at: new Date().toISOString() })
-            .eq('id', selectedLead.id);
+            .eq('id', selectedLead.id)
+            .eq('company_id', authUser.company_id);
 
         if (error) {
             await showAlert('Erro ao alterar etapa: ' + error.message);
@@ -884,7 +890,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update({ observacoes: observacoesInput })
-            .eq('id', selectedLead.id);
+            .eq('id', selectedLead.id)
+            .eq('company_id', authUser.company_id);
         setIsSavingObs(false);
         if (error) {
             await showAlert('Erro ao salvar observações: ' + error.message);

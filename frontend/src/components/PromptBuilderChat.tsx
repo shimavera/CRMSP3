@@ -15,7 +15,7 @@ interface PromptBuilderChatProps {
     onSavePrompt: (content: string) => Promise<void>;
 }
 
-const WEBHOOK_URL = 'https://n8n-webhook.sp3company.shop/webhook/prompt-builder';
+const WEBHOOK_URL = `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/prompt-builder`;
 
 export default function PromptBuilderChat({ companyId, currentPrompt, onSavePrompt }: PromptBuilderChatProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);

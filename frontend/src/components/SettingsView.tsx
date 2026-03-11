@@ -278,10 +278,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [evoError, setEvoError] = useState<string | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Chave global da Evolution API (admin) — persistida em localStorage
-    const [evoGlobalKey, setEvoGlobalKey] = useState<string>(() => {
-        try { return localStorage.getItem(`sp3_evo_global_key_${authUser.company_id}`) || ''; } catch { return ''; }
-    });
+    // Chave global da Evolution API (admin) — carregada do banco via RPC
+    const [evoGlobalKey, setEvoGlobalKey] = useState<string>('');
     const [showEvoGlobalKey, setShowEvoGlobalKey] = useState(false);
     const [evoKeySaved, setEvoKeySaved] = useState(false);
 
@@ -764,7 +762,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 body: JSON.stringify({
                     webhook: {
                         enabled: true,
-                        url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                        url: `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/sp3chat`,
                         webhookByEvents: false,
                         webhookBase64: true,
                         events: ['MESSAGES_UPSERT']
@@ -1462,7 +1460,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             supabase.rpc('get_evo_global_key').then(({ data }) => {
                 if (data) {
                     setEvoGlobalKey(data);
-                    localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, data);
+                    // key carregada do banco, sem localStorage
                 }
             });
         }
@@ -1502,7 +1500,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     setNewClientEvoKey(data);
                     if (!evoGlobalKey) {
                         setEvoGlobalKey(data);
-                        localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, data);
+                        // key carregada do banco, sem localStorage
                     }
                 }
             });
@@ -1756,7 +1754,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                     onChange={(e) => {
                                                         const val = e.target.value;
                                                         setEvoGlobalKey(val);
-                                                        localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
+                                                        // salvo no banco via RPC, não em localStorage
                                                     }}
                                                     placeholder="Cole a Global API Key aqui"
                                                     style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace', background: 'var(--bg-secondary)' }}
@@ -1812,7 +1810,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             onChange={(e) => {
                                                 const val = e.target.value;
                                                 setEvoGlobalKey(val);
-                                                localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
                                             }}
                                             placeholder="Cole aqui a Global API Key de automação"
                                             style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace' }}

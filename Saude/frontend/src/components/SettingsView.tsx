@@ -760,7 +760,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
                     enabled: true,
-                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                    url: `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/sp3chat`,
                     webhook_by_events: false,
                     webhook_base64: true,
                     events: ['MESSAGES_UPSERT']

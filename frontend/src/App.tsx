@@ -388,7 +388,7 @@ function App() {
       const { error } = await supabase.from('sp3chat').update({
         nome: newLeadNome.trim() || null,
         telefone: phone
-      }).eq('id', editingLeadId);
+      }).eq('id', editingLeadId).eq('company_id', authUser!.company_id);
 
       if (error) {
         setAddLeadError(error.message);
@@ -448,17 +448,19 @@ function App() {
       await supabase
         .from('sp3_followup_state')
         .delete()
-        .eq('telefone', lead.telefone);
+        .eq('telefone', lead.telefone)
+        .eq('company_id', authUser!.company_id);
 
       // 3. Cancelar execuções de fluxo ativas
       await supabase
         .from('sp3_flow_executions')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('lead_id', leadId)
+        .eq('company_id', authUser!.company_id)
         .in('status', ['running', 'paused']);
 
       // 4. Apagar o lead (sp3_flow_executions com FK CASCADE também são removidas)
-      const { error } = await supabase.from('sp3chat').delete().eq('id', leadId);
+      const { error } = await supabase.from('sp3chat').delete().eq('id', leadId).eq('company_id', authUser!.company_id);
       if (error) {
         await showAlert('Erro ao excluir: ' + error.message);
       } else {
