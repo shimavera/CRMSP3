@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import type { UserProfile } from '../lib/supabase';
 import {
     Users, Phone, Calendar, XCircle, CheckCircle2,
     FileText, Handshake, Trophy, Trash2,
@@ -525,7 +526,7 @@ const MetricsBar = ({ leads }: { leads: Lead[] }) => {
 
 // ─── COMPONENTE PRINCIPAL ────────────────────────────────────────────────────
 
-const KanbanView = () => {
+const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -547,6 +548,7 @@ const KanbanView = () => {
         const { data, error } = await supabase
             .from('sp3chat')
             .select('*')
+            .eq('company_id', authUser.company_id)
             .order('created_at', { ascending: false });
 
         if (!error && data) {
@@ -571,7 +573,7 @@ const KanbanView = () => {
         // Realtime: atualizar kanban automaticamente (MCP)
         const channel = supabase
             .channel('kanban-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sp3chat' }, (payload) => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sp3chat', filter: `company_id=eq.${authUser.company_id}` }, (payload) => {
                 if (payload.eventType === 'INSERT') {
                     setLeads(prev => [{ ...payload.new as Lead, stage: (payload.new as Lead).stage || 'Novo Lead' }, ...prev]);
                 } else if (payload.eventType === 'UPDATE') {

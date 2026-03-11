@@ -635,7 +635,7 @@ function App() {
           )}
 
           {activeTab === 'kanban' && authUser.permissions.kanban && (
-            <LazyKanbanView />
+            <LazyKanbanView authUser={authUser} />
           )}
 
           {activeTab === 'settings' && authUser.permissions.settings && (

@@ -305,6 +305,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     // Estados do Prompt da IA
     const [promptHistory, setPromptHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [viewingPrompt, setViewingPrompt] = useState<any | null>(null);
 
     // Estados de Lacunas da IA
     const [iaGaps, setIaGaps] = useState<IAGap[]>([]);
@@ -1382,7 +1383,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
         setIsResettingChats(true);
         try {
-            // Ordem importa: respeitar foreign keys
+            // Ordem importa: respeitar foreign keys (dependentes primeiro)
+
             // 1. Execuções de fluxo (referencia sp3chat e sp3_flows)
             const { error: e1 } = await supabase
                 .from('sp3_flow_executions')
@@ -1390,21 +1392,49 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 .eq('company_id', authUser.company_id);
             if (e1) throw e1;
 
-            // 2. Histórico de conversas
+            // 2. Estado de follow-up por lead
             const { error: e2 } = await supabase
-                .from('n8n_chat_histories')
+                .from('sp3_followup_state')
                 .delete()
                 .eq('company_id', authUser.company_id);
             if (e2) throw e2;
 
-            // 3. Leads / contatos (sp3chat)
+            // 3. Log de DMs do Instagram
             const { error: e3 } = await supabase
-                .from('sp3chat')
+                .from('sp3_instagram_dm_log')
                 .delete()
                 .eq('company_id', authUser.company_id);
             if (e3) throw e3;
 
-            await showAlert('Dados zerados com sucesso! A página será recarregada.');
+            // 4. Lacunas da IA
+            const { error: e4 } = await supabase
+                .from('sp3_ia_gaps')
+                .delete()
+                .eq('company_id', authUser.company_id);
+            if (e4) throw e4;
+
+            // 5. Memória da IA (Postgres Chat Memory do n8n) — session_id = {company_id}_{telefone}
+            const { error: e5a } = await supabase
+                .from('memoria_ia_sarah')
+                .delete()
+                .like('session_id', `${authUser.company_id}_%`);
+            if (e5a) throw e5a;
+
+            // 6. Histórico de conversas
+            const { error: e6 } = await supabase
+                .from('n8n_chat_histories')
+                .delete()
+                .eq('company_id', authUser.company_id);
+            if (e6) throw e6;
+
+            // 7. Leads / contatos (sp3chat) — por último pois outras tabelas referenciam
+            const { error: e7 } = await supabase
+                .from('sp3chat')
+                .delete()
+                .eq('company_id', authUser.company_id);
+            if (e7) throw e7;
+
+            await showAlert('Todos os dados zerados com sucesso! A página será recarregada.');
             window.location.reload();
         } catch (err: any) {
             console.error('Erro ao limpar dados:', err);
@@ -2009,15 +2039,18 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                 ) : promptHistory.map((v, i) => (
                                     <div
                                         key={v.id}
-                                        onClick={() => handleRestoreVersion(v.content)}
+                                        onClick={() => setViewingPrompt({ ...v, index: i })}
                                         style={{
                                             padding: '12px',
                                             borderRadius: '12px',
                                             background: i === 0 ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
                                             border: '1px solid',
                                             borderColor: i === 0 ? 'var(--accent-soft)' : 'var(--border-soft)',
-                                            cursor: 'pointer'
+                                            cursor: 'pointer',
+                                            transition: 'transform 0.1s',
                                         }}
+                                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; }}
+                                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                             <span style={{ fontSize: '0.7rem', fontWeight: '800', color: i === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
@@ -2038,6 +2071,107 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
                         </div>
                         </div>
+
+                        {/* Modal Visualizar Prompt */}
+                        {viewingPrompt && (
+                            <div
+                                onClick={() => setViewingPrompt(null)}
+                                style={{
+                                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    zIndex: 9999, padding: '2rem',
+                                }}
+                            >
+                                <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                        background: 'var(--bg-primary)', borderRadius: '16px',
+                                        width: '100%', maxWidth: '700px', maxHeight: '80vh',
+                                        display: 'flex', flexDirection: 'column',
+                                        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                                        border: '1px solid var(--border-soft)',
+                                    }}
+                                >
+                                    {/* Header */}
+                                    <div style={{
+                                        padding: '1.25rem 1.5rem',
+                                        borderBottom: '1px solid var(--border-soft)',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    }}>
+                                        <div>
+                                            <span style={{
+                                                fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase',
+                                                color: viewingPrompt.index === 0 ? 'var(--accent)' : 'var(--text-muted)',
+                                            }}>
+                                                {viewingPrompt.index === 0 ? 'ATIVA AGORA' : `Versão #${promptHistory.length - viewingPrompt.index}`}
+                                            </span>
+                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                                                {new Date(viewingPrompt.created_at).toLocaleDateString('pt-BR')} {new Date(viewingPrompt.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setViewingPrompt(null)}
+                                            style={{
+                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                padding: '6px', color: 'var(--text-muted)', borderRadius: '8px',
+                                            }}
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div style={{
+                                        flex: 1, overflowY: 'auto', padding: '1.5rem',
+                                    }}>
+                                        <pre style={{
+                                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                            fontSize: '0.82rem', lineHeight: '1.7',
+                                            color: 'var(--text-primary)', fontFamily: 'inherit',
+                                            margin: 0,
+                                        }}>
+                                            {viewingPrompt.content}
+                                        </pre>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div style={{
+                                        padding: '1rem 1.5rem',
+                                        borderTop: '1px solid var(--border-soft)',
+                                        display: 'flex', justifyContent: 'flex-end', gap: '10px',
+                                    }}>
+                                        <button
+                                            onClick={() => { navigator.clipboard.writeText(viewingPrompt.content); }}
+                                            style={{
+                                                padding: '8px 16px', borderRadius: '10px',
+                                                border: '1px solid var(--border-soft)', background: 'transparent',
+                                                fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-secondary)',
+                                                fontWeight: '600',
+                                            }}
+                                        >
+                                            Copiar
+                                        </button>
+                                        {viewingPrompt.index !== 0 && (
+                                            <button
+                                                onClick={async () => {
+                                                    await handleRestoreVersion(viewingPrompt.content);
+                                                    setViewingPrompt(null);
+                                                }}
+                                                style={{
+                                                    padding: '8px 20px', borderRadius: '10px',
+                                                    border: 'none', background: 'var(--accent)',
+                                                    color: 'white', fontWeight: '700',
+                                                    fontSize: '0.8rem', cursor: 'pointer',
+                                                }}
+                                            >
+                                                Restaurar como Ativa
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -2618,8 +2752,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <div>
                                 <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--error)' }}>Zerar Todos os Dados de Clientes</h4>
                                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                    Apaga permanentemente <strong>todos os leads, conversas, execuções de fluxo</strong> e dados salvos nos cards (etiquetas, observações, campos customizados, agendamentos).
-                                    A empresa fica como nova — ideal para limpar testes. <strong>Configurações</strong> (fluxos, prompts, IA, horários) são mantidas.
+                                    Apaga permanentemente <strong>todos os leads (nome, telefone, tags, observações), conversas, memória da IA, follow-ups, execuções de fluxo, lacunas da IA e logs de Instagram</strong>.
+                                    A empresa fica 100% zerada — ideal para recomeçar testes. <strong>Configurações</strong> (fluxos, prompts, IA, horários, mensagens rápidas) são mantidas.
                                 </p>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>

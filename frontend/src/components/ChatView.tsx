@@ -1237,14 +1237,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     padding: '0.75rem 1rem',
                                     borderBottom: '1px solid var(--border-soft)',
                                     cursor: 'pointer',
-                                    backgroundColor: selectedLead?.id === lead.id ? 'var(--accent-soft)' : 'transparent',
+                                    backgroundColor: selectedLead?.id === lead.id ? 'var(--accent-soft)' : !lead.ia_active ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
                                     display: 'flex',
                                     alignItems: 'center', gap: '12px',
                                     transition: 'all 0.2s ease',
-                                    borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : '3px solid transparent'
+                                    borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : !lead.ia_active ? '3px solid var(--error)' : '3px solid transparent'
                                 }}
-                                onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)' }}
-                                onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'transparent' }}
+                                onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = !lead.ia_active ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-tertiary)' }}
+                                onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = !lead.ia_active ? 'rgba(239, 68, 68, 0.08)' : 'transparent' }}
                             >
                                 <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead?.id === lead.id ? 'var(--accent)' : 'var(--bg-tertiary)', color: selectedLead?.id === lead.id ? 'var(--bg-primary)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '1.1rem', border: '1px solid var(--border)' }}>
                                     {(lead.nome || 'L')[0].toUpperCase()}

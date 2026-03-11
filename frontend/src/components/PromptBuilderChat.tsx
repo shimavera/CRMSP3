@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, X, Loader2, Bot, CheckCircle } from 'lucide-react';
+import { Send, Paperclip, X, Loader2, Bot, CheckCircle, ClipboardPaste, MessageSquare, Sparkles, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ChatMessage {
@@ -26,6 +26,9 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [pasteMode, setPasteMode] = useState(false);
+    const [pastedPrompt, setPastedPrompt] = useState('');
+    const [isSavingDirect, setIsSavingDirect] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const storageKey = `sp3_prompt_builder_chat_${companyId}`;
@@ -175,6 +178,42 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
         }
     };
 
+    const handleSaveDirectPrompt = async () => {
+        if (!pastedPrompt.trim() || isSavingDirect) return;
+        setIsSavingDirect(true);
+        try {
+            await onSavePrompt(pastedPrompt.trim());
+            setPastedPrompt('');
+            setPasteMode(false);
+            setSaveSuccess(true);
+            setTimeout(() => {
+                setSaveSuccess(false);
+                setMessages([{
+                    role: 'assistant',
+                    content: 'Prompt salvo com sucesso! Uma nova versão foi criada no histórico.',
+                    timestamp: new Date().toISOString(),
+                }]);
+            }, 1500);
+        } catch {
+            alert('Erro ao salvar o prompt. Tente novamente.');
+        } finally {
+            setIsSavingDirect(false);
+        }
+    };
+
+    const handleSendToAI = () => {
+        if (!pastedPrompt.trim()) return;
+        const prompt = pastedPrompt.trim();
+        setPasteMode(false);
+        setPastedPrompt('');
+        setInputValue(`Tenho este prompt pronto. Analise, lapide e melhore mantendo a essência:\n\n${prompt}`);
+        // Auto-send after switching mode
+        setTimeout(() => {
+            const fakeEvent = { key: 'Enter', shiftKey: false, preventDefault: () => {} } as React.KeyboardEvent;
+            handleKeyDown(fakeEvent);
+        }, 100);
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -198,14 +237,77 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
             {/* Header */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                 <Bot size={20} style={{ color: 'var(--accent)' }} />
-                <div>
+                <div style={{ flex: 1 }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: '800', margin: 0 }}>Assistente de Prompt</h3>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Converse para criar ou ajustar o prompt da sua IA</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                        {pasteMode ? 'Cole seu prompt pronto abaixo' : 'Converse para criar ou ajustar o prompt da sua IA'}
+                    </p>
                 </div>
+                <button
+                    onClick={() => { setPasteMode(!pasteMode); setPastedPrompt(''); }}
+                    title={pasteMode ? 'Voltar ao chat' : 'Colar prompt pronto'}
+                    style={{
+                        padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: '700',
+                        border: '1px solid', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                        borderColor: pasteMode ? 'var(--accent)' : 'var(--border-soft)',
+                        background: pasteMode ? 'var(--accent-soft)' : 'transparent',
+                        color: pasteMode ? 'var(--accent)' : 'var(--text-secondary)',
+                    }}
+                >
+                    {pasteMode ? <><MessageSquare size={14} /> Chat</> : <><ClipboardPaste size={14} /> Colar Prompt</>}
+                </button>
             </div>
 
+            {/* Paste mode */}
+            {pasteMode && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', gap: '16px', overflow: 'hidden' }}>
+                    <textarea
+                        value={pastedPrompt}
+                        onChange={(e) => setPastedPrompt(e.target.value)}
+                        placeholder="Cole aqui o prompt completo que você já tem pronto...&#10;&#10;A IA pode lapidar e melhorar, ou você pode salvar diretamente como ativo."
+                        style={{
+                            flex: 1, padding: '16px', borderRadius: '12px',
+                            border: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)',
+                            fontSize: '0.85rem', lineHeight: '1.6', resize: 'none',
+                            fontFamily: 'inherit', outline: 'none', color: 'var(--text-primary)',
+                        }}
+                    />
+                    <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+                        <button
+                            onClick={handleSendToAI}
+                            disabled={!pastedPrompt.trim()}
+                            style={{
+                                flex: 1, padding: '12px', borderRadius: '12px',
+                                border: '1px solid var(--border-soft)', background: 'transparent',
+                                fontSize: '0.85rem', fontWeight: '700', cursor: pastedPrompt.trim() ? 'pointer' : 'default',
+                                color: pastedPrompt.trim() ? 'var(--accent)' : 'var(--text-muted)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                opacity: pastedPrompt.trim() ? 1 : 0.5,
+                            }}
+                        >
+                            <Sparkles size={16} /> Enviar para IA Lapidar
+                        </button>
+                        <button
+                            onClick={handleSaveDirectPrompt}
+                            disabled={!pastedPrompt.trim() || isSavingDirect}
+                            style={{
+                                flex: 1, padding: '12px', borderRadius: '12px',
+                                border: 'none', background: pastedPrompt.trim() ? 'var(--accent)' : 'var(--bg-tertiary)',
+                                color: pastedPrompt.trim() ? 'white' : 'var(--text-muted)',
+                                fontSize: '0.85rem', fontWeight: '700', cursor: pastedPrompt.trim() ? 'pointer' : 'default',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                opacity: pastedPrompt.trim() ? 1 : 0.5,
+                            }}
+                        >
+                            {isSavingDirect ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                            Salvar como Ativo
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Messages area */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px', ...(pasteMode ? { display: 'none' } : {}) }}>
                 {messages.map((msg, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                         <div style={{
@@ -262,7 +364,7 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
             </div>
 
             {/* Pending prompt banner */}
-            {pendingPrompt && (
+            {pendingPrompt && !pasteMode && (
                 <div style={{
                     padding: '12px 20px',
                     background: 'rgba(99,102,241,0.08)',
@@ -308,7 +410,7 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
             )}
 
             {/* Image preview */}
-            {imagePreview && (
+            {imagePreview && !pasteMode && (
                 <div style={{ padding: '8px 20px', borderTop: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     <img src={imagePreview} alt="Preview" style={{ height: '48px', borderRadius: '8px', objectFit: 'cover' }} />
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flex: 1 }}>{imageFile?.name}</span>
@@ -322,7 +424,7 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
             )}
 
             {/* Input area */}
-            <div style={{
+            {!pasteMode && <div style={{
                 padding: '12px 16px',
                 borderTop: '1px solid var(--border-soft)',
                 display: 'flex',
@@ -398,7 +500,7 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
                 >
                     <Send size={18} />
                 </button>
-            </div>
+            </div>}
         </div>
     );
 }
