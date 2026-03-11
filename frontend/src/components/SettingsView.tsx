@@ -740,6 +740,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 await supabase.from('sp3_instances')
                     .update({ connection_status: 'connected' })
                     .eq('id', instance.id);
+                // Sempre reconfigurar webhook ao verificar status com sucesso
+                await configureInstanceWebhookAndSettings(apiUrl, instance.instance_name, apiKey);
             } else {
                 setStatus('disconnected');
                 await supabase.from('sp3_instances')
@@ -754,21 +756,28 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const configureInstanceWebhookAndSettings = async (apiUrl: string, instanceName: string, apiKey: string) => {
-        // Configurar webhook para o n8n (Evolution API v2 — flat, snake_case)
+        // Configurar webhook para o n8n (Evolution API v2.3.x — nested format)
         try {
-            await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
+            const whRes = await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
-                    enabled: true,
-                    url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
-                    webhook_by_events: false,
-                    webhook_base64: true,
-                    events: ['MESSAGES_UPSERT']
+                    webhook: {
+                        enabled: true,
+                        url: 'https://n8n-webhook.sp3company.shop/webhook/sp3chat',
+                        webhookByEvents: false,
+                        webhookBase64: true,
+                        events: ['MESSAGES_UPSERT']
+                    }
                 })
             });
+            if (!whRes.ok) {
+                console.error(`[EVO] Webhook config failed (${whRes.status}):`, await whRes.text());
+            } else {
+                console.log(`[EVO] Webhook configurado para ${instanceName}`);
+            }
         } catch (whErr) {
-            console.warn('Webhook config (non-critical):', whErr);
+            console.error('[EVO] Webhook config error:', whErr);
         }
 
         // Configurar settings da instância (base64 para mídia)
