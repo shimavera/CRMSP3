@@ -187,8 +187,16 @@ function App() {
 
     if (data) {
       const { sp3_companies, ...userData } = data as any;
+      
+      const userPerms = userData.permissions || {};
+      if (userPerms.calendar === undefined) {
+        userPerms.calendar = true;
+        supabase.from('sp3_users').update({ permissions: userPerms }).eq('id', userId).then();
+      }
+
       setAuthUser({
         ...userData,
+        permissions: userPerms,
         company_name: sp3_companies?.name || ''
       } as UserProfile);
     } else {
