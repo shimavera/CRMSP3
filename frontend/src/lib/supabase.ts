@@ -1,11 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-// No Frontend, DEVEMOS usar a 'anon' key (Public), nunca a 'service_role' (Secret).
-// A chave que você mandou começa com 'sb_secret', o que indica que é a chave restrita.
-// Por favor, substitua abaixo pela sua 'anon' / 'public' key do painel do Supabase.
-
-const supabaseUrl = 'https://REDACTED_SUPABASE_URL';
-const supabaseAnonKey = 'REDACTED_SUPABASE_KEY';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

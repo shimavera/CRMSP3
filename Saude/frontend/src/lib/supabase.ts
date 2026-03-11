@@ -1,11 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-// No Frontend, DEVEMOS usar a 'anon' key (Public), nunca a 'service_role' (Secret).
-// A chave que você mandou começa com 'sb_secret', o que indica que é a chave restrita.
-// Por favor, substitua abaixo pela sua 'anon' / 'public' key do painel do Supabase.
-
-const supabaseUrl = 'https://REDACTED_SUPABASE_URL';
-const supabaseAnonKey = 'REDACTED_SUPABASE_KEY';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -22,6 +18,7 @@ export type UserProfile = {
     kanban: boolean;
     leads: boolean;
     settings: boolean;
+    calendar?: boolean;
   };
   created_at?: string;
 };
@@ -167,6 +164,34 @@ export type InstagramPost = {
   thumbnail_url?: string;
   permalink: string;
   timestamp: string;
+};
+
+export type CalendarSettings = {
+  company_id: string;
+  ai_can_schedule: boolean;
+  google_access_token?: string;
+  google_refresh_token?: string;
+  google_token_expiry?: string;
+  google_calendar_id?: string;
+  default_meeting_duration: number;
+  business_hours: Record<string, { active: boolean; start: string; end: string }>;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CalendarEvent = {
+  id: number;
+  company_id: string;
+  lead_id?: number;
+  google_event_id?: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  status: 'scheduled' | 'cancelled' | 'completed' | 'no_show';
+  attendees?: any;
+  created_at?: string;
+  updated_at?: string;
 };
 
 // ===== Flow Builder Visual =====

@@ -10,6 +10,17 @@ dist/
 .env
 .env.*
 !.env.example
+frontend/.env
+Saude/frontend/.env
+
+# MCP configs (contém API keys)
+.mcp.json
+Saude/.mcp.json
+
+# Claude settings (contém tokens e credenciais)
+.claude/settings.local.json
+.claude/settings*.json
+Saude/.claude/settings.local.json
 
 # IDEs
 .vscode/
