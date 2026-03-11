@@ -1413,10 +1413,61 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             setIsResettingChats(false);
         }
     };
+    // --- CONFIGURAÇÃO DA AGENDA ---
+    const [calendarSettings, setCalendarSettings] = useState<any>({
+        google_access_token: null,
+        ai_can_schedule: false,
+        default_meeting_duration: 30,
+        business_hours: {
+            monday: { active: true, start: '09:00', end: '18:00' },
+            tuesday: { active: true, start: '09:00', end: '18:00' },
+            wednesday: { active: true, start: '09:00', end: '18:00' },
+            thursday: { active: true, start: '09:00', end: '18:00' },
+            friday: { active: true, start: '09:00', end: '18:00' },
+            saturday: { active: false, start: '09:00', end: '13:00' },
+            sunday: { active: false, start: '09:00', end: '13:00' }
+        }
+    });
+    const [isSavingCalendar, setIsSavingCalendar] = useState(false);
+    const [calendarSuccess, setCalendarSuccess] = useState<string | null>(null);
+
+    const fetchCalendarSettings = async () => {
+        try {
+            const { data } = await supabase
+                .from('sp3_calendar_settings')
+                .select('*')
+                .eq('company_id', authUser.company_id)
+                .single();
+            if (data) setCalendarSettings(data);
+        } catch (err) {
+            console.error('Erro ao buscar configs do calendário:', err);
+        }
+    };
+
+    const handleSaveCalendarSettings = async () => {
+        setIsSavingCalendar(true);
+        setCalendarSuccess(null);
+        try {
+            const { google_access_token, google_refresh_token, google_token_expiry, calendar_id, sync_token, ...safeData } = calendarSettings;
+            const { error } = await supabase
+                .from('sp3_calendar_settings')
+                .update(safeData)
+                .eq('company_id', authUser.company_id);
+
+            if (error) throw error;
+            setCalendarSuccess('Configurações da agenda salvas com sucesso!');
+            setTimeout(() => setCalendarSuccess(null), 3500);
+        } catch (err: any) {
+            await showAlert('Erro ao salvar agenda: ' + err.message);
+        } finally {
+            setIsSavingCalendar(false);
+        }
+    };
 
     useEffect(() => {
         fetchInstances(); // Always fetch instances on mount
         fetchClosingReasons();
+        fetchCalendarSettings();
 
         // Pré-preencher chave global da Evolution API do banco (somente super admin)
         if (!evoGlobalKey && isSuperAdmin) {
