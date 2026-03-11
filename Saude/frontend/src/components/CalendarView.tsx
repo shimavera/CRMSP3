@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Users, Clock, Loader2, Video } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, Loader2, Video } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, CalendarEvent } from '../lib/supabase';
 
@@ -146,7 +146,7 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                 <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', position: 'relative' }}>
                     {/* Renderizando as linhas das horas */}
                     <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateRows: `repeat(${hours.length}, 60px)`, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
-                         {hours.map((hour, i) => (
+                        {hours.map((hour) => (
                              <div key={hour} style={{ borderBottom: '1px solid var(--border-soft)', position: 'relative' }}></div>
                          ))}
                     </div>
@@ -154,7 +154,7 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                     {/* Coluna das legendas de hora */}
                     <div style={{ borderRight: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', zIndex: 2 }}>
                         {hours.map((hour) => (
-                            <div key={hour} style={{ height: '60px', display: 'flex', justifyContent: 'center', paddingtop: '8px' }}>
+                            <div key={hour} style={{ height: '60px', display: 'flex', justifyContent: 'center', paddingTop: '8px' }}>
                                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '-8px', background: 'var(--bg-secondary)', padding: '0 4px' }}>
                                     {String(hour).padStart(2, '0')}:00
                                 </span>
