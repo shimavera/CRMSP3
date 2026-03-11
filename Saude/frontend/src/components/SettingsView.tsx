@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, Clock, ChevronDown, ChevronRight, User, PauseCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, Clock, ChevronDown, ChevronRight, User, PauseCircle, Calendar as CalendarIcon, Save } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance, IAGap } from '../lib/supabase';
 import PromptBuilderChat from './PromptBuilderChat';
@@ -234,7 +234,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'geral' | 'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'kanban' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs'>('geral');
+    const [activeSubTab, setActiveSubTab] = useState<'geral' | 'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'kanban' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs' | 'calendar'>('geral');
 
     // Estados Gerais
     const [managerPhone, setManagerPhone] = useState('');
@@ -1534,6 +1534,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     >
                         <LayoutDashboard size={18} /> Kanban & Pipeline
                     </button>
+                    {authUser.permissions.calendar && (
+                        <button
+                            onClick={() => setActiveSubTab('calendar')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'calendar' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'calendar' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'calendar' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        >
+                            <CalendarIcon size={18} /> Agenda & Google API
+                        </button>
+                    )}
                     <button
                         onClick={() => setActiveSubTab('profile')}
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'profile' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'profile' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'profile' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
@@ -2447,6 +2455,119 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeSubTab === 'calendar' && (
+                    <div className="glass-card animate-fade-in" style={{ padding: '24px' }}>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.35rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <CalendarIcon size={22} color="var(--accent)" /> Integração com Google Agenda
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
+                                Permita que a IA visualize disponibilidade e agende eventos no seu Google Agenda.
+                            </p>
+                        </div>
+
+                        <div className="glass-card" style={{ marginBottom: '24px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                                <div>
+                                    <h4 style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: calendarSettings.google_access_token ? 'var(--success)' : 'var(--error)' }} />
+                                        {calendarSettings.google_access_token ? 'Google Agenda Conectado' : 'Google Agenda Desconectado'}
+                                    </h4>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+                                        {calendarSettings.google_access_token ? 'Os eventos serão sincronizados com sua conta Google.' : 'Conecte sua conta para começar a sincronizar.'}
+                                    </p>
+                                </div>
+                                <button style={{ padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none', background: calendarSettings.google_access_token ? 'white' : '#4285F4', color: calendarSettings.google_access_token ? 'var(--error)' : 'white', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {calendarSettings.google_access_token ? 'Desconectar' : 'Conectar com Google'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+                            <div className="glass-card" style={{ padding: '20px' }}>
+                                <h4 style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '16px' }}>Preferências da Inteligência Artificial</h4>
+                                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', marginBottom: '16px' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={calendarSettings.ai_can_schedule}
+                                        onChange={(e) => setCalendarSettings({ ...calendarSettings, ai_can_schedule: e.target.checked })}
+                                        style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: 'var(--accent)' }} 
+                                    />
+                                    <div>
+                                        <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Permitir que a IA faça agendamentos</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: '2px' }}>A IA oferecerá horários automaticamente e agendará na pauta se autorizada. Caso desligado, o atendimento será transferido para um humano no momento do agendamento.</div>
+                                    </div>
+                                </label>
+                                
+                                <div>
+                                    <label style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Duração padrão (minutos)</label>
+                                    <input 
+                                        type="number" 
+                                        value={calendarSettings.default_meeting_duration} 
+                                        onChange={(e) => setCalendarSettings({ ...calendarSettings, default_meeting_duration: parseInt(e.target.value) })}
+                                        min="15" 
+                                        step="15"
+                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none', background: 'var(--bg-primary)' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="glass-card" style={{ padding: '20px' }}>
+                                <h4 style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '16px' }}>Horário de Funcionamento</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {Object.entries(calendarSettings.business_hours).map(([day, config]: [string, any]) => {
+                                        const dayNames: Record<string, string> = {
+                                            monday: 'Segunda', tuesday: 'Terça', wednesday: 'Quarta', thursday: 'Quinta', friday: 'Sexta', saturday: 'Sábado', sunday: 'Domingo'
+                                        };
+                                        return (
+                                            <div key={day} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-soft)' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100px', cursor: 'pointer' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={config.active}
+                                                        onChange={(e) => setCalendarSettings({
+                                                            ...calendarSettings, business_hours: { ...calendarSettings.business_hours, [day]: { ...config, active: e.target.checked } }
+                                                        })}
+                                                        style={{ accentColor: 'var(--accent)' }}
+                                                    />
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: config.active ? '700' : '500', color: config.active ? 'var(--text-primary)' : 'var(--text-muted)' }}>{dayNames[day]}</span>
+                                                </label>
+                                                {config.active ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <input type="time" value={config.start} onChange={(e) => setCalendarSettings({ ...calendarSettings, business_hours: { ...calendarSettings.business_hours, [day]: { ...config, start: e.target.value } } })} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '0.8rem' }} />
+                                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>até</span>
+                                                        <input type="time" value={config.end} onChange={(e) => setCalendarSettings({ ...calendarSettings, business_hours: { ...calendarSettings.business_hours, [day]: { ...config, end: e.target.value } } })} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '0.8rem' }} />
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', paddingRight: '80px' }}>Fechado</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {calendarSuccess && (
+                            <div style={{ marginTop: '20px', padding: '12px', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '0.9rem', fontWeight: '600', animation: 'fadeIn 0.3s' }}>
+                                {calendarSuccess}
+                            </div>
+                        )}
+
+                        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+                            <button 
+                                onClick={handleSaveCalendarSettings} 
+                                disabled={isSavingCalendar}
+                                className="btn-primary" 
+                                style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', cursor: isSavingCalendar ? 'not-allowed' : 'pointer', opacity: isSavingCalendar ? 0.7 : 1 }}
+                            >
+                                {isSavingCalendar ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                {isSavingCalendar ? 'Salvando...' : 'Salvar Configurações'}
+                            </button>
                         </div>
                     </div>
                 )}
