@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2 } from 'lucide-react';
+import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2 , Calendar as CalendarIcon} from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday, isYesterday, isSameDay } from 'date-fns';
@@ -223,6 +223,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     // Visual Flows
     const [companyFlows, setCompanyFlows] = useState<FlowDefinition[]>([]);
     const [activeFlowExec, setActiveFlowExec] = useState<(FlowExecution & { flow_name?: string }) | null>(null);
+
+    const [nextMeeting, setNextMeeting] = useState<any>(null);
+
     const [showFlowSelector, setShowFlowSelector] = useState(false);
     const [isStartingFlow, setIsStartingFlow] = useState(false);
 
@@ -568,6 +571,21 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             followup: activeLeads.filter(l => (l.followup_stage || 0) > 0).length
         }
     }, [leads]);
+
+    
+    useEffect(() => {
+        if (!selectedLead) return;
+        supabase.from('sp3_calendar_events')
+            .select('*')
+            .eq('lead_id', selectedLead.id)
+            .gte('start_time', new Date().toISOString())
+            .order('start_time', { ascending: true })
+            .limit(1)
+            .then(({ data }) => {
+                if (data && data.length > 0) setNextMeeting(data[0]);
+                else setNextMeeting(null);
+            });
+    }, [selectedLead]);
 
     const fetchMessages = async () => {
         if (!selectedLead) return;
@@ -1882,7 +1900,24 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 </div>
                             </div>
 
-                            {/* Tarefas */}
+                            
+                                {/* Agenda / Reunião */}
+                                {nextMeeting && (
+                                    <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--accent-soft)', border: '1px solid var(--accent)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent)', fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            <CalendarIcon size={14} /> Próxima Reunião
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-primary)' }}>{nextMeeting.title}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                <Clock size={12} />
+                                                {format(new Date(nextMeeting.start_time), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tarefas */}
                             <div>
                                 <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Tarefas</h4>
 
