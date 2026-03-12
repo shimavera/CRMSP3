@@ -546,9 +546,9 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content" style={activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : undefined}>
+      <main className="main-content" style={activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : activeTab !== 'dashboard' ? { paddingTop: '1.5rem' } : undefined}>
         {activeTab !== 'chats' && (
-          <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+          <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: activeTab === 'dashboard' ? '3rem' : '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
                 className="desktop-only"
@@ -565,53 +565,57 @@ function App() {
               >
                 <Menu size={26} />
               </button>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
-                  {lastSync && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', animation: 'fadeIn 0.5s ease-out' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
-                      <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Sincronizado {lastSync}</span>
-                    </div>
-                  )}
+              {activeTab === 'dashboard' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
+                    {lastSync && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', animation: 'fadeIn 0.5s ease-out' }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
+                        <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Sincronizado {lastSync}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                    {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
+                  </p>
                 </div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                  {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
-                </p>
-              </div>
+              )}
             </div>
 
-            <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                style={{ padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
-              >
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-              <button
-                onClick={handleExportLeads}
-                style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                📥 Exportar
-              </button>
-              <button
-                onClick={fetchLeads}
-                style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
-              >
-                Atualizar
-              </button>
-              <div className="search-bar">
-                <Search size={18} color="var(--text-muted)" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Buscar Lead (pressione /)..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            {activeTab === 'dashboard' && (
+              <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setIsDarkMode(!isDarkMode)}
+                  style={{ padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+                >
+                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <button
+                  onClick={handleExportLeads}
+                  style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  📥 Exportar
+                </button>
+                <button
+                  onClick={fetchLeads}
+                  style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                >
+                  Atualizar
+                </button>
+                <div className="search-bar">
+                  <Search size={18} color="var(--text-muted)" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Buscar Lead (pressione /)..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </header>
         )}
 

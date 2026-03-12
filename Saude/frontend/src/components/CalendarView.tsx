@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Loader2, Video, X, Clock, AlignLeft, Users, MapPin, Calendar, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, CalendarEvent } from '../lib/supabase';
@@ -90,7 +90,7 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
 
     return (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-            <div style={{ background: '#202124', borderRadius: '12px', padding: '0', width: '520px', maxHeight: '95vh', overflow: 'hidden', boxShadow: '0 12px 32px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-xl)', padding: '0', width: '520px', maxHeight: '95vh', overflow: 'hidden', boxShadow: 'var(--shadow-xl)', display: 'flex', flexDirection: 'column', border: '1px solid var(--border-soft)', animation: 'fadeIn 0.3s ease-out' }} onClick={e => e.stopPropagation()}>
                 {/* Header Actions */}
                 <div style={{ padding: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ color: '#9aa0a6', cursor: 'grab', padding: '4px' }}><AlignLeft size={16} /></div>
@@ -381,27 +381,27 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                 </div>
             </div>
 
-            <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+            <div className="glass-card fade-in" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-soft)' }}>
                 {isLoading && (
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'var(--accent)', zIndex: 100, animation: 'pulse 1.5s infinite' }} />
                 )}
 
                 {/* Headers da Semana */}
-                <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', borderBottom: '1px solid var(--border-soft)', background: 'var(--bg-primary)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', borderBottom: '1px solid var(--border-soft)', background: 'var(--bg-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
                     <div style={{ borderRight: '1px solid var(--border-soft)' }}></div>
                     {weekDays.map((date, i) => {
                         const isToday = new Date().toDateString() === date.toDateString();
                         return (
-                            <div key={i} style={{ padding: '8px 12px', borderRight: i < 6 ? '1px solid var(--border-soft)' : 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <div style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', color: isToday ? 'var(--accent)' : 'var(--text-muted)', marginBottom: '4px' }}>
+                            <div key={i} style={{ padding: '16px 8px', borderRight: i < 6 ? '1px solid var(--border-soft)' : 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: isToday ? 'var(--accent)' : 'var(--text-muted)', letterSpacing: '0.02em' }}>
                                     {date.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3)}
                                 </div>
                                 <div style={{
-                                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     borderRadius: '50%',
                                     backgroundColor: isToday ? 'var(--accent)' : 'transparent',
                                     color: isToday ? 'white' : 'var(--text-primary)',
-                                    fontSize: '1.1rem', fontWeight: 500
+                                    fontSize: '1.2rem', fontWeight: 600
                                 }}>
                                     {date.getDate()}
                                 </div>
@@ -411,34 +411,51 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                 </div>
 
                 {/* Grid de Horários */}
-                <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', position: 'relative' }}>
-                    {/* Time labels */}
+                <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', position: 'relative' }}>
                     {hours.map(hour => (
-                        <div key={hour} style={{ height: '60px', fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: '4px', borderRight: '1px solid var(--border-soft)', position: 'relative' }}>
-                            {hour}:00
-                        </div>
+                        <React.Fragment key={hour}>
+                            {/* Time label */}
+                            <div style={{ 
+                                height: '80px', 
+                                fontSize: '0.75rem', 
+                                fontWeight: '600',
+                                color: 'var(--text-muted)', 
+                                textAlign: 'right', 
+                                padding: '8px 12px 0 0', 
+                                borderRight: '1px solid var(--border-soft)', 
+                                borderBottom: '1px solid var(--border-soft)',
+                                backgroundColor: 'var(--bg-primary)',
+                                position: 'relative'
+                            }}>
+                                <span style={{ position: 'relative', top: '-10px' }}>{hour}:00</span>
+                            </div>
+
+                            {/* Background day cells */}
+                            {weekDays.map((_, i) => (
+                                <div
+                                    key={`${hour}-${i}`}
+                                    onClick={() => {
+                                        const d = new Date(weekDays[i]);
+                                        d.setHours(hour, 0, 0, 0);
+                                        setModalDefaultDate(d);
+                                        setModalEvent('new');
+                                    }}
+                                    style={{ 
+                                        height: '80px', 
+                                        borderBottom: '1px solid var(--border-soft)', 
+                                        borderRight: i < 6 ? '1px solid var(--border-soft)' : 'none', 
+                                        cursor: 'cell',
+                                        transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                />
+                            ))}
+                        </React.Fragment>
                     ))}
 
-                    {/* Background grid */}
-                    {hours.map(hour => (
-                        weekDays.map((_, i) => (
-                            <div
-                                key={`${hour}-${i}`}
-                                onClick={() => {
-                                    const d = new Date(weekDays[i]);
-                                    d.setHours(hour, 0, 0, 0);
-                                    setModalDefaultDate(d);
-                                    setModalEvent('new');
-                                }}
-                                style={{ height: '60px', borderBottom: '1px solid var(--border-soft)', borderRight: i < 6 ? '1px solid var(--border-soft)' : 'none', cursor: 'pointer' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            />
-                        ))
-                    ))}
-
-                    {/* Events layer */}
-                    <div style={{ position: 'absolute', top: 0, left: '60px', right: 0, bottom: 0, pointerEvents: 'none' }}>
+                    {/* Events layer overlays only the day columns (not the labels) */}
+                    <div style={{ position: 'absolute', top: 0, left: '80px', right: 0, bottom: 0, pointerEvents: 'none' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', height: '100%' }}>
                             {weekDays.map((day, i) => {
                                 const dayEvents = events.filter(e => new Date(e.start_time).toDateString() === day.toDateString());
@@ -450,6 +467,9 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                                             const startMin = (eventStart.getHours() * 60) + eventStart.getMinutes();
                                             const endMin = (eventEnd.getHours() * 60) + eventEnd.getMinutes();
                                             const lengthMin = endMin - startMin;
+                                            
+                                            // 80px per hour means 80/60 = 1.33px per minute
+                                            const pixelsPerMin = 80 / 60;
 
                                             return (
                                                 <div
@@ -457,40 +477,43 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                                                     onClick={(e) => { e.stopPropagation(); setModalEvent(event); }}
                                                     style={{
                                                         position: 'absolute',
-                                                        top: `${startMin}px`,
-                                                        height: `${Math.max(lengthMin, 24)}px`,
-                                                        left: '2px',
-                                                        right: '2px',
-                                                        background: event.status === 'cancelled' ? '#f1f3f4' : (event.status === 'completed' ? '#e6f4ea' : 'var(--accent)'),
-                                                        color: event.status === 'cancelled' ? '#70757a' : (event.status === 'completed' ? '#1e8e3e' : 'white'),
-                                                        border: 'none',
-                                                        borderRadius: '4px',
-                                                        padding: '2px 6px',
+                                                        top: `${startMin * pixelsPerMin}px`,
+                                                        height: `${Math.max(lengthMin * pixelsPerMin, 28)}px`,
+                                                        left: '4px',
+                                                        right: '4px',
+                                                        background: event.status === 'cancelled' ? 'var(--bg-tertiary)' : (event.status === 'completed' ? '#e6f4ea' : 'var(--accent)'),
+                                                        color: event.status === 'cancelled' ? 'var(--text-muted)' : (event.status === 'completed' ? '#1e8e3e' : 'white'),
+                                                        border: '1px solid rgba(255,255,255,0.1)',
+                                                        borderRadius: '12px',
+                                                        padding: '6px 10px',
                                                         overflow: 'hidden',
                                                         zIndex: 5,
                                                         cursor: 'pointer',
                                                         display: 'flex',
                                                         flexDirection: 'column',
-                                                        fontSize: '0.75rem',
-                                                        boxShadow: '0 1px 2px rgba(60,64,67,0.3)',
-                                                        opacity: event.status === 'cancelled' ? 0.7 : 1,
-                                                        transition: 'all 0.1s',
+                                                        fontSize: '0.8rem',
+                                                        lineHeight: '1.2',
+                                                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+                                                        opacity: event.status === 'cancelled' ? 0.6 : 1,
+                                                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                                         pointerEvents: 'auto'
                                                     }}
                                                     onMouseEnter={e => {
-                                                        e.currentTarget.style.boxShadow = '0 1px 3px 1px rgba(60,64,67,0.15)';
-                                                        e.currentTarget.style.filter = 'brightness(0.95)';
+                                                        e.currentTarget.style.transform = 'translateY(-1px) scale(1.01)';
+                                                        e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)';
+                                                        e.currentTarget.style.filter = 'brightness(1.05)';
                                                     }}
                                                     onMouseLeave={e => {
-                                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(60,64,67,0.3)';
+                                                        e.currentTarget.style.transform = 'none';
+                                                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1)';
                                                         e.currentTarget.style.filter = 'none';
                                                     }}
                                                 >
-                                                    <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <div style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '2px' }}>
                                                         {event.title}
                                                     </div>
-                                                    {lengthMin > 40 && (
-                                                        <div style={{ fontSize: '0.65rem', opacity: 0.9 }}>
+                                                    {lengthMin > 35 && (
+                                                        <div style={{ fontSize: '0.7rem', opacity: 0.85, fontWeight: 500 }}>
                                                             {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                         </div>
                                                     )}

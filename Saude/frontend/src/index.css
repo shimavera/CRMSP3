@@ -50,10 +50,11 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.1);
 
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 30px;
+  --radius-full: 99px;
   /* WhatsApp Style Colors */
   --wa-bg-light: #efeae2;
   --wa-bubble-in-light: #ffffff;
@@ -282,6 +283,7 @@ body {
 
 .sidebar-nav-item {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  border-radius: var(--radius-lg);
 }
 
 .sidebar-nav-item:hover {
@@ -309,8 +311,9 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
+  border-color: var(--border-soft);
 }
 
 .glass-card:hover {
@@ -429,6 +432,11 @@ body {
 .search-bar:focus-within {
   box-shadow: 0 0 0 3px var(--accent-soft);
   border-color: var(--accent);
+}
+
+.search-bar input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 
 .search-bar input {
@@ -560,18 +568,20 @@ textarea:focus {
 
 /* Chat Styles Específicos */
 .chat-bubble-agent {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+  border-radius: 20px;
   border-bottom-left-radius: 4px !important;
 }
 
 .chat-bubble-user {
-  background: var(--accent-gradient);
-  color: white;
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-radius: 20px;
   border-bottom-right-radius: 4px !important;
-  box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+  box-shadow: var(--shadow-md);
 }
 
 @media (min-width: 769px) {
@@ -626,13 +636,15 @@ textarea:focus {
 }
 
 .chat-bubble-wa.incoming {
-  border-top-left-radius: 0 !important;
+  border-radius: 18px !important;
+  border-top-left-radius: 4px !important;
   background-color: var(--wa-bubble-in) !important;
   color: var(--text-primary) !important;
 }
 
 .chat-bubble-wa.outgoing {
-  border-top-right-radius: 0 !important;
+  border-radius: 18px !important;
+  border-top-right-radius: 4px !important;
   background-color: var(--wa-bubble-out) !important;
   color: var(--text-primary) !important;
 }
@@ -721,4 +733,56 @@ textarea:focus {
   40% {
     transform: scale(1);
   }
+}
+
+/* Global Rounding & Modern UI Refinements */
+button:not(.sidebar-nav-item):not(.chat-send-btn):not(.day-cell) {
+  border-radius: var(--radius-md);
+}
+
+input, select, textarea {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  padding: 8px 12px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.glass-card {
+  border-radius: var(--radius-xl);
+}
+
+/* Scrollbar styling for modern feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
