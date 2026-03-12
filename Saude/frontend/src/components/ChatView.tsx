@@ -1429,7 +1429,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 </div>
                             </div>
 
-                            <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: 'var(--bg-primary)', backgroundBlendMode: 'overlay', opacity: 0.9 }}>
+                            <div ref={scrollRef} className="wa-message-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+                                <div className="wa-message-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 {messages.map((msg, index) => {
                                     const prevMsg = messages[index - 1];
                                     const showDateDivider = !prevMsg || !isSameDay(msg.timestamp, prevMsg.timestamp);
@@ -1498,59 +1499,47 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         }
                                                     </div>
 
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        {/* Nome do remetente */}
-                                                        <div style={{
-                                                            fontSize: '0.63rem', fontWeight: '700',
-                                                            paddingLeft: msg.type === 'human' ? '4px' : '0',
-                                                            paddingRight: msg.type === 'human' ? '0' : '4px',
-                                                            textAlign: msg.type === 'human' ? 'left' : 'right',
-                                                            color: msg.type === 'human' ? 'var(--chat-name-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
-                                                        }}>
-                                                            {msg.type === 'human'
-                                                                ? (selectedLead.nome || selectedLead.telefone)
-                                                                : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
-                                                            }
-                                                            {msg.isFollowup && (
-                                                                <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: 'var(--warning)', backgroundColor: 'var(--warning-soft)', padding: '1px 6px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                                                    Follow-up {msg.followupStep}
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', maxWidth: '100%' }}>
+                                                        {/* Nome do remetente (WhatsApp style) */}
+                                                        {msg.type === 'human' ? null : (
+                                                            <div style={{
+                                                                fontSize: '0.72rem', fontWeight: '700',
+                                                                paddingLeft: '4px',
+                                                                marginBottom: '2px',
+                                                                color: msg.sentByCRM ? 'var(--chat-icon-text-crm)' : '#06d755',
+                                                                display: 'flex', alignItems: 'center', gap: '4px'
+                                                            }}>
+                                                                {msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'}
+                                                                {msg.isFollowup && (
+                                                                    <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--warning)', backgroundColor: 'var(--warning-soft)', padding: '0px 4px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                                                                        F.UP {msg.followupStep}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
 
-                                                        {/* Balão */}
-                                                        <div className="chat-bubble-custom" style={{
-                                                            position: 'relative',
-                                                            padding: msg.isImage ? '4px' : '10px 14px 22px 14px',
-                                                            borderRadius: 'var(--radius-md)',
-                                                            fontSize: '0.9rem',
-                                                            backgroundColor: msg.type === 'human' ? 'var(--bg-secondary)' : 'var(--bg-primary)',
-                                                            color: 'var(--text-primary)',
-                                                            border: '1px solid var(--border)',
-                                                            boxShadow: 'var(--shadow-sm)',
-                                                            whiteSpace: 'pre-wrap',
-                                                            transition: 'all 0.1s'
-                                                        }}>
+                                                        {/* Balão WhatsApp */}
+                                                        <div className={`chat-bubble-wa ${msg.type === 'human' ? 'incoming' : 'outgoing'}`}>
                                                             {msg.isImage ? (
                                                                 <img
                                                                     src={msg.text.trim()}
                                                                     alt="imagem"
-                                                                    style={{ maxWidth: '280px', maxHeight: '350px', borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
                                                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                                 />
                                                             ) : msg.isVideo || msg.type === 'video' ? (
                                                                 <video
                                                                     controls
                                                                     src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
-                                                                    style={{ maxWidth: '280px', maxHeight: '350px', borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
                                                                     onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
                                                                 />
                                                             ) : msg.isAudio ? (
-                                                                <div style={{ padding: '4px 0', minWidth: '280px', width: '100%' }}>
+                                                                <div style={{ padding: '4px 0', minWidth: '220px' }}>
                                                                     <audio
                                                                         controls
                                                                         src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
-                                                                        style={{ width: '100%', height: '36px' }}
+                                                                        style={{ width: '100%', height: '32px' }}
                                                                     />
                                                                 </div>
                                                             ) : msg.isAudioSent ? (
@@ -1561,7 +1550,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                     <div style={{ color: 'var(--text-secondary)' }}>{msg.text}</div>
                                                                 </>
                                                             ) : msg.text}
-                                                            <span style={{ position: 'absolute', bottom: '6px', right: '10px', fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: '600', opacity: 0.8 }}>{msg.time}</span>
+                                                            <span className="wa-time">{msg.time}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1588,8 +1577,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     </div>
                                 )}
                             </div>
+                        </div>
 
-                            {(() => {
+                        {(() => {
                                 if (!selectedLead) return null;
                                 const pendingTasks = (selectedLead.tasks || []).filter((t: any) => {
                                     if (t.completed) return false;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2 } from 'lucide-react';
+import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2 } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday, isYesterday, isSameDay } from 'date-fns';
@@ -51,7 +51,6 @@ const parseTextVariables = (text: string, lead: any) => {
 };
 
 const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatViewProps) => {
-    const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
@@ -1281,17 +1280,20 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}>
                     {selectedLead ? (
                         <>
-                            <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-primary)', zIndex: 10 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ padding: '0.65rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--wa-header)', zIndex: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                     {isMobile && (
                                         <button onClick={() => setMobilePanel('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px', display: 'flex', alignItems: 'center' }}>
                                             <ArrowLeft size={22} />
                                         </button>
                                     )}
-                                    <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                                        {(selectedLead.nome || 'L')[0].toUpperCase()}
+                                    <div style={{ position: 'relative' }}>
+                                        <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', overflow: 'hidden' }}>
+                                            {(selectedLead.nome || 'L')[0].toUpperCase()}
+                                        </div>
+                                        <div style={{ position: 'absolute', bottom: '2px', right: '2px', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: selectedLead.ia_active ? '#25d366' : '#94a3b8', border: '2px solid var(--wa-header)' }} />
                                     </div>
-                                    <div>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         {isEditingName ? (
                                             <input
                                                 autoFocus
@@ -1304,121 +1306,127 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         ) : (
                                             <h4
                                                 onDoubleClick={() => { setTempName(selectedLead.nome || ''); setIsEditingName(true); }}
-                                                style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', cursor: 'text' }}
-                                                title="Clique duplo para editar nome"
+                                                style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', cursor: 'text', margin: 0 }}
                                             >
                                                 {selectedLead.nome || selectedLead.telefone}
                                             </h4>
                                         )}
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{selectedLead.telefone}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--wa-text-time)' }}>{selectedLead.telefone}</span>
+                                            <div style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'var(--wa-text-time)' }} />
+                                            <span style={{ fontSize: '0.75rem', color: selectedLead.ia_active ? '#25d366' : 'var(--wa-text-time)', fontWeight: '600' }}>
+                                                {selectedLead.ia_active ? 'IA Online' : 'IA em Pausa'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div
-                                        onClick={handleToggleIA}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead.ia_active ? 'var(--bg-primary)' : 'var(--bg-tertiary)', color: selectedLead.ia_active ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', border: '1px solid var(--border)', transition: 'all 0.1s' }}
-                                    >
-                                        {selectedLead.ia_active ? <Power size={14} /> : <PowerOff size={14} />} {selectedLead.ia_active ? 'IA ATIVA' : 'IA PAUSADA'}
-                                    </div>
-                                    {activeFlowExec && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-primary)', color: 'var(--accent)', border: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '800' }}>
-                                            <GitBranch size={14} /> FLUXO ATIVO
-                                        </div>
-                                    )}
-                                    <div style={{ position: 'relative' }} ref={followupSelectorRef}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <div
-                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--bg-primary)' : 'var(--bg-tertiary)', color: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--warning)' : 'var(--text-muted)', border: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', transition: 'all 0.1s' }}
+                                            onClick={handleToggleIA}
+                                            title={selectedLead.ia_active ? 'Pausar IA' : 'Ativar IA'}
+                                            style={{ padding: '8px', borderRadius: '50%', cursor: 'pointer', color: selectedLead.ia_active ? 'var(--accent)' : 'var(--text-muted)', backgroundColor: selectedLead.ia_active ? 'var(--accent-soft)' : 'transparent', transition: 'all 0.2s' }}
                                         >
-                                            <Clock size={14} /> {(selectedLead.followup_stage && selectedLead.followup_stage > 0) ? `F.UP: ${selectedLead.followup_stage}ª` : 'F.UP'} {selectedLead.followup_locked && <Lock size={12} />}
+                                            {selectedLead.ia_active ? <Power size={20} /> : <PowerOff size={20} />}
                                         </div>
+                                        <div style={{ position: 'relative' }} ref={followupSelectorRef}>
+                                            <div
+                                                onClick={() => setShowFollowupSelector(!showFollowupSelector)}
+                                                title="Configurar Follow-up"
+                                                style={{ padding: '8px', borderRadius: '50%', cursor: 'pointer', color: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--warning)' : 'var(--text-muted)', backgroundColor: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--warning-soft)' : 'transparent', transition: 'all 0.2s' }}
+                                            >
+                                                <Clock size={20} />
+                                            </div>
 
-                                        {showFollowupSelector && (
-                                            <div style={{
-                                                position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                                background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                                border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
-                                            }}>
-                                                <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
-                                                    Definir Etapa
-                                                </div>
-                                                <div
-                                                    onClick={() => handleChangeFollowupStage(0)}
-                                                    style={{
-                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
-                                                        display: 'flex', alignItems: 'center', gap: '8px',
-                                                        backgroundColor: (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent',
-                                                        color: 'var(--success)'
-                                                    }}
-                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent')}
-                                                >
-                                                    🔄 Remover follow-up
-                                                </div>
-                                                {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
+                                            {showFollowupSelector && (
+                                                <div style={{
+                                                    position: 'absolute', top: '100%', right: 0, marginTop: '12px',
+                                                    background: 'var(--bg-primary)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)',
+                                                    border: '1px solid var(--border)', zIndex: 999, minWidth: '220px', overflow: 'hidden'
+                                                }}>
+                                                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                                        Etapa de Follow-up
+                                                    </div>
                                                     <div
-                                                        key={stage}
-                                                        onClick={() => handleChangeFollowupStage(stage)}
+                                                        onClick={() => handleChangeFollowupStage(0)}
                                                         style={{
-                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
-                                                            display: 'flex', alignItems: 'center', gap: '8px',
-                                                            backgroundColor: selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent',
-                                                            color: selectedLead.followup_stage === stage ? 'var(--accent)' : 'var(--text-primary)'
+                                                            padding: '12px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
+                                                            display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.2s',
+                                                            color: 'var(--error)'
                                                         }}
                                                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent')}
+                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                                                     >
-                                                        {selectedLead.followup_stage === stage ? '✓ ' : ''}{stage}ª Etapa
+                                                        <Trash2 size={16} /> Remover Follow-up
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
+                                                        <div
+                                                            key={stage}
+                                                            onClick={() => handleChangeFollowupStage(stage)}
+                                                            style={{
+                                                                padding: '12px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
+                                                                display: 'flex', alignItems: 'center', gap: '10px',
+                                                                backgroundColor: selectedLead.followup_stage === stage ? 'var(--accent-soft)' : 'transparent',
+                                                                color: selectedLead.followup_stage === stage ? 'var(--accent)' : 'var(--text-primary)',
+                                                                transition: 'background 0.2s'
+                                                            }}
+                                                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                                                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? 'var(--accent-soft)' : 'transparent')}
+                                                        >
+                                                            <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>{stage}</div>
+                                                            {stage}ª Etapa
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div style={{ position: 'relative' }} ref={stageSelectorRef}>
                                         <div
                                             onClick={() => setShowStageSelector(!showStageSelector)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent)', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid var(--border)' }}
-                                            title="Clique para definir o status do funil"
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', borderRadius: '20px', backgroundColor: 'var(--accent)', color: 'white', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                                         >
                                             <TrendingUp size={14} /> {selectedLead.stage || 'SEM ETAPA'}
                                         </div>
 
                                         {showStageSelector && (
                                             <div style={{
-                                                position: 'absolute', top: '100%', right: 0, marginTop: '8px',
-                                                background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
-                                                border: '1px solid var(--border)', zIndex: 999, minWidth: '200px', overflow: 'hidden', padding: '8px'
+                                                position: 'absolute', top: '100%', right: 0, marginTop: '12px',
+                                                background: 'var(--bg-primary)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)',
+                                                border: '1px solid var(--border)', zIndex: 999, minWidth: '220px', overflow: 'hidden', padding: '8px'
                                             }}>
-                                                <div style={{ padding: '8px 12px', fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                    Estágio no Funil
+                                                <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                                    Funil de Vendas
                                                 </div>
+                                                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                                                 {AVAILABLE_STAGES.map(stage => (
                                                     <div
                                                         key={stage}
                                                         onClick={() => handleChangeStage(stage)}
                                                         style={{
-                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: selectedLead.stage === stage ? '700' : '500',
-                                                            display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-sm)',
-                                                            backgroundColor: selectedLead.stage === stage ? 'var(--bg-tertiary)' : 'transparent',
+                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: selectedLead.stage === stage ? '700' : '500',
+                                                            display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px',
+                                                            backgroundColor: selectedLead.stage === stage ? 'var(--accent-soft)' : 'transparent',
                                                             color: selectedLead.stage === stage ? 'var(--accent)' : 'var(--text-primary)',
                                                             transition: 'all 0.1s'
                                                         }}
                                                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.stage === stage ? 'var(--bg-tertiary)' : 'transparent')}
+                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.stage === stage ? 'var(--accent-soft)' : 'transparent')}
                                                     >
                                                         {stage}
-                                                        {selectedLead.stage === stage && <CheckCircle2 size={12} style={{ marginLeft: 'auto' }} />}
+                                                        {selectedLead.stage === stage && <CheckCircle2 size={14} style={{ marginLeft: 'auto' }} />}
                                                     </div>
                                                 ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
-
                                 </div>
                             </div>
 
-                            <div ref={scrollRef} style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundColor: 'var(--bg-primary)', backgroundBlendMode: 'overlay', opacity: 0.9 }}>
+                            <div ref={scrollRef} className="wa-message-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                                <div className="wa-message-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 {messages.map((msg, index) => {
                                     const prevMsg = messages[index - 1];
                                     const showDateDivider = !prevMsg || !isSameDay(msg.timestamp, prevMsg.timestamp);
@@ -1426,149 +1434,126 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         isYesterday(msg.timestamp) ? 'Ontem' :
                                             format(msg.timestamp, "dd 'de' MMMM", { locale: ptBR });
 
+                                    const isOutgoing = msg.type !== 'human';
+
                                     return (
-                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                             {showDateDivider && (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0', alignSelf: 'stretch' }}>
-                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                                                <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0' }}>
                                                     <span style={{
-                                                        fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)',
-                                                        backgroundColor: 'var(--bg-primary)', padding: '4px 12px', borderRadius: 'var(--radius-xl)',
-                                                        border: '1px solid var(--border)', textTransform: 'uppercase',
-                                                        letterSpacing: '0.05em'
+                                                        fontSize: '0.7rem', fontWeight: '600', color: 'var(--wa-text-time)',
+                                                        backgroundColor: 'var(--wa-header)', padding: '5px 12px', borderRadius: '8px',
+                                                        boxShadow: 'var(--wa-message-shadow)', textTransform: 'uppercase'
                                                     }}>
                                                         {dateLabel}
                                                     </span>
-                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
                                                 </div>
                                             )}
 
                                             {msg.type === 'system' ? (
-                                                // Separador horizontal estilo Kommo
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0', alignSelf: 'stretch' }}>
-                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                                                <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
                                                     <span style={{
-                                                        fontSize: '0.65rem', fontWeight: '800', whiteSpace: 'nowrap',
-                                                        padding: '4px 12px', borderRadius: 'var(--radius-xl)',
-                                                        border: '1px solid var(--border)',
-                                                        ...(msg.msgStyle === 'error' ? { color: 'var(--error)', backgroundColor: 'var(--bg-primary)' } :
-                                                            msg.msgStyle === 'success' ? { color: 'var(--success)', backgroundColor: 'var(--bg-primary)' } :
-                                                                msg.msgStyle === 'warning' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
-                                                                    msg.msgStyle === 'info' ? { color: 'var(--accent)', backgroundColor: 'var(--bg-primary)' } :
-                                                                        msg.msgStyle === 'followup' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
-                                                                            { color: 'var(--text-muted)', backgroundColor: 'var(--bg-secondary)' })
+                                                        fontSize: '0.65rem', fontWeight: '700',
+                                                        padding: '4px 12px', borderRadius: '8px',
+                                                        backgroundColor: 'var(--wa-header)',
+                                                        color: (msg.msgStyle === 'error' ? 'var(--error)' :
+                                                              msg.msgStyle === 'success' ? '#15803d' :
+                                                              msg.msgStyle === 'warning' ? 'var(--warning)' :
+                                                              'var(--text-muted)'),
+                                                        boxShadow: 'var(--wa-message-shadow)',
+                                                        textAlign: 'center',
+                                                        maxWidth: '80%'
                                                     }}>
                                                         {msg.text}
                                                     </span>
-                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
                                                 </div>
                                             ) : (
-                                                // Mensagem com avatar + nome do remetente
                                                 <div style={{
                                                     display: 'flex',
-                                                    alignItems: 'flex-end',
-                                                    gap: '7px',
-                                                    alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end',
-                                                    maxWidth: '80%',
-                                                    flexDirection: msg.type === 'human' ? 'row' : 'row-reverse',
-                                                    marginBottom: '4px'
+                                                    flexDirection: 'column',
+                                                    alignSelf: !isOutgoing ? 'flex-start' : 'flex-end',
+                                                    maxWidth: '85%',
+                                                    marginBottom: '2px',
+                                                    marginTop: (prevMsg?.type === msg.type) ? '0' : '8px'
                                                 }}>
-                                                    {/* Avatar */}
-                                                    <div style={{
-                                                        width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        fontWeight: '700', fontSize: '0.75rem', border: '1px solid var(--border)',
-                                                        backgroundColor: msg.type === 'human' ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
-                                                        color: 'var(--text-secondary)'
-                                                    }}>
-                                                        {msg.type === 'human'
-                                                            ? (selectedLead.nome || 'C')[0].toUpperCase()
-                                                            : msg.sentByCRM ? <User size={14} /> : <Bot size={14} />
-                                                        }
-                                                    </div>
-
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        {/* Nome do remetente */}
+                                                    {/* Sender name for group-like feel or CRM context */}
+                                                    {(!prevMsg || prevMsg.type !== msg.type || prevMsg.sender !== msg.sender) && (
                                                         <div style={{
-                                                            fontSize: '0.63rem', fontWeight: '700',
-                                                            paddingLeft: msg.type === 'human' ? '4px' : '0',
-                                                            paddingRight: msg.type === 'human' ? '0' : '4px',
-                                                            textAlign: msg.type === 'human' ? 'left' : 'right',
-                                                            color: msg.type === 'human' ? 'var(--chat-name-user)' : (msg.sentByCRM ? 'var(--chat-icon-text-crm)' : 'var(--chat-icon-text-bot)')
+                                                            fontSize: '0.68rem', fontWeight: '700',
+                                                            marginBottom: '2px',
+                                                            marginLeft: !isOutgoing ? '4px' : '0',
+                                                            marginRight: !isOutgoing ? '0' : '4px',
+                                                            textAlign: !isOutgoing ? 'left' : 'right',
+                                                            color: !isOutgoing ? 'var(--wa-text-time)' : 'var(--accent)'
                                                         }}>
-                                                            {msg.type === 'human'
+                                                            {!isOutgoing
                                                                 ? (selectedLead.nome || selectedLead.telefone)
                                                                 : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
                                                             }
-                                                            {msg.isFollowup && (
-                                                                <span style={{ marginLeft: '6px', fontSize: '0.58rem', fontWeight: '600', color: 'var(--warning)', backgroundColor: 'var(--warning-soft)', padding: '1px 6px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                                                    Follow-up {msg.followupStep}
-                                                                </span>
-                                                            )}
                                                         </div>
+                                                    )}
 
-                                                        {/* Balão */}
-                                                        <div className="chat-bubble-custom" style={{
-                                                            position: 'relative',
-                                                            padding: msg.isImage ? '4px' : '10px 14px 22px 14px',
-                                                            borderRadius: 'var(--radius-md)',
-                                                            fontSize: '0.9rem',
-                                                            backgroundColor: msg.type === 'human' ? 'var(--bg-secondary)' : 'var(--bg-primary)',
-                                                            color: 'var(--text-primary)',
-                                                            border: '1px solid var(--border)',
-                                                            boxShadow: 'var(--shadow-sm)',
-                                                            whiteSpace: 'pre-wrap',
-                                                            transition: 'all 0.1s'
-                                                        }}>
-                                                            {msg.isImage ? (
+                                                    <div className={`chat-bubble-wa ${!isOutgoing ? 'incoming' : 'outgoing'}`}>
+                                                        {msg.isImage ? (
+                                                            <div style={{ position: 'relative' }}>
                                                                 <img
                                                                     src={msg.text.trim()}
                                                                     alt="imagem"
-                                                                    style={{ maxWidth: '280px', maxHeight: '350px', borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
                                                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                                 />
-                                                            ) : msg.isVideo || msg.type === 'video' ? (
+                                                                <span className="wa-time" style={{ color: 'white', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>{msg.time}</span>
+                                                            </div>
+                                                        ) : msg.isVideo || msg.type === 'video' ? (
+                                                            <div style={{ position: 'relative' }}>
                                                                 <video
                                                                     controls
                                                                     src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
-                                                                    style={{ maxWidth: '280px', maxHeight: '350px', borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
                                                                     onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
                                                                 />
-                                                            ) : msg.isAudio ? (
-                                                                <div style={{ padding: '4px 0', minWidth: '280px', width: '100%' }}>
-                                                                    <audio
-                                                                        controls
-                                                                        src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
-                                                                        style={{ width: '100%', height: '36px' }}
-                                                                    />
-                                                                </div>
-                                                            ) : msg.isAudioSent ? (
-                                                                <>
+                                                                <span className="wa-time" style={{ color: 'white', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>{msg.time}</span>
+                                                            </div>
+                                                        ) : msg.isAudio ? (
+                                                            <div style={{ padding: '4px 0', minWidth: '220px' }}>
+                                                                <audio
+                                                                    controls
+                                                                    src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
+                                                                    style={{ width: '100%', height: '32px' }}
+                                                                />
+                                                                <span className="wa-time">{msg.time}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                {msg.isAudioSent && (
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700' }}>
                                                                         <Mic size={13} /> Áudio Enviado
                                                                     </div>
-                                                                    <div style={{ color: 'var(--text-secondary)' }}>{msg.text}</div>
-                                                                </>
-                                                            ) : msg.text}
-                                                            <span style={{ position: 'absolute', bottom: '6px', right: '10px', fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: '600', opacity: 0.8 }}>{msg.time}</span>
-                                                        </div>
+                                                                )}
+                                                                <div style={{ paddingRight: '40px' }}>{msg.text}</div>
+                                                                <span className="wa-time">{msg.time}</span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
                                     );
                                 })}
+                                </div>
+                            </div>
 
                                 {isSarahThinking && (
                                     <div style={{
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        alignItems: 'flex-end',
+                                        alignItems: 'flex-start',
                                         gap: '2px',
-                                        marginBottom: '4px',
+                                        marginBottom: '8px',
+                                        marginLeft: '16px',
                                         animation: 'fadeIn 0.3s ease-out'
                                     }}>
-                                        <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingRight: '4px' }}>Sarah IA</div>
+                                        <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingLeft: '4px' }}>Sarah IA</div>
                                         <div className="sarah-thinking">
                                             <div className="dot"></div>
                                             <div className="dot"></div>
@@ -1576,7 +1561,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         </div>
                                     </div>
                                 )}
-                            </div>
+
 
                             {(() => {
                                 if (!selectedLead) return null;
@@ -1593,43 +1578,138 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                 );
                             })()}
 
-                            <div ref={inputBarRef} style={{ padding: '1rem', display: 'flex', gap: '12px', backgroundColor: 'var(--bg-primary)', borderTop: '1px solid var(--border)', alignItems: 'center', position: 'relative' }}>
+                            <div ref={inputBarRef} style={{ padding: '10px 16px', display: 'flex', gap: '8px', backgroundColor: 'var(--wa-header)', borderTop: '1px solid var(--border)', alignItems: 'center', position: 'relative' }}>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button 
+                                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-text-time)', padding: '6px' }}
+                                    >
+                                        <Smile size={24} />
+                                    </button>
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-text-time)', padding: '6px' }}
+                                    >
+                                        <Paperclip size={24} />
+                                    </button>
+                                </div>
+
+                                <div className="wa-input-container">
+                                    <textarea
+                                        rows={1}
+                                        value={inputValue}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setInputValue(val);
+                                            const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
+                                            if (match) {
+                                                setShowQuickMessagesStore(true);
+                                                setQuickMessageFilter(match[1]);
+                                            } else {
+                                                setShowQuickMessagesStore(false);
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSendMessage();
+                                            }
+                                        }}
+                                        placeholder="Mensagem"
+                                        style={{
+                                            border: 'none',
+                                            background: 'transparent',
+                                            flex: 1,
+                                            resize: 'none',
+                                            padding: '8px 0',
+                                            fontSize: '1rem',
+                                            outline: 'none',
+                                            color: 'var(--text-primary)',
+                                            maxHeight: '120px'
+                                        }}
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={inputValue.trim() ? handleSendMessage : (isRecording ? stopRecording : startRecording)}
+                                    disabled={isSending || isUploading}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        width: '45px', height: '45px', borderRadius: '50%',
+                                        backgroundColor: '#128c7e', color: 'white', border: 'none', cursor: 'pointer',
+                                        flexShrink: 0, transition: 'all 0.2s',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                    }}
+                                >
+                                    {isSending || isUploading ? (
+                                        <Loader2 className="animate-spin" size={20} />
+                                    ) : inputValue.trim() ? (
+                                        <Send size={20} />
+                                    ) : isRecording ? (
+                                        <StopCircle size={20} className="animate-pulse" />
+                                    ) : (
+                                        <Mic size={20} />
+                                    )}
+                                </button>
+                                
+                                {showQuickMessagesStore && quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).length > 0 && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: '100%',
+                                        left: '16px',
+                                        right: '16px',
+                                        marginBottom: '10px',
+                                        background: 'var(--bg-primary)',
+                                        borderRadius: '12px',
+                                        boxShadow: 'var(--shadow-xl)',
+                                        maxHeight: '200px',
+                                        overflowY: 'auto',
+                                        zIndex: 2000,
+                                        border: '1px solid var(--border)'
+                                    }}>
+                                        <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)' }}>
+                                            Mensagens Rápidas
+                                        </div>
+                                        {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
+                                            <div
+                                                key={msg.id}
+                                                onClick={() => {
+                                                    const parsedMsg = parseTextVariables(msg.content, selectedLead);
+                                                    const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, parsedMsg);
+                                                    setInputValue(newVal);
+                                                    setShowQuickMessagesStore(false);
+                                                }}
+                                                style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '4px' }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                            >
+                                                <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parseTextVariables(msg.content, selectedLead)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
                                 {showEmojiPicker && (
                                     <div style={{
                                         position: 'absolute',
                                         bottom: '100%',
-                                        left: isMobile ? '1rem' : '0',
+                                        left: '16px',
                                         marginBottom: '10px',
-                                        zIndex: 1000,
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                                        borderRadius: '12px',
-                                        overflow: 'hidden'
+                                        zIndex: 100,
+                                        boxShadow: 'var(--shadow-xl)'
                                     }}>
-                                        <Suspense fallback={<div style={{ width: 320, height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}><Loader2 className="animate-spin" /></div>}>
-                                            <EmojiPicker
-                                                theme={Theme.LIGHT}
+                                        <Suspense fallback={<div style={{ padding: '20px', background: 'var(--bg-primary)' }}>Carregando emojis...</div>}>
+                                            <EmojiPicker 
                                                 onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
-                                                width={isMobile ? 'calc(100vw - 2rem)' : 320}
-                                                height={350}
+                                                autoFocusSearch={false}
+                                                theme={localStorage.getItem('theme') === 'dark' ? Theme.DARK : Theme.LIGHT}
+                                                width={350}
+                                                height={400}
                                             />
                                         </Suspense>
                                     </div>
                                 )}
-
-                                <button
-                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                                >
-                                    <Smile size={24} />
-                                </button>
-
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isUploading || isSending}
-                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                                >
-                                    {isUploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
-                                </button>
 
                                 <input
                                     type="file"
@@ -1639,98 +1719,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     style={{ display: 'none' }}
                                 />
 
-                                {isRecording ? (
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 16px' }}>
-                                        <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--error)' }}></div>
-                                        <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Gravando... {formatTime(recordingTime)}</span>
-                                        <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer' }}>
-                                            <X size={20} />
+                                {isRecording && (
+                                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'var(--wa-header)', display: 'flex', alignItems: 'center', gap: '16px', padding: '0 16px', zIndex: 10 }}>
+                                        <div className="animate-pulse" style={{ color: 'var(--error)' }}>
+                                            <Mic size={20} />
+                                        </div>
+                                        <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--wa-text-time)' }}>Gravando... {formatTime(recordingTime)}</span>
+                                        <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold' }}>
+                                            CANCELAR
                                         </button>
-                                        <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer' }}>
-                                            <Send size={22} />
+                                        <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: '#128c7e', cursor: 'pointer', fontWeight: 'bold' }}>
+                                            ENVIAR
                                         </button>
                                     </div>
-                                ) : (
-                                    <>
-                                        {showQuickMessagesStore && quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).length > 0 && (
-                                            <div style={{
-                                                position: 'absolute',
-                                                bottom: '100%',
-                                                left: isMobile ? '0' : '60px',
-                                                right: isMobile ? '0' : '60px',
-                                                marginBottom: '10px',
-                                                background: 'var(--bg-secondary)',
-                                                borderRadius: '12px',
-                                                boxShadow: '0 -4px 15px rgba(0,0,0,0.1)',
-                                                maxHeight: '200px',
-                                                overflowY: 'auto',
-                                                zIndex: 2000,
-                                                border: '1px solid var(--border-soft)'
-                                            }}>
-                                                <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)' }}>
-                                                    Mensagens Rápidas
-                                                </div>
-                                                {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
-                                                    <div
-                                                        key={msg.id}
-                                                        onClick={() => {
-                                                            const parsedMsg = parseTextVariables(msg.content, selectedLead);
-                                                            const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, parsedMsg);
-                                                            setInputValue(newVal);
-                                                            setShowQuickMessagesStore(false);
-                                                        }}
-                                                        style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}
-                                                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--accent-soft)')}
-                                                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                                    >
-                                                        <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
-                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parseTextVariables(msg.content, selectedLead)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '4px 12px', border: '1px solid var(--border)', transition: 'all 0.1s' }}>
-                                            <input
-                                                type="text"
-                                                value={inputValue}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setInputValue(val);
-                                                    const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
-                                                    if (match) {
-                                                        setShowQuickMessagesStore(true);
-                                                        setQuickMessageFilter(match[1]);
-                                                    } else {
-                                                        setShowQuickMessagesStore(false);
-                                                    }
-                                                }}
-                                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                                placeholder="Envie uma mensagem (Intervenção)... (Digite / para atalhos)"
-                                                disabled={isSending}
-                                                style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem' }}
-                                            />
-                                        </div>
-
-                                        {inputValue.trim() ? (
-                                            <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                                {isSending ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
-                                            </button>
-                                        ) : isSuperAdmin ? (
-                                            <button
-                                                onTouchStart={startRecording}
-                                                onMouseDown={startRecording}
-                                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                                            >
-                                                <Mic size={24} />
-                                            </button>
-                                        ) : (
-                                            <button onClick={handleSendMessage} disabled={isSending || !inputValue.trim()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.4 }}>
-                                                <Send size={24} />
-                                            </button>
-                                        )}
-                                    </>
                                 )}
                             </div>
+
                         </>
                     ) : (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Selecione uma conversa para começar</div>

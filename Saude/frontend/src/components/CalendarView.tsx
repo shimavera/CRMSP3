@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Loader2, Video, X, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Loader2, Video, X, Clock, AlignLeft, Users, MapPin, Calendar, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, CalendarEvent } from '../lib/supabase';
 
@@ -64,136 +64,171 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
         }
     };
 
-    const labelStyle: React.CSSProperties = { fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' };
-    const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' };
+    const inputStyle: React.CSSProperties = { 
+        width: '100%', 
+        padding: '12px 0', 
+        border: 'none', 
+        borderBottom: '1px solid #3c4043', 
+        background: 'transparent', 
+        color: '#e8eaed', 
+        fontSize: '0.95rem', 
+        outline: 'none', 
+        transition: 'border-color 0.2s',
+        marginBottom: '4px'
+    };
+
+    const buttonGhostStyle: React.CSSProperties = {
+        background: 'transparent',
+        border: 'none',
+        color: '#8ab4f8',
+        fontSize: '0.85rem',
+        fontWeight: 500,
+        cursor: 'pointer',
+        padding: '8px 12px',
+        borderRadius: '4px'
+    };
 
     return (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-            <div style={{ background: 'var(--bg-secondary)', borderRadius: '16px', padding: '2rem', width: '440px', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-primary)', margin: 0 }}>
-                        {isNew ? 'Novo Agendamento' : 'Editar Agendamento'}
-                    </h3>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+            <div style={{ background: '#202124', borderRadius: '12px', padding: '0', width: '520px', maxHeight: '95vh', overflow: 'hidden', boxShadow: '0 12px 32px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                {/* Header Actions */}
+                <div style={{ padding: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ color: '#9aa0a6', cursor: 'grab', padding: '4px' }}><AlignLeft size={16} /></div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9aa0a6', padding: '8px', borderRadius: '50%' }}>
                         <X size={20} />
                     </button>
                 </div>
 
-                {/* Form */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ padding: '0 24px 24px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {error && <div style={{ color: '#f28b82', fontSize: '0.85rem', padding: '0 40px' }}>{error}</div>}
                     {/* Título */}
-                    <div>
-                        <label style={labelStyle}>Título *</label>
+                    <div style={{ marginLeft: '40px' }}>
                         <input
-                            style={inputStyle}
-                            placeholder="Ex: Consulta inicial com paciente"
+                            style={{ ...inputStyle, fontSize: '1.4rem', borderBottom: '1px solid #8ab4f8', color: '#e8eaed' }}
+                            placeholder="Adicionar título"
                             value={form.title}
                             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                             autoFocus
                         />
                     </div>
 
-                    {/* Descrição */}
-                    <div>
-                        <label style={labelStyle}>Descrição</label>
-                        <textarea
-                            style={{ ...inputStyle, minHeight: '70px', resize: 'vertical', fontFamily: 'inherit' }}
-                            placeholder="Detalhes do agendamento (opcional)"
-                            value={form.description}
-                            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                        />
-                    </div>
-
-                    {/* Horários */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div>
-                            <label style={labelStyle}>Início *</label>
-                            <input
-                                type="datetime-local"
-                                style={inputStyle}
-                                value={form.start_time}
-                                onChange={e => {
-                                    const newStart = e.target.value;
-                                    setForm(f => {
-                                        const s = new Date(newStart);
-                                        const oldEnd = new Date(f.end_time);
-                                        const diff = oldEnd.getTime() - new Date(f.start_time).getTime();
-                                        const newEnd = new Date(s.getTime() + (diff > 0 ? diff : 30 * 60000));
-                                        return { ...f, start_time: newStart, end_time: newEnd.toISOString().slice(0, 16) };
-                                    });
-                                }}
-                            />
-                        </div>
-                        <div>
-                            <label style={labelStyle}>Fim *</label>
-                            <input
-                                type="datetime-local"
-                                style={inputStyle}
-                                value={form.end_time}
-                                onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))}
-                            />
+                    {/* Tabs / Type */}
+                    <div style={{ marginLeft: '40px', display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ background: '#174ea6', color: '#d2e3fc', padding: '6px 16px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Evento</div>
+                        <div style={{ color: '#9aa0a6', padding: '6px 16px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 500 }}>Tarefa</div>
+                        <div style={{ color: '#9aa0a6', padding: '6px 16px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            Agendamento de horários <span style={{ background: '#3c4043', color: '#e8eaed', padding: '1px 6px', borderRadius: '100px', fontSize: '0.65rem' }}>Novo</span>
                         </div>
                     </div>
 
-                    {/* Status (só para edição) */}
-                    {!isNew && (
-                        <div>
-                            <label style={labelStyle}>Status</label>
-                            <select
-                                style={inputStyle}
-                                value={form.status}
-                                onChange={e => setForm(f => ({ ...f, status: e.target.value as CalendarEvent['status'] }))}
-                            >
-                                <option value="scheduled">Agendado</option>
-                                <option value="completed">Realizado</option>
-                                <option value="cancelled">Cancelado</option>
-                                <option value="no_show">No Show</option>
-                            </select>
+                    {/* Horários / Clock */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                        <div style={{ color: '#9aa0a6', marginTop: '12px' }}><Clock size={20} /></div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ background: '#3c4043', borderRadius: '4px', padding: '8px 12px', fontSize: '0.9rem', color: '#e8eaed', cursor: 'pointer' }}>
+                                    {new Date(form.start_time).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                </div>
+                                <div style={{ background: '#3c4043', borderRadius: '4px', padding: '8px 12px', fontSize: '0.9rem', color: '#e8eaed' }}>
+                                    <input 
+                                        type="time" 
+                                        value={form.start_time.split('T')[1]} 
+                                        onChange={e => {
+                                            const time = e.target.value;
+                                            const date = form.start_time.split('T')[0];
+                                            setForm(f => ({ ...f, start_time: `${date}T${time}` }));
+                                        }}
+                                        style={{ background: 'transparent', border: 'none', color: 'inherit', outline: 'none' }}
+                                    />
+                                </div>
+                                <span style={{ color: '#9aa0a6' }}>–</span>
+                                <div style={{ background: '#3c4043', borderRadius: '4px', padding: '8px 12px', fontSize: '0.9rem', color: '#e8eaed' }}>
+                                    <input 
+                                        type="time" 
+                                        value={form.end_time.split('T')[1]} 
+                                        onChange={e => {
+                                            const time = e.target.value;
+                                            const date = form.end_time.split('T')[0];
+                                            setForm(f => ({ ...f, end_time: `${date}T${time}` }));
+                                        }}
+                                        style={{ background: 'transparent', border: 'none', color: 'inherit', outline: 'none' }}
+                                    />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.85rem' }}>
+                                <label style={{ color: '#e8eaed', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input type="checkbox" style={{ accentColor: '#8ab4f8' }} /> Dia inteiro
+                                </label>
+                                <span style={{ color: '#8ab4f8', cursor: 'pointer' }}>Fuso horário</span>
+                            </div>
                         </div>
-                    )}
+                    </div>
 
-                    {/* Google sync badge (só para edição) */}
-                    {event?.google_event_id && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4285F4', padding: '8px 12px', background: 'rgba(66,133,244,0.1)', borderRadius: '8px' }}>
-                            <Video size={14} /> Sincronizado com Google Calendar
+                    {/* Guests / Users */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#9aa0a6', cursor: 'pointer' }}>
+                        <Users size={20} />
+                        <span style={{ fontSize: '0.9rem' }}>Adicionar convidados</span>
+                    </div>
+
+                    {/* Video / Google Meet */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#9aa0a6', cursor: 'pointer' }}>
+                        <Video size={20} color="#8ab4f8" />
+                        <span style={{ fontSize: '0.9rem' }}>Adicionar videoconferência do Google Meet</span>
+                    </div>
+
+                    {/* Location / MapPin */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#9aa0a6', cursor: 'pointer' }}>
+                        <MapPin size={20} />
+                        <span style={{ fontSize: '0.9rem' }}>Adicionar local</span>
+                    </div>
+
+                    {/* Description / AlignLeft */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#9aa0a6', cursor: 'pointer' }}>
+                        <AlignLeft size={20} />
+                        <span style={{ fontSize: '0.9rem' }}>Adicionar descrição ou um anexo</span>
+                    </div>
+
+                    {/* User Profile / Calendar */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                        <div style={{ color: '#9aa0a6' }}><Calendar size={20} /></div>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '0.9rem', color: '#e8eaed' }}>{authUser.nome}</span>
+                                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#8ab4f8' }} />
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#9aa0a6' }}>
+                                Ocupado • Visibilidade padrão • Notificar 30 minutos antes
+                            </div>
                         </div>
-                    )}
+                    </div>
 
-                    {/* Erro */}
-                    {error && (
-                        <div style={{ padding: '10px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#ef4444', fontSize: '0.85rem' }}>
-                            {error}
-                        </div>
-                    )}
+                    {/* Recordings / Globe */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' }}>
+                        <div style={{ background: '#3f11d1', padding: '2px', borderRadius: '4px' }}><Globe size={14} color="white" /></div>
+                        <span style={{ fontSize: '0.85rem', color: '#8ab4f8', textDecoration: 'underline' }}>Configure automações de gravação aqui</span>
+                    </div>
 
-                    {/* Ações */}
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                        {!isNew && onDelete && (
-                            <button
-                                onClick={async () => {
-                                    if (confirm('Remover este agendamento?')) {
-                                        setSaving(true);
-                                        await onDelete(event!.id);
-                                    }
-                                }}
-                                style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                            >
-                                <Trash2 size={14} /> Remover
-                            </button>
+                    {/* Ações Finais */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+                        {!isNew && onDelete && event?.id && (
+                            <button onClick={() => { if (confirm('Remover este evento?')) onDelete(event.id!); }} style={{ ...buttonGhostStyle, color: '#f28b82', marginRight: 'auto' }}>Excluir</button>
                         )}
-                        <div style={{ flex: 1 }} />
-                        <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            Cancelar
-                        </button>
+                        <button onClick={onClose} style={buttonGhostStyle}>Mais opções</button>
                         <button
                             onClick={handleSubmit}
                             disabled={saving}
-                            className="btn-primary"
-                            style={{ padding: '10px 24px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', opacity: saving ? 0.7 : 1 }}
+                            style={{ 
+                                padding: '10px 32px', 
+                                borderRadius: '100px', 
+                                border: 'none',
+                                background: '#8ab4f8', 
+                                color: '#202124', 
+                                cursor: 'pointer', 
+                                fontSize: '0.9rem', 
+                                fontWeight: 600
+                            }}
                         >
-                            {saving ? <Loader2 size={14} className="spin" /> : null}
-                            {isNew ? 'Criar Agendamento' : 'Salvar'}
+                            {saving ? <Loader2 size={18} className="spin" /> : (isNew ? 'Salvar' : 'Atualizar')}
                         </button>
                     </div>
                 </div>
@@ -298,29 +333,23 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
         setCurrentDate(new Date());
     };
 
-    const getDaysOfWeek = () => {
-        const days = [];
-        const start = new Date(currentDate);
-        start.setDate(currentDate.getDate() - currentDate.getDay());
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(start);
-            d.setDate(start.getDate() + i);
-            days.push(d);
-        }
-        return days;
-    };
+    const weekDays = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(currentDate);
+        d.setDate(currentDate.getDate() - currentDate.getDay() + i);
+        return d;
+    });
 
-    const weekDays = getDaysOfWeek();
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+
     const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-    const hours = Array.from({ length: 11 }, (_, i) => i + 8);
 
-    // Clicar em slot vazio do calendário para criar evento nesse horário
-    const handleSlotClick = (date: Date, hour: number) => {
-        const d = new Date(date);
-        d.setHours(hour, 0, 0, 0);
-        setModalDefaultDate(d);
-        setModalEvent('new');
-    };
+    if (isLoading && events.length === 0) {
+        return (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 className="animate-spin" size={32} color="var(--accent)" />
+            </div>
+        );
+    }
 
     return (
         <div style={{ padding: '0 2rem 2rem 2rem', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -338,34 +367,23 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '8px', padding: '4px', border: '1px solid var(--border-soft)' }}>
-                        <button onClick={handlePrevWeek} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-secondary)' }}>
-                            <ChevronLeft size={18} />
-                        </button>
-                        <button onClick={handleToday} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 12px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                            Hoje
-                        </button>
-                        <button onClick={handleNextWeek} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-secondary)' }}>
-                            <ChevronRight size={18} />
-                        </button>
+                    <div style={{ display: 'flex', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border)', padding: '4px' }}>
+                        <button onClick={handlePrevWeek} style={{ background: 'none', border: 'none', padding: '6px', cursor: 'pointer', color: 'var(--text-secondary)' }}><ChevronLeft size={20} /></button>
+                        <button onClick={handleToday} style={{ background: 'none', border: 'none', padding: '0 12px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)' }}>Hoje</button>
+                        <button onClick={handleNextWeek} style={{ background: 'none', border: 'none', padding: '6px', cursor: 'pointer', color: 'var(--text-secondary)' }}><ChevronRight size={20} /></button>
                     </div>
                     <button
-                        className="btn-primary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                        onClick={() => { setModalDefaultDate(undefined); setModalEvent('new'); }}
+                        onClick={() => { setModalEvent('new'); setModalDefaultDate(undefined); }}
+                        style={{ background: 'var(--accent)', color: 'var(--bg-primary)', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
                     >
-                        <Plus size={18} />
-                        <span>Novo Agendamento</span>
+                        <Plus size={18} /> Novo
                     </button>
                 </div>
             </div>
 
-            {/* Calendar Grid Container */}
-            <div className="glass-card" style={{ flex: 1, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
                 {isLoading && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(var(--bg-primary-rgb), 0.5)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}>
-                        <Loader2 size={32} className="spin" style={{ color: 'var(--accent)' }}/>
-                    </div>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'var(--accent)', zIndex: 100, animation: 'pulse 1.5s infinite' }} />
                 )}
 
                 {/* Headers da Semana */}
@@ -392,109 +410,109 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                     })}
                 </div>
 
-                {/* Grade de Horas */}
+                {/* Grid de Horários */}
                 <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', position: 'relative' }}>
-                    {/* Renderizando as linhas das horas */}
-                    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateRows: `repeat(${hours.length}, 60px)`, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
-                        {hours.map((hour) => (
-                             <div key={hour} style={{ borderBottom: '1px solid var(--border-soft)', position: 'relative' }}></div>
-                         ))}
-                    </div>
-
-                    {/* Coluna das legendas de hora */}
-                    <div style={{ borderRight: '1px solid var(--border-soft)', background: 'var(--bg-secondary)', zIndex: 2 }}>
-                        {hours.map((hour) => (
-                            <div key={hour} style={{ height: '60px', display: 'flex', justifyContent: 'center', paddingTop: '8px' }}>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '-8px', background: 'var(--bg-secondary)', padding: '0 4px' }}>
-                                    {String(hour).padStart(2, '0')}:00
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Colunas dos dias */}
-                    {weekDays.map((date, dayIdx) => (
-                        <div key={dayIdx} style={{ borderRight: dayIdx < 6 ? '1px solid var(--border-soft)' : 'none', position: 'relative' }}>
-                            {/* Slots clicáveis para criar evento */}
-                            {hours.map((hour) => (
-                                <div
-                                    key={hour}
-                                    style={{ height: '60px', cursor: 'pointer' }}
-                                    onClick={() => handleSlotClick(date, hour)}
-                                    title={`Criar agendamento às ${String(hour).padStart(2, '0')}:00`}
-                                />
-                            ))}
-
-                            {/* Eventos renderizados por cima */}
-                            {events
-                                .filter(e => new Date(e.start_time).toDateString() === date.toDateString())
-                                .map(event => {
-                                    const eventStart = new Date(event.start_time);
-                                    const eventEnd = new Date(event.end_time);
-                                    const startMin = (eventStart.getHours() - 8) * 60 + eventStart.getMinutes();
-                                    const lengthMin = (eventEnd.getTime() - eventStart.getTime()) / 60000;
-
-                                    if (startMin < 0 || startMin > hours.length * 60) return null;
-
-                                    return (
-                                        <div
-                                            key={event.id}
-                                            onClick={(e) => { e.stopPropagation(); setModalEvent(event); }}
-                                            style={{
-                                                position: 'absolute',
-                                                top: `${startMin}px`,
-                                                height: `${Math.max(lengthMin, 24)}px`,
-                                                left: '2px',
-                                                right: '2px',
-                                                background: event.status === 'cancelled' ? '#f1f3f4' : (event.status === 'completed' ? '#e6f4ea' : 'var(--accent)'),
-                                                color: event.status === 'cancelled' ? '#70757a' : (event.status === 'completed' ? '#1e8e3e' : 'white'),
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                padding: '2px 6px',
-                                                overflow: 'hidden',
-                                                zIndex: 5,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                fontSize: '0.75rem',
-                                                boxShadow: '0 1px 2px rgba(60,64,67,0.3)',
-                                                opacity: event.status === 'cancelled' ? 0.7 : 1,
-                                                transition: 'all 0.1s',
-                                            }}
-                                            onMouseEnter={e => {
-                                                e.currentTarget.style.boxShadow = '0 1px 3px 1px rgba(60,64,67,0.15)';
-                                                e.currentTarget.style.filter = 'brightness(0.95)';
-                                            }}
-                                            onMouseLeave={e => {
-                                                e.currentTarget.style.boxShadow = '0 1px 2px rgba(60,64,67,0.3)';
-                                                e.currentTarget.style.filter = 'none';
-                                            }}
-                                        >
-                                            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {event.title}
-                                            </div>
-                                            {lengthMin > 40 && (
-                                                <div style={{ fontSize: '0.65rem', opacity: 0.9 }}>
-                                                    {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                    {/* Time labels */}
+                    {hours.map(hour => (
+                        <div key={hour} style={{ height: '60px', fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: '4px', borderRight: '1px solid var(--border-soft)', position: 'relative' }}>
+                            {hour}:00
                         </div>
                     ))}
+
+                    {/* Background grid */}
+                    {hours.map(hour => (
+                        weekDays.map((_, i) => (
+                            <div
+                                key={`${hour}-${i}`}
+                                onClick={() => {
+                                    const d = new Date(weekDays[i]);
+                                    d.setHours(hour, 0, 0, 0);
+                                    setModalDefaultDate(d);
+                                    setModalEvent('new');
+                                }}
+                                style={{ height: '60px', borderBottom: '1px solid var(--border-soft)', borderRight: i < 6 ? '1px solid var(--border-soft)' : 'none', cursor: 'pointer' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            />
+                        ))
+                    ))}
+
+                    {/* Events layer */}
+                    <div style={{ position: 'absolute', top: 0, left: '60px', right: 0, bottom: 0, pointerEvents: 'none' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', height: '100%' }}>
+                            {weekDays.map((day, i) => {
+                                const dayEvents = events.filter(e => new Date(e.start_time).toDateString() === day.toDateString());
+                                return (
+                                    <div key={i} style={{ position: 'relative', height: '100%', pointerEvents: 'none' }}>
+                                        {dayEvents.map(event => {
+                                            const eventStart = new Date(event.start_time);
+                                            const eventEnd = new Date(event.end_time);
+                                            const startMin = (eventStart.getHours() * 60) + eventStart.getMinutes();
+                                            const endMin = (eventEnd.getHours() * 60) + eventEnd.getMinutes();
+                                            const lengthMin = endMin - startMin;
+
+                                            return (
+                                                <div
+                                                    key={event.id}
+                                                    onClick={(e) => { e.stopPropagation(); setModalEvent(event); }}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: `${startMin}px`,
+                                                        height: `${Math.max(lengthMin, 24)}px`,
+                                                        left: '2px',
+                                                        right: '2px',
+                                                        background: event.status === 'cancelled' ? '#f1f3f4' : (event.status === 'completed' ? '#e6f4ea' : 'var(--accent)'),
+                                                        color: event.status === 'cancelled' ? '#70757a' : (event.status === 'completed' ? '#1e8e3e' : 'white'),
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        padding: '2px 6px',
+                                                        overflow: 'hidden',
+                                                        zIndex: 5,
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        fontSize: '0.75rem',
+                                                        boxShadow: '0 1px 2px rgba(60,64,67,0.3)',
+                                                        opacity: event.status === 'cancelled' ? 0.7 : 1,
+                                                        transition: 'all 0.1s',
+                                                        pointerEvents: 'auto'
+                                                    }}
+                                                    onMouseEnter={e => {
+                                                        e.currentTarget.style.boxShadow = '0 1px 3px 1px rgba(60,64,67,0.15)';
+                                                        e.currentTarget.style.filter = 'brightness(0.95)';
+                                                    }}
+                                                    onMouseLeave={e => {
+                                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(60,64,67,0.3)';
+                                                        e.currentTarget.style.filter = 'none';
+                                                    }}
+                                                >
+                                                    <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {event.title}
+                                                    </div>
+                                                    {lengthMin > 40 && (
+                                                        <div style={{ fontSize: '0.65rem', opacity: 0.9 }}>
+                                                            {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Modal de Criar/Editar Evento */}
             {modalEvent && (
                 <EventModal
                     event={modalEvent === 'new' ? null : modalEvent}
+                    defaultDate={modalDefaultDate}
+                    authUser={authUser}
                     onClose={() => setModalEvent(null)}
                     onSave={handleSaveEvent}
                     onDelete={handleDeleteEvent}
-                    authUser={authUser}
-                    defaultDate={modalDefaultDate}
                 />
             )}
         </div>
