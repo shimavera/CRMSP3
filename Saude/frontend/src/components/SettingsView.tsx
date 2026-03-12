@@ -302,6 +302,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [createUserError, setCreateUserError] = useState<string | null>(null);
     const [createUserSuccess, setCreateUserSuccess] = useState(false);
 
+    // Estados de Alteração de Senha (Perfil)
+    const [newPass, setNewPass] = useState('');
+    const [confirmPass, setConfirmPass] = useState('');
+    const [isUpdatingPass, setIsUpdatingPass] = useState(false);
+    const [passUpdateError, setPassUpdateError] = useState<string | null>(null);
+    const [passUpdateSuccess, setPassUpdateSuccess] = useState(false);
+    const [showProfilePass, setShowProfilePass] = useState(false);
+
     // Estados do Prompt da IA
     const [promptHistory, setPromptHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -1117,8 +1125,43 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsLoadingUsers(false);
     };
 
+    const handleUpdatePassword = async () => {
+        if (!newPass) return;
+        if (newPass.length < 6) {
+            setPassUpdateError('A senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
+        if (newPass !== confirmPass) {
+            setPassUpdateError('As senhas não coincidem.');
+            return;
+        }
+
+        setIsUpdatingPass(true);
+        setPassUpdateError(null);
+        setPassUpdateSuccess(false);
+
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPass });
+            if (error) throw error;
+            
+            setPassUpdateSuccess(true);
+            setNewPass('');
+            setConfirmPass('');
+            setTimeout(() => setPassUpdateSuccess(false), 4000);
+        } catch (err: any) {
+            setPassUpdateError(err.message);
+        } finally {
+            setIsUpdatingPass(false);
+        }
+    };
+
     const handleCreateUser = async () => {
         if (!newUserNome.trim() || !newUserEmail.trim() || !newUserPassword.trim()) return;
+        
+        if (usersList.length >= 2 && !isSuperAdmin) {
+            setCreateUserError('Limite atingido. Cada conta pode ter no máximo 2 usuários (1 Master + 1 Operador).');
+            return;
+        }
         setIsCreatingUser(true);
         setCreateUserError(null);
 
@@ -2705,23 +2748,81 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 )}
 
                 {activeSubTab === 'profile' && (
-                    <div className="glass-card" style={{ padding: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '1.5rem' }}>Perfil da conta</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome de Exibição</label>
-                                <input type="text" readOnly value={authUser.nome} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cargo</label>
-                                <input type="text" readOnly value={authUser.role === 'master' ? 'Master' : 'Operador'} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</label>
-                                <input type="text" readOnly value={authUser.email} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                    <>
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '1.5rem' }}>Perfil da conta</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome de Exibição</label>
+                                    <input type="text" readOnly value={authUser.nome} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cargo</label>
+                                    <input type="text" readOnly value={authUser.role === 'master' ? 'Master' : 'Operador'} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</label>
+                                    <input type="text" readOnly value={authUser.email} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                                </div>
                             </div>
                         </div>
-                    </div>
+
+                        <div style={{ marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid var(--border-soft)' }}>
+                            <h4 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Alterar Senha</h4>
+                            
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', maxWidth: '800px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nova Senha</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <input 
+                                            type={showProfilePass ? 'text' : 'password'} 
+                                            value={newPass} 
+                                            onChange={(e) => setNewPass(e.target.value)} 
+                                            placeholder="Mínimo 6 caracteres"
+                                            style={{ width: '100%', padding: '12px 40px 12px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-primary)', outline: 'none', boxSizing: 'border-box' }} 
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowProfilePass(!showProfilePass)}
+                                            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex' }}
+                                        >
+                                            {showProfilePass ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confirmar Nova Senha</label>
+                                    <input 
+                                        type={showProfilePass ? 'text' : 'password'} 
+                                        value={confirmPass} 
+                                        onChange={(e) => setConfirmPass(e.target.value)} 
+                                        placeholder="Repita a senha"
+                                        style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-primary)', outline: 'none' }} 
+                                    />
+                                </div>
+                            </div>
+
+                            {passUpdateError && (
+                                <div style={{ marginTop: '1rem', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', fontSize: '0.85rem', fontWeight: '600', maxWidth: '800px' }}>
+                                    {passUpdateError}
+                                </div>
+                            )}
+                            {passUpdateSuccess && (
+                                <div style={{ marginTop: '1rem', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', color: '#15803d', fontSize: '0.85rem', fontWeight: '600', maxWidth: '800px' }}>
+                                    ✓ Senha alterada com sucesso!
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleUpdatePassword}
+                                disabled={isUpdatingPass || !newPass}
+                                style={{ marginTop: '1.5rem', padding: '12px 24px', borderRadius: '12px', border: 'none', backgroundColor: (isUpdatingPass || !newPass) ? 'var(--accent-muted)' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: (isUpdatingPass || !newPass) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                            >
+                                {isUpdatingPass ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                {isUpdatingPass ? 'Atualizando...' : 'Atualizar Senha'}
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {activeSubTab === 'usuarios' && authUser.role === 'master' && (
@@ -2772,8 +2873,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         </div>
 
                         {/* Formulário de criação */}
-                        <div className="glass-card" style={{ padding: '2rem' }}>
-                            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '1.5rem' }}>Adicionar Novo Usuário</h3>
+                        <div className="glass-card" style={{ padding: '2rem', opacity: (usersList.length >= 2 && !isSuperAdmin) ? 0.7 : 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0 }}>Adicionar Novo Usuário</h3>
+                                {(usersList.length >= 2 && !isSuperAdmin) && (
+                                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: '700' }}>
+                                        Limite de 2 usuários atingido
+                                    </span>
+                                )}
+                            </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
