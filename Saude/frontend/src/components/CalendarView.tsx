@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment, type CSSProperties } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Loader2, Video, X, Clock, AlignLeft, Users, MapPin, Calendar, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, CalendarEvent } from '../lib/supabase';
@@ -64,7 +64,7 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
         }
     };
 
-    const inputStyle: React.CSSProperties = { 
+    const inputStyle: CSSProperties = { 
         width: '100%', 
         padding: '12px 0', 
         border: 'none', 
@@ -77,7 +77,7 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
         marginBottom: '4px'
     };
 
-    const buttonGhostStyle: React.CSSProperties = {
+    const buttonGhostStyle: CSSProperties = {
         background: 'transparent',
         border: 'none',
         color: '#8ab4f8',
@@ -413,7 +413,7 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                 {/* Grid de Horários */}
                 <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', position: 'relative' }}>
                     {hours.map(hour => (
-                        <React.Fragment key={hour}>
+                        <Fragment key={hour}>
                             {/* Time label */}
                             <div style={{ 
                                 height: '80px', 
@@ -451,7 +451,7 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                 />
                             ))}
-                        </React.Fragment>
+                        </Fragment>
                     ))}
 
                     {/* Events layer overlays only the day columns (not the labels) */}
