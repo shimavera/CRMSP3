@@ -521,7 +521,7 @@ function App() {
             <SidebarItem icon={Users} label="Base de Leads" active={activeTab === 'leads'} onClick={() => navigate('leads')} />
           )}
           <SidebarItem icon={Instagram} label="Instagram" active={activeTab === 'instagram'} onClick={() => navigate('instagram')} />
-          {authUser.permissions.calendar && (
+          {authUser.permissions.calendar !== false && (
             <SidebarItem icon={CalendarIcon} label="Agenda" active={activeTab === 'calendar'} onClick={() => navigate('calendar')} />
           )}
           {authUser.permissions.settings && (
@@ -659,7 +659,7 @@ function App() {
             <LazyInstagramView authUser={authUser} />
           )}
 
-          {activeTab === 'calendar' && authUser.permissions.calendar && (
+          {activeTab === 'calendar' && authUser.permissions.calendar !== false && (
             <LazyCalendarView authUser={authUser} />
           )}
 
