@@ -305,6 +305,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     // Estados do Prompt da IA
     const [promptHistory, setPromptHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
 
     // Estados de Lacunas da IA
     const [iaGaps, setIaGaps] = useState<IAGap[]>([]);
@@ -2103,10 +2104,20 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             companyId={authUser.company_id!}
                             currentPrompt={promptHistory.length > 0 ? promptHistory[0].content : ''}
                             onSavePrompt={async (content: string) => {
-                                const { error } = await supabase
-                                    .from('sp3_prompts')
-                                    .insert([{ company_id: authUser.company_id, content }]);
-                                if (error) throw error;
+                                if (promptHistory.length > 0) {
+                                    // Atualizar o último prompt (ajuste)
+                                    const { error } = await supabase
+                                        .from('sp3_prompts')
+                                        .update({ content })
+                                        .eq('id', promptHistory[0].id);
+                                    if (error) throw error;
+                                } else {
+                                    // Primeiro prompt — criar novo
+                                    const { error } = await supabase
+                                        .from('sp3_prompts')
+                                        .insert([{ company_id: authUser.company_id, content }]);
+                                    if (error) throw error;
+                                }
                                 await fetchPromptHistory();
                             }}
                         />
@@ -2121,17 +2132,20 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                 {isLoadingHistory ? (
                                     <div style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className="animate-spin" /></div>
-                                ) : promptHistory.map((v, i) => (
+                                ) : promptHistory.map((v, i) => {
+                                    const isExpanded = expandedVersionId === v.id;
+                                    return (
                                     <div
                                         key={v.id}
-                                        onClick={() => handleRestoreVersion(v.content)}
+                                        onClick={() => setExpandedVersionId(isExpanded ? null : v.id)}
                                         style={{
                                             padding: '12px',
                                             borderRadius: '12px',
                                             background: i === 0 ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
                                             border: '1px solid',
-                                            borderColor: i === 0 ? 'var(--accent-soft)' : 'var(--border-soft)',
-                                            cursor: 'pointer'
+                                            borderColor: isExpanded ? 'var(--accent)' : i === 0 ? 'var(--accent-soft)' : 'var(--border-soft)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease',
                                         }}
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -2142,11 +2156,51 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 {new Date(v.created_at).toLocaleDateString('pt-BR')} {new Date(v.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                            {v.content.substring(0, 120)}...
-                                        </div>
+                                        {isExpanded ? (
+                                            <>
+                                                <div style={{
+                                                    fontSize: '0.75rem',
+                                                    color: 'var(--text-secondary)',
+                                                    whiteSpace: 'pre-wrap',
+                                                    maxHeight: '300px',
+                                                    overflowY: 'auto',
+                                                    lineHeight: '1.5',
+                                                    padding: '8px',
+                                                    background: 'var(--bg-primary)',
+                                                    borderRadius: '8px',
+                                                    marginTop: '8px',
+                                                    border: '1px solid var(--border-soft)',
+                                                }}>
+                                                    {v.content}
+                                                </div>
+                                                {i !== 0 && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleRestoreVersion(v.content); }}
+                                                        style={{
+                                                            marginTop: '8px',
+                                                            width: '100%',
+                                                            padding: '8px',
+                                                            borderRadius: '8px',
+                                                            border: 'none',
+                                                            background: 'var(--accent)',
+                                                            color: 'white',
+                                                            fontWeight: '700',
+                                                            fontSize: '0.75rem',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        Restaurar esta versão
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                {v.content.substring(0, 120)}...
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                                 {promptHistory.length === 0 && (
                                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Use o chat ao lado para criar seu primeiro prompt.</p>
                                 )}
@@ -2597,10 +2651,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-                            <div className="glass-card" style={{ padding: '20px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                            <div className="glass-card" style={{ padding: '24px', maxWidth: '600px' }}>
                                 <h4 style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '16px' }}>Preferências da Inteligência Artificial</h4>
-                                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', marginBottom: '16px' }}>
+                                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', marginBottom: '20px' }}>
                                     <input 
                                         type="checkbox" 
                                         checked={calendarSettings.ai_can_schedule}
@@ -2613,51 +2667,19 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     </div>
                                 </label>
                                 
-                                <div>
+                                <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '20px' }}>
                                     <label style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Duração padrão (minutos)</label>
-                                    <input 
-                                        type="number" 
-                                        value={calendarSettings.default_meeting_duration} 
-                                        onChange={(e) => setCalendarSettings({ ...calendarSettings, default_meeting_duration: parseInt(e.target.value) })}
-                                        min="15" 
-                                        step="15"
-                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none', background: 'var(--bg-primary)' }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="glass-card" style={{ padding: '20px' }}>
-                                <h4 style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '16px' }}>Horário de Funcionamento</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    {Object.entries(calendarSettings.business_hours).map(([day, config]: [string, any]) => {
-                                        const dayNames: Record<string, string> = {
-                                            monday: 'Segunda', tuesday: 'Terça', wednesday: 'Quarta', thursday: 'Quinta', friday: 'Sexta', saturday: 'Sábado', sunday: 'Domingo'
-                                        };
-                                        return (
-                                            <div key={day} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-soft)' }}>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100px', cursor: 'pointer' }}>
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={config.active}
-                                                        onChange={(e) => setCalendarSettings({
-                                                            ...calendarSettings, business_hours: { ...calendarSettings.business_hours, [day]: { ...config, active: e.target.checked } }
-                                                        })}
-                                                        style={{ accentColor: 'var(--accent)' }}
-                                                    />
-                                                    <span style={{ fontSize: '0.85rem', fontWeight: config.active ? '700' : '500', color: config.active ? 'var(--text-primary)' : 'var(--text-muted)' }}>{dayNames[day]}</span>
-                                                </label>
-                                                {config.active ? (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <input type="time" value={config.start} onChange={(e) => setCalendarSettings({ ...calendarSettings, business_hours: { ...calendarSettings.business_hours, [day]: { ...config, start: e.target.value } } })} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '0.8rem' }} />
-                                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>até</span>
-                                                        <input type="time" value={config.end} onChange={(e) => setCalendarSettings({ ...calendarSettings, business_hours: { ...calendarSettings.business_hours, [day]: { ...config, end: e.target.value } } })} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '0.8rem' }} />
-                                                    </div>
-                                                ) : (
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', paddingRight: '80px' }}>Fechado</span>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <input 
+                                            type="number" 
+                                            value={calendarSettings.default_meeting_duration} 
+                                            onChange={(e) => setCalendarSettings({ ...calendarSettings, default_meeting_duration: parseInt(e.target.value) })}
+                                            min="15" 
+                                            step="15"
+                                            style={{ width: '120px', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none', background: 'var(--bg-primary)' }}
+                                        />
+                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>minutos por sessão</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
