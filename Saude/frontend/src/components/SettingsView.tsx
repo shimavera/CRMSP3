@@ -3045,6 +3045,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         </div>
                     </div>
                 )}
+                {activeSubTab === 'logs' && (
+                    <ExecutionLogsPanel companyId={authUser.company_id!} />
+                )}
             </div>
 
             {dialog && (
@@ -3084,9 +3087,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     </div>
                 </div>
             )}
-            {activeSubTab === 'logs' && (
-                <ExecutionLogsPanel companyId={authUser.company_id!} />
-            )}
+
         </div>
     );
 };
