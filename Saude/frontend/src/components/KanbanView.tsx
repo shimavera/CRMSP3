@@ -271,6 +271,61 @@ const LeadCard = (props: {
     );
 };
 
+// ─── SYNC CALENDÁRIO ─────────────────────────────────────────────────────────
+
+async function syncCalendarEvent(leadId: number, meetingDatetime: string, meetingStatus: string, leadName: string) {
+    try {
+        // Buscar company_id do lead
+        const { data: leadData } = await supabase.from('sp3chat').select('company_id').eq('id', leadId).single();
+        if (!leadData?.company_id) return;
+
+        // Buscar duração padrão da empresa
+        const { data: settings } = await supabase.from('sp3_calendar_settings').select('default_meeting_duration').eq('company_id', leadData.company_id).single();
+        const duration = settings?.default_meeting_duration || 30;
+
+        const startTime = new Date(meetingDatetime);
+        const endTime = new Date(startTime.getTime() + duration * 60000);
+
+        // Mapear status do lead para status do calendário
+        const calendarStatus = meetingStatus === 'scheduled' ? 'scheduled'
+            : meetingStatus === 'completed' ? 'completed'
+            : meetingStatus === 'no_show' ? 'no_show'
+            : 'cancelled';
+
+        // Verificar se já existe evento para este lead
+        const { data: existing } = await supabase
+            .from('sp3_calendar_events')
+            .select('id')
+            .eq('lead_id', leadId)
+            .eq('company_id', leadData.company_id)
+            .in('status', ['scheduled'])
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (existing && existing.length > 0) {
+            // Atualizar evento existente
+            await supabase.from('sp3_calendar_events').update({
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                status: calendarStatus,
+                title: `Reunião - ${leadName}`,
+            }).eq('id', existing[0].id);
+        } else if (meetingStatus === 'scheduled') {
+            // Criar novo evento
+            await supabase.from('sp3_calendar_events').insert({
+                company_id: leadData.company_id,
+                lead_id: leadId,
+                title: `Reunião - ${leadName}`,
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                status: 'scheduled',
+            });
+        }
+    } catch (err) {
+        console.error('Erro ao sincronizar calendário:', err);
+    }
+}
+
 // ─── MODAL DE DETALHES ────────────────────────────────────────────────────────
 
 const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: Lead; onClose: () => void; onUpdate: (updated: Lead) => void; currentPipeline: any[] }) => {
@@ -308,6 +363,10 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
             console.error("Erro ao salvar lead:", error);
             alert(`Oops! Ocorreu um erro ao salvar o lead: ${error.message}`);
         } else {
+            // Sync com calendário: criar/atualizar evento quando tem reunião agendada
+            if (form.meeting_datetime && form.meeting_status) {
+                syncCalendarEvent(lead.id, form.meeting_datetime, form.meeting_status, lead.nome || lead.telefone);
+            }
             onUpdate({ ...lead, ...form });
         }
     };
