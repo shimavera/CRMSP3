@@ -1444,6 +1444,62 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
     };
 
+    // Google OAuth
+    const handleConnectGoogle = () => {
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        if (!clientId) {
+            alert('VITE_GOOGLE_CLIENT_ID não configurado. Adicione nas variáveis de ambiente.');
+            return;
+        }
+
+        const redirectUri = `${window.location.origin}/api/google-calendar-callback`;
+        const state = btoa(JSON.stringify({
+            company_id: authUser.company_id,
+            return_url: window.location.origin,
+        }));
+
+        const params = new URLSearchParams({
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            response_type: 'code',
+            scope: 'https://www.googleapis.com/auth/calendar',
+            access_type: 'offline',
+            prompt: 'consent',
+            state,
+        });
+
+        window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    };
+
+    const handleDisconnectGoogle = async () => {
+        if (!confirm('Desconectar Google Calendar? Os eventos já criados serão mantidos.')) return;
+        try {
+            await supabase.from('sp3_calendar_settings').update({
+                google_access_token: null,
+                google_refresh_token: null,
+                google_token_expiry: null,
+                google_calendar_id: null,
+            }).eq('company_id', authUser.company_id);
+            setCalendarSettings((prev: any) => ({ ...prev, google_access_token: null, google_refresh_token: null, google_token_expiry: null, google_calendar_id: null }));
+        } catch (err: any) {
+            alert('Erro ao desconectar: ' + err.message);
+        }
+    };
+
+    // Detectar retorno do OAuth via URL params
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('google_connected') === 'true') {
+            fetchCalendarSettings();
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+        if (params.get('google_error')) {
+            const error = params.get('google_error');
+            alert(`Erro ao conectar Google: ${error}`);
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    }, []);
+
     const handleSaveCalendarSettings = async () => {
         setIsSavingCalendar(true);
         setCalendarSuccess(null);
@@ -2532,7 +2588,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                         {calendarSettings.google_access_token ? 'Os eventos serão sincronizados com sua conta Google.' : 'Conecte sua conta para começar a sincronizar.'}
                                     </p>
                                 </div>
-                                <button style={{ padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none', background: calendarSettings.google_access_token ? 'white' : '#4285F4', color: calendarSettings.google_access_token ? 'var(--error)' : 'white', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                    onClick={calendarSettings.google_access_token ? handleDisconnectGoogle : handleConnectGoogle}
+                                    style={{ padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none', background: calendarSettings.google_access_token ? 'white' : '#4285F4', color: calendarSettings.google_access_token ? 'var(--error)' : 'white', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
                                     {calendarSettings.google_access_token ? 'Desconectar' : 'Conectar com Google'}
                                 </button>
                             </div>
