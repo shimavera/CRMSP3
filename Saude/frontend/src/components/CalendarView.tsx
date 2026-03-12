@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, Loader2, Video, X, User, FileText, Trash2, Edit3 } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Loader2, Video, X, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserProfile, CalendarEvent } from '../lib/supabase';
 
@@ -326,17 +326,14 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
         <div style={{ padding: '0 2rem 2rem 2rem', display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ background: 'var(--accent)', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                        <CalendarIcon size={20} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CalendarIcon size={28} />
                     </div>
                     <div>
-                        <h1 style={{ fontSize: '1.5rem', fontWeight: '800', margin: 0, letterSpacing: '-0.02em', textTransform: 'capitalize' }}>
+                        <h1 style={{ fontSize: '1.4rem', fontWeight: '500', margin: 0, color: 'var(--text-primary)' }}>
                             {monthName}
                         </h1>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                            Gerencie seus compromissos e agendamentos automáticos da IA.
-                        </p>
                     </div>
                 </div>
 
@@ -372,16 +369,22 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                 )}
 
                 {/* Headers da Semana */}
-                <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', borderBottom: '1px solid var(--border-soft)', background: 'var(--bg-secondary)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', borderBottom: '1px solid var(--border-soft)', background: 'var(--bg-primary)' }}>
                     <div style={{ borderRight: '1px solid var(--border-soft)' }}></div>
                     {weekDays.map((date, i) => {
                         const isToday = new Date().toDateString() === date.toDateString();
                         return (
-                            <div key={i} style={{ padding: '12px', borderRight: i < 6 ? '1px solid var(--border-soft)' : 'none', textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: isToday ? 'var(--accent)' : 'var(--text-muted)' }}>
-                                    {date.toLocaleDateString('pt-BR', { weekday: 'short' })}
+                            <div key={i} style={{ padding: '8px 12px', borderRight: i < 6 ? '1px solid var(--border-soft)' : 'none', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', color: isToday ? 'var(--accent)' : 'var(--text-muted)', marginBottom: '4px' }}>
+                                    {date.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3)}
                                 </div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: isToday ? 'var(--accent)' : 'var(--text-primary)', marginTop: '4px' }}>
+                                <div style={{
+                                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    borderRadius: '50%',
+                                    backgroundColor: isToday ? 'var(--accent)' : 'transparent',
+                                    color: isToday ? 'white' : 'var(--text-primary)',
+                                    fontSize: '1.1rem', fontWeight: 500
+                                }}>
                                     {date.getDate()}
                                 </div>
                             </div>
@@ -440,36 +443,39 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                                             style={{
                                                 position: 'absolute',
                                                 top: `${startMin}px`,
-                                                height: `${Math.max(lengthMin, 20)}px`,
-                                                left: '4px',
-                                                right: '4px',
-                                                background: event.status === 'cancelled' ? 'var(--bg-tertiary)' : 'var(--accent-soft)',
-                                                border: `1px solid ${event.status === 'cancelled' ? 'var(--border-soft)' : 'var(--accent)'}`,
-                                                borderRadius: '6px',
-                                                padding: '4px 8px',
+                                                height: `${Math.max(lengthMin, 24)}px`,
+                                                left: '2px',
+                                                right: '2px',
+                                                background: event.status === 'cancelled' ? '#f1f3f4' : (event.status === 'completed' ? '#e6f4ea' : 'var(--accent)'),
+                                                color: event.status === 'cancelled' ? '#70757a' : (event.status === 'completed' ? '#1e8e3e' : 'white'),
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                padding: '2px 6px',
                                                 overflow: 'hidden',
                                                 zIndex: 5,
                                                 cursor: 'pointer',
                                                 display: 'flex',
                                                 flexDirection: 'column',
-                                                gap: '2px',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                                opacity: event.status === 'cancelled' ? 0.6 : 1,
-                                                transition: 'box-shadow 0.15s',
+                                                fontSize: '0.75rem',
+                                                boxShadow: '0 1px 2px rgba(60,64,67,0.3)',
+                                                opacity: event.status === 'cancelled' ? 0.7 : 1,
+                                                transition: 'all 0.1s',
                                             }}
-                                            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)')}
-                                            onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)')}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.boxShadow = '0 1px 3px 1px rgba(60,64,67,0.15)';
+                                                e.currentTarget.style.filter = 'brightness(0.95)';
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.boxShadow = '0 1px 2px rgba(60,64,67,0.3)';
+                                                e.currentTarget.style.filter = 'none';
+                                            }}
                                         >
-                                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: event.status === 'cancelled' ? 'var(--text-muted)' : 'var(--accent)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 {event.title}
-                                            </span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                                                <Clock size={10} />
-                                                {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - {eventEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </div>
-                                            {event.google_event_id && (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: '#4285F4', marginTop: 'auto' }}>
-                                                    <Video size={10} /> Sincronizado
+                                            {lengthMin > 40 && (
+                                                <div style={{ fontSize: '0.65rem', opacity: 0.9 }}>
+                                                    {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             )}
                                         </div>
