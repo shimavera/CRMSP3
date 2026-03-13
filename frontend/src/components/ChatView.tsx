@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2 } from 'lucide-react';
+import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2, Download } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
 import { format, isPast, isToday, isYesterday, isSameDay } from 'date-fns';
@@ -377,6 +377,21 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         };
         fetchQuickMessages();
     }, []);
+
+    const handleDownloadMedia = async (url: string, type: 'image' | 'video' | 'audio') => {
+        try {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            const ext = type === 'image' ? 'jpg' : type === 'video' ? 'mp4' : 'ogg';
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${type}_${Date.now()}.${ext}`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        } catch {
+            window.open(url, '_blank');
+        }
+    };
 
     // Helper: parsear uma mensagem do DB para o formato de exibição
     const parseMessage = (m: any) => {
@@ -1526,7 +1541,18 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                     style={{ maxWidth: '100%', maxHeight: msg.isSticker ? '150px' : '280px', borderRadius: msg.isSticker ? '8px' : '4px', display: 'block', objectFit: 'contain' }}
                                                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                                 />
-                                                                {!msg.isSticker && <span className="wa-time" style={{ color: 'white', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>{msg.time}</span>}
+                                                                {!msg.isSticker && (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                                                                        <button
+                                                                            onClick={() => handleDownloadMedia(msg.text.trim(), 'image')}
+                                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', opacity: 0.7 }}
+                                                                            title="Baixar imagem"
+                                                                        >
+                                                                            <Download size={12} />
+                                                                        </button>
+                                                                        <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                    </div>
+                                                                )}
                                                                 {msg.isSticker && <span className="wa-time">{msg.time}</span>}
                                                             </div>
                                                         ) : msg.isVideo || msg.type === 'video' ? (
@@ -1537,7 +1563,16 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                     style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '4px', display: 'block' }}
                                                                     onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
                                                                 />
-                                                                <span className="wa-time" style={{ color: 'white', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>{msg.time}</span>
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                                                                    <button
+                                                                        onClick={() => handleDownloadMedia(msg.text.trim(), 'video')}
+                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', opacity: 0.7 }}
+                                                                        title="Baixar vídeo"
+                                                                    >
+                                                                        <Download size={12} />
+                                                                    </button>
+                                                                    <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                </div>
                                                             </div>
                                                         ) : msg.isAudio ? (
                                                             <div style={{ padding: '4px 0', minWidth: '220px' }}>
@@ -1546,7 +1581,16 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                     src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
                                                                     style={{ width: '100%', height: '32px' }}
                                                                 />
-                                                                <span className="wa-time">{msg.time}</span>
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                                                                    <button
+                                                                        onClick={() => handleDownloadMedia(msg.text.trim(), 'audio')}
+                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', opacity: 0.7 }}
+                                                                        title="Baixar áudio"
+                                                                    >
+                                                                        <Download size={12} />
+                                                                    </button>
+                                                                    <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                </div>
                                                             </div>
                                                         ) : (
                                                             <>
