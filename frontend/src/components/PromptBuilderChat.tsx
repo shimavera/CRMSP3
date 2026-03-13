@@ -17,6 +17,15 @@ interface PromptBuilderChatProps {
 
 const WEBHOOK_URL = `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/prompt-builder`;
 
+// Clean --- delimited blocks and [PROMPT_FINAL] markers from message content
+function cleanMessageContent(content: string): string {
+    return content
+        .replace(/\[PROMPT_FINAL\][\s\S]*?\[\/PROMPT_FINAL\]/g, '')
+        .replace(/---[\s\S]*?---/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 export default function PromptBuilderChat({ companyId, currentPrompt, onSavePrompt }: PromptBuilderChatProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -227,7 +236,7 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
                                     style={{ maxWidth: '100%', borderRadius: '8px', marginBottom: '8px', maxHeight: '200px', objectFit: 'contain' }}
                                 />
                             )}
-                            {msg.content.split('\n').map((line, j) => (
+                            {(msg.role === 'assistant' ? cleanMessageContent(msg.content) : msg.content).split('\n').map((line, j) => (
                                 <span key={j}>
                                     {line.split(/(\*\*.*?\*\*)/).map((part, k) => {
                                         if (part.startsWith('**') && part.endsWith('**')) {
