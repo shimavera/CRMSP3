@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Component } from 'react';
+import type { ReactNode, ErrorInfo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { UserProfile } from '../lib/supabase';
 import {
@@ -13,6 +14,34 @@ import { ptBR } from 'date-fns/locale';
 
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
+
+class KanbanErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+    constructor(props: { children: ReactNode }) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error: Error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error: Error, info: ErrorInfo) {
+        console.error('[KanbanView] Erro capturado:', error, info);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-primary)' }}>
+                    <AlertCircle size={40} style={{ color: 'var(--error)', marginBottom: '12px' }} />
+                    <h3 style={{ fontWeight: '800', fontSize: '1.1rem', marginBottom: '8px' }}>Erro ao carregar o Kanban</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{this.state.error?.message}</p>
+                    <button onClick={() => this.setState({ hasError: false, error: null })} style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid var(--accent)', background: 'var(--accent)', color: 'white', fontWeight: '700', cursor: 'pointer' }}>
+                        Tentar novamente
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
 
@@ -545,6 +574,10 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
     const [closedReasonFilter, setClosedReasonFilter] = useState<string>('all');
 
     const fetchLeads = async () => {
+        if (!authUser?.company_id) {
+            setLoading(false);
+            return;
+        }
         const { data, error } = await supabase
             .from('sp3chat')
             .select('*')
@@ -852,4 +885,10 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
     );
 };
 
-export default KanbanView;
+const KanbanViewWithErrorBoundary = ({ authUser }: { authUser: UserProfile }) => (
+    <KanbanErrorBoundary>
+        <KanbanView authUser={authUser} />
+    </KanbanErrorBoundary>
+);
+
+export default KanbanViewWithErrorBoundary;
