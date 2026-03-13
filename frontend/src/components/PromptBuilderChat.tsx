@@ -129,10 +129,10 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
                 setPendingPrompt(promptMatch[1].trim());
             }
 
-            // Display reply without markers and clean up empty --- delimiters
+            // Display reply without markers and clean up --- delimiters
             const displayReply = aiReply
                 .replace(/\[PROMPT_FINAL\][\s\S]*?\[\/PROMPT_FINAL\]/, '')
-                .replace(/---\s*\n?\s*---/g, '')
+                .replace(/^---$/gm, '')
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
             setMessages(prev => [...prev, {
