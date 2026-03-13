@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, ArrowLeft, User, Paperclip, Clock, XCircle, GitBranch, Play, CheckCircle2, Calendar as CalendarIcon, ChevronRight, Trash2, Square, CheckSquare, Plus, FileText, ListTodo, Lock, Unlock } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
+import DateTimePicker from './DateTimePicker';
 import { Theme } from 'emoji-picker-react';
 import { format, isToday, isYesterday, isSameDay, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -909,6 +910,19 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
         const updatedTasks = [...currentTasks, newTask];
         const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        // Também criar evento no calendário para a tarefa aparecer na agenda
+        const startTime = new Date(newTaskDate);
+        if (!isNaN(startTime.getTime())) {
+            const endTime = new Date(startTime.getTime() + 30 * 60000);
+            await supabase.from('sp3_calendar_events').insert({
+                company_id: authUser.company_id,
+                lead_id: selectedLead.id,
+                title: newTaskTitle,
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                status: 'scheduled',
+            });
+        }
         setIsSavingTasks(false);
         if (error) {
             await showAlert('Erro ao adicionar tarefa: ' + error.message);
@@ -1997,16 +2011,16 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         color: 'var(--text-primary)', fontSize: '0.72rem', outline: 'none', boxSizing: 'border-box',
                                                     }}
                                                 />
-                                                <div style={{ display: 'flex', gap: '5px' }}>
-                                                    <input
-                                                        type="datetime-local" value={newTaskDate}
-                                                        onChange={e => setNewTaskDate(e.target.value)}
-                                                        style={{
-                                                            flex: 1, padding: '6px 6px', borderRadius: 'var(--radius-sm)',
-                                                            border: '1px solid var(--border)', background: 'var(--bg-secondary)',
-                                                            color: 'var(--text-primary)', fontSize: '0.65rem', outline: 'none', boxSizing: 'border-box',
-                                                        }}
-                                                    />
+                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'flex-start' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <DateTimePicker
+                                                            value={newTaskDate}
+                                                            onChange={setNewTaskDate}
+                                                            placeholder="Data e hora..."
+                                                            compact
+                                                            minDate={new Date()}
+                                                        />
+                                                    </div>
                                                     <button
                                                         disabled={!newTaskTitle || !newTaskDate || isSavingTasks}
                                                         onClick={handleAddTask}
@@ -2016,6 +2030,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                             fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer',
                                                             opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1,
                                                             display: 'flex', alignItems: 'center', gap: '3px',
+                                                            flexShrink: 0, height: '28px',
                                                         }}
                                                     >
                                                         {isSavingTasks ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
@@ -2121,10 +2136,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         onChange={e => setMeetingTitle(e.target.value)}
                                                         style={{ width: '100%', padding: '7px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.75rem', boxSizing: 'border-box', outline: 'none' }}
                                                     />
-                                                    <input
-                                                        type="datetime-local" value={meetingDate}
-                                                        onChange={e => setMeetingDate(e.target.value)}
-                                                        style={{ width: '100%', padding: '7px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.75rem', boxSizing: 'border-box', outline: 'none' }}
+                                                    <DateTimePicker
+                                                        value={meetingDate}
+                                                        onChange={setMeetingDate}
+                                                        placeholder="Selecionar data e hora"
+                                                        compact
+                                                        minDate={new Date()}
                                                     />
                                                     <div style={{ display: 'flex', gap: '6px' }}>
                                                         <button
