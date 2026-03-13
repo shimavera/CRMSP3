@@ -233,6 +233,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
+    const [qrCountdown, setQrCountdown] = useState(24);
+    const qrCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [activeSubTab, setActiveSubTab] = useState<'geral' | 'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'kanban' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs'>('geral');
 
@@ -962,6 +964,12 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const startConnectionPolling = () => {
         stopConnectionPolling();
         let qrRefreshCount = 0;
+        // Iniciar countdown visual
+        setQrCountdown(24);
+        if (qrCountdownRef.current) clearInterval(qrCountdownRef.current);
+        qrCountdownRef.current = setInterval(() => {
+            setQrCountdown(prev => (prev <= 1 ? 24 : prev - 1));
+        }, 1000);
         pollingRef.current = setInterval(async () => {
             if (!activeInstance) return;
             qrRefreshCount++;
@@ -983,6 +991,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         const qrData = await qrRes.json();
                         if (qrData.base64) {
                             setQrCode(qrData.base64);
+                            setQrCountdown(24); // Resetar countdown
                         } else if (qrData.instance?.state === 'open') {
                             setStatus('connected');
                             setQrCode(null);
@@ -1022,6 +1031,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
+        }
+        if (qrCountdownRef.current) {
+            clearInterval(qrCountdownRef.current);
+            qrCountdownRef.current = null;
         }
     };
 
@@ -1797,7 +1810,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
                                         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                            Aguardando conexão... O código expira em 60 segundos
+                                            Aguardando conexão... Novo código em <span style={{ fontWeight: '700', color: 'var(--accent)' }}>{qrCountdown}s</span>
                                         </p>
                                     </div>
                                 </div>
