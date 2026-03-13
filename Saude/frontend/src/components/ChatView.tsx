@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, ArrowLeft, User, Paperclip, Clock, XCircle, GitBranch, Play, CheckCircle2, Calendar as CalendarIcon, ChevronRight, Trash2, Square, CheckSquare, Plus, FileText, ListTodo, Lock, Unlock } from 'lucide-react';
+import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, ArrowLeft, User, Paperclip, Clock, XCircle, GitBranch, Play, CheckCircle2, Calendar as CalendarIcon, ChevronRight, Trash2, Square, CheckSquare, Plus, FileText, ListTodo, Lock, Unlock, Download } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import DateTimePicker from './DateTimePicker';
 import { Theme } from 'emoji-picker-react';
@@ -407,12 +407,28 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         fetchQuickMessages();
     }, []);
 
+    const handleDownloadMedia = async (url: string, type: 'image' | 'video' | 'audio') => {
+        try {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            const ext = type === 'image' ? 'jpg' : type === 'video' ? 'mp4' : 'ogg';
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${type}_${Date.now()}.${ext}`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        } catch {
+            window.open(url, '_blank');
+        }
+    };
+
     // Helper: parsear uma mensagem do DB para o formato de exibição
     const parseMessage = (m: any) => {
         let type = 'ai';
         let text = '';
         let msgStyle: string | null = null;
         let isImage = false;
+        let isSticker = false;
         let isAudio = false;
         let isVideo = false;
         let sender: string | null = null;
@@ -438,6 +454,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 text = potentialUrl;
             }
             isImage = msgData.msgStyle === 'image' || msgData.type === 'image' || type === 'image' || !!msgData.image;
+            isSticker = msgData.msgStyle === 'sticker' || msgData.type === 'sticker' || type === 'sticker';
+            if (isSticker) isImage = true;
             isAudio = msgData.msgStyle === 'audio' || msgData.type === 'audio' || type === 'audio' || msgData.type === 'ptt' || type === 'ptt' || !!msgData.audio || !!msgData.ptt;
             isVideo = msgData.msgStyle === 'video' || msgData.type === 'video' || !!msgData.video;
             if (isVideo) type = 'video';
@@ -459,6 +477,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             type: isVideo ? 'video' : type,
             msgStyle,
             isImage,
+            isSticker,
             isAudio,
             isVideo,
             isAudioSent,
@@ -1531,19 +1550,38 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         {/* Balão WhatsApp */}
                                                         <div className={`chat-bubble-wa ${msg.type === 'human' ? 'incoming' : 'outgoing'}`}>
                                                             {msg.isImage ? (
-                                                                <img
-                                                                    src={msg.text.trim()}
-                                                                    alt="imagem"
-                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
-                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                                />
+                                                                <div style={{ position: 'relative', maxWidth: msg.isSticker ? '150px' : '280px' }}>
+                                                                    <img
+                                                                        src={msg.text.trim()}
+                                                                        alt={msg.isSticker ? 'sticker' : 'imagem'}
+                                                                        style={{ maxWidth: '100%', maxHeight: msg.isSticker ? '150px' : '280px', borderRadius: msg.isSticker ? '8px' : '4px', display: 'block', objectFit: 'contain' }}
+                                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                    />
+                                                                    {!msg.isSticker && (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                                                                            <button onClick={() => handleDownloadMedia(msg.text.trim(), 'image')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', opacity: 0.7 }} title="Baixar imagem">
+                                                                                <Download size={12} />
+                                                                            </button>
+                                                                            <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {msg.isSticker && <span className="wa-time">{msg.time}</span>}
+                                                                </div>
                                                             ) : msg.isVideo || msg.type === 'video' ? (
-                                                                <video
-                                                                    controls
-                                                                    src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
-                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
-                                                                    onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
-                                                                />
+                                                                <div style={{ position: 'relative', maxWidth: '280px' }}>
+                                                                    <video
+                                                                        controls
+                                                                        src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
+                                                                        style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '4px', display: 'block' }}
+                                                                        onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                                                                    />
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                                                                        <button onClick={() => handleDownloadMedia(msg.text.trim(), 'video')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', opacity: 0.7 }} title="Baixar vídeo">
+                                                                            <Download size={12} />
+                                                                        </button>
+                                                                        <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                    </div>
+                                                                </div>
                                                             ) : msg.isAudio ? (
                                                                 <div style={{ padding: '4px 0', minWidth: '220px' }}>
                                                                     <audio
@@ -1551,6 +1589,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                         src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
                                                                         style={{ width: '100%', height: '32px' }}
                                                                     />
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                                                                        <button onClick={() => handleDownloadMedia(msg.text.trim(), 'audio')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', opacity: 0.7 }} title="Baixar áudio">
+                                                                            <Download size={12} />
+                                                                        </button>
+                                                                        <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                    </div>
                                                                 </div>
                                                             ) : msg.isAudioSent ? (
                                                                 <>
@@ -1688,7 +1732,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                 ))}
                                             </div>
                                         )}
-                                        <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '4px 12px', border: '1px solid var(--border)', transition: 'all 0.1s' }}>
+                                        <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '4px 12px', border: '1px solid var(--border)', transition: 'all 0.1s', display: 'flex', alignItems: 'center' }}>
                                             <input
                                                 type="text"
                                                 value={inputValue}
@@ -1706,24 +1750,24 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                                                 placeholder="Envie uma mensagem (Intervenção)... (Digite / para atalhos)"
                                                 disabled={isSending}
-                                                style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem' }}
+                                                style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem', background: 'transparent' }}
                                             />
                                         </div>
 
                                         {inputValue.trim() ? (
-                                            <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                            <button onClick={handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                                                 {isSending ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
                                             </button>
                                         ) : isSuperAdmin ? (
                                             <button
                                                 onTouchStart={startRecording}
                                                 onMouseDown={startRecording}
-                                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
                                             >
                                                 <Mic size={24} />
                                             </button>
                                         ) : (
-                                            <button onClick={handleSendMessage} disabled={isSending || !inputValue.trim()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.4 }}>
+                                            <button onClick={handleSendMessage} disabled={isSending || !inputValue.trim()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.4, padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                                                 <Send size={24} />
                                             </button>
                                         )}
