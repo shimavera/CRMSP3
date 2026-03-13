@@ -18,7 +18,8 @@ import {
   Sun,
   Moon,
   Instagram,
-  GitBranch
+  GitBranch,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 // Lazy Load Componentes
 const LazyChatView = lazy(() => import('./components/ChatView'));
@@ -28,6 +29,7 @@ const LazyLoginView = lazy(() => import('./components/LoginView'));
 const LazyDashboardView = lazy(() => import('./components/DashboardView'));
 const LazyInstagramView = lazy(() => import('./components/InstagramView'));
 const LazyFlowBuilderView = lazy(() => import('./components/FlowBuilder/FlowBuilderView'));
+const LazyCalendarView = lazy(() => import('./components/CalendarView'));
 import { supabase } from './lib/supabase';
 import type { Lead, UserProfile } from './lib/supabase';
 
@@ -185,8 +187,25 @@ function App() {
 
     if (data) {
       const { sp3_companies, ...userData } = data as any;
+      
+      const userPerms = userData.permissions || {};
+      // Master users always get full permissions
+      if (userData.role === 'master') {
+        userPerms.dashboard = true;
+        userPerms.chats = true;
+        userPerms.kanban = true;
+        userPerms.leads = true;
+        userPerms.settings = true;
+        userPerms.calendar = true;
+        supabase.from('sp3_users').update({ permissions: userPerms }).eq('id', userId).then();
+      } else if (userPerms.calendar === undefined) {
+        userPerms.calendar = true;
+        supabase.from('sp3_users').update({ permissions: userPerms }).eq('id', userId).then();
+      }
+
       setAuthUser({
         ...userData,
+        permissions: userPerms,
         company_name: sp3_companies?.name || ''
       } as UserProfile);
     } else {
@@ -448,15 +467,13 @@ function App() {
       await supabase
         .from('sp3_followup_state')
         .delete()
-        .eq('telefone', lead.telefone)
-        .eq('company_id', authUser!.company_id);
+        .eq('telefone', lead.telefone);
 
       // 3. Cancelar execuções de fluxo ativas
       await supabase
         .from('sp3_flow_executions')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('lead_id', leadId)
-        .eq('company_id', authUser!.company_id)
         .in('status', ['running', 'paused']);
 
       // 4. Apagar o lead (sp3_flow_executions com FK CASCADE também são removidas)
@@ -513,6 +530,9 @@ function App() {
             <SidebarItem icon={Users} label="Base de Leads" active={activeTab === 'leads'} onClick={() => navigate('leads')} />
           )}
           <SidebarItem icon={Instagram} label="Instagram" active={activeTab === 'instagram'} onClick={() => navigate('instagram')} />
+          {authUser.permissions.calendar !== false && (
+            <SidebarItem icon={CalendarIcon} label="Agenda" active={activeTab === 'calendar'} onClick={() => navigate('calendar')} />
+          )}
           {authUser.permissions.settings && (
             <SidebarItem icon={GitBranch} label="Fluxos" active={activeTab === 'flows'} onClick={() => navigate('flows')} />
           )}
@@ -535,9 +555,33 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content" style={activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : undefined}>
-        {activeTab !== 'chats' && (
-          <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+      <main className="main-content" style={activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : activeTab !== 'dashboard' ? { paddingTop: '1.5rem' } : undefined}>
+        {/* Toggle button when header is hidden */}
+        {activeTab !== 'dashboard' && activeTab !== 'chats' && (
+          <button
+            onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
+            style={{ 
+              position: 'fixed', 
+              top: '1rem', 
+              left: desktopSidebarOpen ? '250px' : '1rem', 
+              zIndex: 1000, 
+              background: 'var(--accent-soft)', 
+              border: 'none', 
+              cursor: 'pointer', 
+              color: 'var(--accent)', 
+              padding: '8px', 
+              borderRadius: 'var(--radius-md)', 
+              display: isMobile ? 'none' : 'flex', 
+              alignItems: 'center', 
+              transition: 'all 0.3s ease' 
+            }}
+            title={desktopSidebarOpen ? "Ocultar Menu" : "Mostrar Menu"}
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        {activeTab === 'dashboard' && (
+          <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: activeTab === 'dashboard' ? '3rem' : '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
                 className="desktop-only"
@@ -554,53 +598,57 @@ function App() {
               >
                 <Menu size={26} />
               </button>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
-                  {lastSync && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', animation: 'fadeIn 0.5s ease-out' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
-                      <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Sincronizado {lastSync}</span>
-                    </div>
-                  )}
+              {activeTab === 'dashboard' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h2 style={{ fontSize: '1.85rem', fontWeight: '800' }}>Olá, {authUser.nome.split(' ')[0]} 👋</h2>
+                    {lastSync && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', animation: 'fadeIn 0.5s ease-out' }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
+                        <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Sincronizado {lastSync}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                    {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
+                  </p>
                 </div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                  {error ? 'Erro de conexão com o banco.' : `Sistema conectado. ${leads.length} leads encontrados.`}
-                </p>
-              </div>
+              )}
             </div>
 
-            <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                style={{ padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
-              >
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-              <button
-                onClick={handleExportLeads}
-                style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                📥 Exportar
-              </button>
-              <button
-                onClick={fetchLeads}
-                style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
-              >
-                Atualizar
-              </button>
-              <div className="search-bar">
-                <Search size={18} color="var(--text-muted)" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Buscar Lead (pressione /)..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            {activeTab === 'dashboard' && (
+              <div className="desktop-only" style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setIsDarkMode(!isDarkMode)}
+                  style={{ padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+                >
+                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <button
+                  onClick={handleExportLeads}
+                  style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  📥 Exportar
+                </button>
+                <button
+                  onClick={fetchLeads}
+                  style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                >
+                  Atualizar
+                </button>
+                <div className="search-bar">
+                  <Search size={18} color="var(--text-muted)" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Buscar Lead (pressione /)..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </header>
         )}
 
@@ -646,6 +694,10 @@ function App() {
 
           {activeTab === 'instagram' && (
             <LazyInstagramView authUser={authUser} />
+          )}
+
+          {activeTab === 'calendar' && authUser.permissions.calendar !== false && (
+            <LazyCalendarView authUser={authUser} />
           )}
 
           {activeTab === 'flows' && authUser.permissions.settings && (
