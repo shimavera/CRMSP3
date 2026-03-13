@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, X, Loader2, Bot, CheckCircle } from 'lucide-react';
+import { Send, Paperclip, X, Loader2, Bot, CheckCircle, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ChatMessage {
@@ -209,10 +209,26 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
             {/* Header */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                 <Bot size={20} style={{ color: 'var(--accent)' }} />
-                <div>
+                <div style={{ flex: 1 }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: '800', margin: 0 }}>Assistente de Prompt</h3>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Converse para criar ou ajustar o prompt da sua IA</p>
                 </div>
+                <button
+                    onClick={() => {
+                        if (confirm('Limpar conversa? O histórico será apagado.')) {
+                            localStorage.removeItem(storageKey);
+                            setPendingPrompt(null);
+                            const greeting = currentPrompt.trim()
+                                ? 'Olá! Seu prompt está ativo e funcionando. O que você gostaria de ajustar? Pode me descrever a mudança desejada ou enviar um print de uma conversa que não ficou boa.'
+                                : 'Olá! Vou te ajudar a criar o prompt personalizado da sua IA de atendimento. Vamos começar: **qual o nome da sua empresa ou clínica?**';
+                            setMessages([{ role: 'assistant', content: greeting, timestamp: new Date().toISOString() }]);
+                        }
+                    }}
+                    title="Limpar conversa"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', color: 'var(--text-muted)', flexShrink: 0 }}
+                >
+                    <Trash2 size={16} />
+                </button>
             </div>
 
             {/* Messages area */}
