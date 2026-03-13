@@ -1462,9 +1462,13 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                               'var(--text-muted)'),
                                                         boxShadow: 'var(--wa-message-shadow)',
                                                         textAlign: 'center',
-                                                        maxWidth: '80%'
+                                                        maxWidth: '80%',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
                                                     }}>
-                                                        {msg.text}
+                                                        {msg.isFollowup && <Clock size={10} />}
+                                                        {msg.text.replace('hours', 'horas').replace('minutes', 'minutos')}
                                                     </span>
                                                 </div>
                                             ) : (
@@ -1488,7 +1492,23 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         }}>
                                                             {!isOutgoing
                                                                 ? (selectedLead.nome || selectedLead.telefone)
-                                                                : msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'
+                                                                : msg.sentByCRM ? (msg.sender || authUser.nome) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                                                                        {msg.isFollowup && (
+                                                                            <span style={{ 
+                                                                                backgroundColor: 'var(--warning)', 
+                                                                                color: 'white', 
+                                                                                fontSize: '0.55rem', 
+                                                                                padding: '1px 4px', 
+                                                                                borderRadius: '3px',
+                                                                                fontWeight: '900',
+                                                                                letterSpacing: '0.05em'
+                                                                            }}>F.UP</span>
+                                                                        )}
+                                                                        <span style={{ color: '#15803d' }}>Sarah IA</span>
+                                                                        <Bot size={12} style={{ color: '#15803d' }} />
+                                                                    </div>
+                                                                )
                                                             }
                                                         </div>
                                                     )}
@@ -1553,7 +1573,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         marginLeft: '16px',
                                         animation: 'fadeIn 0.3s ease-out'
                                     }}>
-                                        <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingLeft: '4px' }}>Sarah IA</div>
+                                        <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Bot size={11} /> Sarah IA
+                                        </div>
                                         <div className="sarah-thinking">
                                             <div className="dot"></div>
                                             <div className="dot"></div>
