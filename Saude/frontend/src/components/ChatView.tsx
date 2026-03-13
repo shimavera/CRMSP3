@@ -14,6 +14,15 @@ interface ChatViewProps {
     onPhoneOpened?: () => void;
 }
 
+const SIDEBAR_CUSTOM_FIELDS: Array<{ key: string; label: string; type: string; placeholder?: string; options?: string[] }> = [
+    { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
+    { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
+    { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' },
+    { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' },
+    { key: 'email', label: 'E-mail', type: 'email', placeholder: 'email@exemplo.com' },
+    { key: 'proposta_valor', label: 'Valor da Proposta / Forecast', type: 'number', placeholder: 'Ex: 1500' },
+];
+
 const parseTextVariables = (text: string, lead: any) => {
     if (!text) return '';
     let parsed = text;
@@ -139,7 +148,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         try {
             const startTime = new Date(dateStr);
             if (isNaN(startTime.getTime())) {
-                alert('Data inválida. Use o formato AAAA-MM-DD HH:MM');
+                await showAlert('Data inválida.');
                 return;
             }
             const endTime = new Date(startTime.getTime() + 30 * 60000); // 30 min default
@@ -159,10 +168,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             if (error) throw error;
             if (data && data.length > 0) {
                 setNextMeeting(data[0]);
-                alert('Reunião agendada com sucesso e adicionada à agenda!');
+                await showAlert('Reunião agendada com sucesso!');
             }
         } catch (err: any) {
-            alert('Erro ao agendar: ' + err.message);
+            await showAlert('Erro ao agendar: ' + err.message);
         }
     };
 
@@ -207,14 +216,40 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             if (e.key === 'Escape') {
                 if (showCloseChatModal) setShowCloseChatModal(false);
                 if (showFlowSelector) setShowFlowSelector(false);
+                if (showFollowupSelector) setShowFollowupSelector(false);
+                if (showMeetingForm) setShowMeetingForm(false);
                 if (dialog) setDialog(null);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showCloseChatModal, showFlowSelector, dialog]);
+    }, [showCloseChatModal, showFlowSelector, showFollowupSelector, showMeetingForm, dialog]);
     const [isStartingFlow, setIsStartingFlow] = useState(false);
 
+
+    // Sidebar accordion sections
+    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+        info: true, aiSummary: true, notes: false, customFields: false, tasks: false, meeting: false, flow: false,
+    });
+    const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+    // Follow-up controls
+    const [showFollowupSelector, setShowFollowupSelector] = useState(false);
+    const followupSelectorRef = useRef<HTMLDivElement>(null);
+
+    // Inline meeting form
+    const [showMeetingForm, setShowMeetingForm] = useState(false);
+    const [meetingTitle, setMeetingTitle] = useState('');
+    const [meetingDate, setMeetingDate] = useState('');
+
+    // Custom fields editing
+    const [editingCustomFields, setEditingCustomFields] = useState<Record<string, string>>({});
+    const [isSavingCustomFields, setIsSavingCustomFields] = useState(false);
+
+    // Tasks
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [newTaskDate, setNewTaskDate] = useState('');
+    const [isSavingTasks, setIsSavingTasks] = useState(false);
 
     // Funnel stage selector
     const [showStageSelector, setShowStageSelector] = useState(false);
@@ -267,6 +302,17 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, [showStageSelector]);
+
+    // Fechar dropdown de followup selector ao clicar fora
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (showFollowupSelector && followupSelectorRef.current && !followupSelectorRef.current.contains(e.target as Node)) {
+                setShowFollowupSelector(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showFollowupSelector]);
 
     // Carregar instância ativa da Evolution API
     useEffect(() => {
@@ -324,6 +370,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             localStorage.setItem('last_selected_chat', selectedLead.telefone);
             setObservacoesInput(selectedLead.observacoes || '');
             setAiSummary((selectedLead.custom_fields as any)?.ai_summary || null);
+            setEditingCustomFields(selectedLead.custom_fields || {});
+            setNewTaskTitle('');
+            setNewTaskDate('');
+            setShowMeetingForm(false);
 
             // Zerar contador ao abrir
             setUnreadCounts(prev => {
@@ -337,6 +387,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         } else {
             setObservacoesInput('');
             setAiSummary(null);
+            setEditingCustomFields({});
         }
     }, [selectedLead?.id]);
 
@@ -799,6 +850,89 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             await showAlert('Erro ao salvar observações: ' + error.message);
         } else {
             const updatedLead = { ...selectedLead, observacoes: observacoesInput };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    // ─── SIDEBAR HANDLERS ────────────────────────────────────────
+    const handleToggleFollowup = async () => {
+        if (!selectedLead) return;
+        const newState = !selectedLead.followup_locked;
+        const { error } = await supabase.from('sp3chat').update({ followup_locked: newState }).eq('id', selectedLead.id);
+        if (error) {
+            await showAlert('Erro ao alterar follow-up: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, followup_locked: newState };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleChangeFollowupStage = async (newStage: number) => {
+        if (!selectedLead) return;
+        setShowFollowupSelector(false);
+        const { error } = await supabase.from('sp3chat').update({ followup_stage: newStage }).eq('id', selectedLead.id);
+        if (error) {
+            await showAlert('Erro ao alterar etapa de follow-up: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, followup_stage: newStage };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleSaveCustomFields = async () => {
+        if (!selectedLead) return;
+        setIsSavingCustomFields(true);
+        const merged = { ...(selectedLead.custom_fields || {}), ...editingCustomFields };
+        const { error } = await supabase.from('sp3chat').update({ custom_fields: merged }).eq('id', selectedLead.id);
+        setIsSavingCustomFields(false);
+        if (error) {
+            await showAlert('Erro ao salvar campos: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, custom_fields: merged };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleAddTask = async () => {
+        if (!selectedLead || !newTaskTitle || !newTaskDate) return;
+        setIsSavingTasks(true);
+        const currentTasks = selectedLead.tasks || [];
+        const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
+        const updatedTasks = [...currentTasks, newTask];
+        const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        setIsSavingTasks(false);
+        if (error) {
+            await showAlert('Erro ao adicionar tarefa: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, tasks: updatedTasks };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+            setNewTaskTitle('');
+            setNewTaskDate('');
+        }
+    };
+
+    const handleToggleTask = async (taskId: string) => {
+        if (!selectedLead) return;
+        const updatedTasks = (selectedLead.tasks || []).map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
+        const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        if (!error) {
+            const updatedLead = { ...selectedLead, tasks: updatedTasks };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleDeleteTask = async (taskId: string) => {
+        if (!selectedLead) return;
+        const updatedTasks = (selectedLead.tasks || []).filter(t => t.id !== taskId);
+        const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        if (!error) {
+            const updatedLead = { ...selectedLead, tasks: updatedTasks };
             setSelectedLead(updatedLead);
             setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
         }
@@ -1300,6 +1434,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                         fontSize: '0.65rem', fontWeight: '800', whiteSpace: 'nowrap',
                                                         padding: '4px 12px', borderRadius: 'var(--radius-xl)',
                                                         border: '1px solid var(--border)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
                                                         ...(msg.msgStyle === 'error' ? { color: 'var(--error)', backgroundColor: 'var(--bg-primary)' } :
                                                             msg.msgStyle === 'success' ? { color: 'var(--success)', backgroundColor: 'var(--bg-primary)' } :
                                                                 msg.msgStyle === 'warning' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
@@ -1307,7 +1444,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                         msg.msgStyle === 'followup' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
                                                                             { color: 'var(--text-muted)', backgroundColor: 'var(--bg-secondary)' })
                                                     }}>
-                                                        {msg.text}
+                                                        {msg.isFollowup && <Clock size={10} />}
+                                                        {msg.text.replace('hours', 'horas').replace('minutes', 'minutos')}
                                                     </span>
                                                     <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
                                                 </div>
@@ -1346,7 +1484,23 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                 color: msg.sentByCRM ? 'var(--chat-icon-text-crm)' : '#06d755',
                                                                 display: 'flex', alignItems: 'center', gap: '4px'
                                                             }}>
-                                                                {msg.sentByCRM ? (msg.sender || authUser.nome) : 'Sarah IA'}
+                                                                {msg.sentByCRM ? (msg.sender || authUser.nome) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                                                                        {msg.isFollowup && (
+                                                                            <span style={{ 
+                                                                                backgroundColor: 'var(--warning)', 
+                                                                                color: 'white', 
+                                                                                fontSize: '0.55rem', 
+                                                                                padding: '1px 4px', 
+                                                                                borderRadius: '3px',
+                                                                                fontWeight: '900',
+                                                                                letterSpacing: '0.05em'
+                                                                            }}>F.UP</span>
+                                                                        )}
+                                                                        <span style={{ color: '#06d755' }}>Sarah IA</span>
+                                                                        <Bot size={12} style={{ color: '#06d755' }} />
+                                                                    </div>
+                                                                )}
                                                                 {msg.isFollowup && (
                                                                     <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--warning)', backgroundColor: 'var(--warning-soft)', padding: '0px 4px', borderRadius: '4px', border: '1px solid var(--border)' }}>
                                                                         F.UP {msg.followupStep}
@@ -1405,7 +1559,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         marginBottom: '4px',
                                         animation: 'fadeIn 0.3s ease-out'
                                     }}>
-                                        <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingRight: '4px' }}>Sarah IA</div>
+                                                                                <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingRight: '4px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                                            Sarah IA <Bot size={11} />
+                                        </div>
                                         <div className="sarah-thinking">
                                             <div className="dot"></div>
                                             <div className="dot"></div>
