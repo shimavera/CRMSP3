@@ -868,10 +868,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const handleSaveCustomFields = async () => {
         if (!selectedLead) return;
-        setIsSavingCustomFields(true);
         const merged = { ...(selectedLead.custom_fields || {}), ...editingCustomFields };
         const { error } = await supabase.from('sp3chat').update({ custom_fields: merged }).eq('id', selectedLead.id);
-        setIsSavingCustomFields(false);
         if (error) {
             await showAlert('Erro ao salvar campos: ' + error.message);
         } else {
