@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, Clock, ChevronDown, ChevronRight, User, PauseCircle } from 'lucide-react';
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, ChevronRight, User, Calendar as CalendarIcon, Save } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance, IAGap } from '../lib/supabase';
 import PromptBuilderChat from './PromptBuilderChat';
@@ -69,8 +69,8 @@ function ExecutionLogsPanel({ companyId }: { companyId: string }) {
     const filtered = statusFilter === 'all' ? executions : executions.filter(e => e.status === statusFilter);
     const counts = executions.reduce((acc: any, e: any) => { acc[e.status] = (acc[e.status] || 0) + 1; return acc; }, {} as Record<string, number>);
 
-    const fmtDate = (s?: string) => { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
     const fmtTime = (s?: string) => { if (!s) return '—'; return new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+    
     const fmtDuration = (s?: string, e?: string) => {
         if (!s || !e) return '—';
         const ms = new Date(e).getTime() - new Date(s).getTime();
@@ -82,146 +82,144 @@ function ExecutionLogsPanel({ companyId }: { companyId: string }) {
         return `${Math.floor(min / 60)}h ${min % 60}m`;
     };
 
+    const selectedExec = expandedId ? executions.find(e => e.id === expandedId) : null;
+    const logEntries = selectedExec?.execution_log || [];
+
     return (
-        <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                <Activity size={20} style={{ color: 'var(--accent)' }} />
-                <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0 }}>Logs de Execução</h3>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
-                        {executions.length} execuç{executions.length === 1 ? 'ão' : 'ões'} total
-                        {counts.running ? ` · ${counts.running} rodando` : ''}
-                        {counts.failed ? ` · ${counts.failed} falha(s)` : ''}
-                    </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 450px', gap: '1.25rem', height: 'calc(100vh - 200px)', animation: 'fadeIn 0.3s ease-out' }}>
+            {/* LIST PANEL */}
+            <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                    <Activity size={18} style={{ color: 'var(--accent)' }} />
+                    <div style={{ flex: 1 }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: '800', margin: 0 }}>Logs de Execução</h3>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', marginTop: '2px' }}>
+                            {executions.length} total {counts.running ? ` · ${counts.running} rodando` : ''}
+                        </div>
+                    </div>
+                    <button onClick={loadLogs} title="Atualizar" style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border-soft)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                        <RefreshCw size={12} style={isLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
+                    </button>
                 </div>
 
-                {/* Filter chips */}
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {/* Filter bar */}
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', display: 'flex', gap: '4px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     {(['all', 'running', 'completed', 'failed', 'paused'] as const).map(s => (
                         <button key={s} onClick={() => setStatusFilter(s)} style={{
-                            padding: '4px 10px', borderRadius: '20px', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                            background: statusFilter === s ? (s === 'all' ? 'var(--accent)' : LOG_STATUS_CFG[s].bg) : 'var(--bg-tertiary)',
-                            color: statusFilter === s ? (s === 'all' ? 'white' : LOG_STATUS_CFG[s].color) : 'var(--text-muted)',
+                            padding: '4px 8px', borderRadius: '6px', border: 'none', fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                            background: statusFilter === s ? (s === 'all' ? 'var(--text-primary)' : LOG_STATUS_CFG[s].bg) : 'transparent',
+                            color: statusFilter === s ? (s === 'all' ? 'var(--bg-primary)' : LOG_STATUS_CFG[s].color) : 'var(--text-muted)',
                         }}>
-                            {s === 'all' ? `Todos (${executions.length})` : `${LOG_STATUS_CFG[s].label} (${counts[s] || 0})`}
+                            {s === 'all' ? `TODOS` : LOG_STATUS_CFG[s].label.toUpperCase()}
                         </button>
                     ))}
                 </div>
 
-                <button onClick={loadLogs} title="Atualizar" style={{
-                    padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0,
-                }}>
-                    <RefreshCw size={14} style={isLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
-                </button>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                    {isLoading ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}><Loader2 size={24} className="animate-spin" color="var(--accent)" /></div>
+                    ) : filtered.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '60px 20px', opacity: 0.5 }}>
+                            <Activity size={32} style={{ marginBottom: '8px' }} />
+                            <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>Nenhuma execução encontrada</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {filtered.map(exec => {
+                                const cfg = LOG_STATUS_CFG[exec.status] || LOG_STATUS_CFG.failed;
+                                const isActive = expandedId === exec.id;
+                                return (
+                                    <button 
+                                        key={exec.id} 
+                                        onClick={() => setExpandedId(isActive ? null : exec.id)} 
+                                        style={{
+                                            width: '100%', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px',
+                                            borderRadius: '10px', border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-soft)', 
+                                            background: isActive ? 'var(--accent-soft)' : 'var(--bg-secondary)', cursor: 'pointer', textAlign: 'left',
+                                            transition: 'all 0.1s ease', position: 'relative'
+                                        }}
+                                    >
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0 }} />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between' }}>
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exec.flow_name}</span>
+                                                <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{fmtTime(exec.started_at)}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                <User size={10} /> {exec.lead_nome || `Lead #${exec.lead_id}`}
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={14} style={{ opacity: 0.4, transform: isActive ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-                {isLoading ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
-                        <Loader2 size={28} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite' }} />
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                        <Activity size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
-                        <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '4px' }}>
-                            {executions.length === 0 ? 'Nenhuma execução registrada' : 'Nenhuma execução com esse filtro'}
-                        </p>
-                        <p style={{ fontSize: '0.8rem' }}>
-                            {executions.length === 0 ? 'Quando seus fluxos de follow-up forem disparados, os logs aparecerão aqui.' : 'Tente mudar o filtro de status.'}
-                        </p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {filtered.map(exec => {
-                            const cfg = LOG_STATUS_CFG[exec.status] || LOG_STATUS_CFG.failed;
-                            const isExpanded = expandedId === exec.id;
-                            const log = exec.execution_log || [];
-                            return (
-                                <div key={exec.id} style={{
-                                    borderRadius: '10px', border: `1px solid ${isExpanded ? 'var(--accent)' : 'var(--border-soft)'}`, background: 'var(--bg-secondary)', overflow: 'hidden',
-                                }}>
-                                    <button onClick={() => setExpandedId(isExpanded ? null : exec.id)} style={{
-                                        width: '100%', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
-                                        border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
-                                    }}>
-                                        {/* Status */}
-                                        <span style={{
-                                            padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 600, minWidth: '76px',
-                                            background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', gap: '4px',
-                                        }}>
-                                            {exec.status === 'running' && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
-                                            {exec.status === 'paused' && <PauseCircle size={10} />}
-                                            {exec.status === 'completed' && <CheckCircle size={10} />}
-                                            {exec.status === 'failed' && <XCircle size={10} />}
-                                            {cfg.label}
-                                        </span>
-
-                                        {/* Flow name */}
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
-                                            {exec.flow_name}
-                                        </span>
-
-                                        {/* Lead */}
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-secondary)', flex: 1, minWidth: 0 }}>
-                                            <User size={11} style={{ flexShrink: 0 }} />
-                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {exec.lead_nome || `Lead #${exec.lead_id}`}
-                                            </span>
-                                        </span>
-
-                                        {/* Date */}
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                                            <Clock size={11} /> {fmtDate(exec.started_at)}
-                                        </span>
-
-                                        {/* Duration */}
-                                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', minWidth: '50px', textAlign: 'right', flexShrink: 0 }}>
-                                            {fmtDuration(exec.started_at, exec.completed_at)}
-                                        </span>
-
-                                        {isExpanded ? <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
-                                    </button>
-
-                                    {isExpanded && (
-                                        <div style={{ borderTop: '1px solid var(--border-soft)', padding: '12px 14px', background: 'var(--bg-tertiary)' }}>
-                                            <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                                <span>ID: #{exec.id}</span>
-                                                {exec.lead_telefone && <span>Tel: {exec.lead_telefone}</span>}
-                                                <span>Início: {fmtDate(exec.started_at)}</span>
-                                                {exec.completed_at && <span>Fim: {fmtDate(exec.completed_at)}</span>}
-                                            </div>
-                                            {log.length === 0 ? (
-                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem detalhes de execução.</p>
-                                            ) : (
-                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                    {log.map((entry: any, i: number) => (
-                                                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', position: 'relative', paddingLeft: '18px', paddingBottom: i < log.length - 1 ? '8px' : 0 }}>
-                                                            {i < log.length - 1 && <div style={{ position: 'absolute', left: '6px', top: '12px', width: '1px', bottom: 0, background: 'var(--border-soft)' }} />}
-                                                            <div style={{
-                                                                position: 'absolute', left: '2px', top: '4px', width: '9px', height: '9px', borderRadius: '50%',
-                                                                background: (entry.action || '').includes('Erro') ? '#ef4444' : (entry.action || '').includes('finalizado') ? '#10b981' : 'var(--accent)',
-                                                                border: '2px solid var(--bg-tertiary)',
-                                                            }} />
-                                                            <div style={{ flex: 1 }}>
-                                                                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                                                    {entry.action}
-                                                                    {entry.result && <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '6px' }}>— {entry.result}</span>}
-                                                                </div>
-                                                                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
-                                                                    {entry.node_id && `${entry.node_id} · `}{fmtTime(entry.timestamp)}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+            {/* DETAILS PANEL */}
+            <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {selectedExec ? (
+                    <Fragment>
+                        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-secondary)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800' }}>{selectedExec.flow_name}</h4>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600', marginTop: '2px' }}>EXECUÇÃO #{selectedExec.id}</div>
                                 </div>
-                            );
-                        })}
+                                <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 800, background: (LOG_STATUS_CFG[selectedExec.status] || LOG_STATUS_CFG.failed).bg, color: (LOG_STATUS_CFG[selectedExec.status] || LOG_STATUS_CFG.failed).color, textTransform: 'uppercase' }}>
+                                    {(LOG_STATUS_CFG[selectedExec.status] || LOG_STATUS_CFG.failed).label}
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div style={{ background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}>
+                                    <div style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Lead</div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: '700', marginTop: '2px' }}>{selectedExec.lead_nome || 'N/A'}</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>{selectedExec.lead_telefone || ''}</div>
+                                </div>
+                                <div style={{ background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}>
+                                    <div style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tempo Total</div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: '700', marginTop: '2px' }}>{fmtDuration(selectedExec.started_at, selectedExec.completed_at)}</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>Início: {fmtTime(selectedExec.started_at)}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                            {logEntries.length === 0 ? (
+                                <div style={{ textAlign: 'center', marginTop: '40px', opacity: 0.5 }}>
+                                    <Activity size={32} style={{ marginBottom: '8px' }} />
+                                    <p style={{ fontSize: '0.75rem' }}>Nenhum log detalhado disponível</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                                    {logEntries.map((entry: any, i: number) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', position: 'relative', paddingLeft: '20px', paddingBottom: '16px' }}>
+                                            {i < logEntries.length - 1 && <div style={{ position: 'absolute', left: '7px', top: '14px', width: '1px', bottom: 0, background: 'var(--border-soft)' }} />}
+                                            <div style={{ 
+                                                position: 'absolute', left: '3px', top: '5px', width: '9px', height: '9px', borderRadius: '50%', 
+                                                background: (entry.action || '').includes('Erro') ? '#ef4444' : (entry.action || '').includes('finalizado') ? '#10b981' : 'var(--accent)',
+                                                border: '2px solid var(--bg-primary)', zIndex: 1
+                                            }} />
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)' }}>{entry.action}</div>
+                                                {entry.result && <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px', background: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-soft)' }}>{entry.result}</div>}
+                                                <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                                    {fmtTime(entry.timestamp)} {entry.node_id ? ` · No: ${entry.node_id}` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </Fragment>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.4 }}>
+                        <History size={48} style={{ marginBottom: '1rem' }} />
+                        <p style={{ fontWeight: '600', fontSize: '0.85rem' }}>Selecione um log ao lado</p>
                     </div>
                 )}
             </div>
@@ -233,10 +231,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
-    const [qrCountdown, setQrCountdown] = useState(24);
-    const qrCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [activeSubTab, setActiveSubTab] = useState<'geral' | 'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'kanban' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs'>('geral');
+    const [activeSubTab, setActiveSubTab] = useState<'geral' | 'whatsapp' | 'ia' | 'followup' | 'videos' | 'quickmessages' | 'kanban' | 'profile' | 'usuarios' | 'dados' | 'clientes' | 'logs' | 'calendar'>('geral');
 
     // Estados Gerais
     const [managerPhone, setManagerPhone] = useState('');
@@ -280,8 +276,10 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [evoError, setEvoError] = useState<string | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Chave global da Evolution API (admin) — carregada do banco via RPC
-    const [evoGlobalKey, setEvoGlobalKey] = useState<string>('');
+    // Chave global da Evolution API (admin) — persistida em localStorage
+    const [evoGlobalKey, setEvoGlobalKey] = useState<string>(() => {
+        try { return localStorage.getItem(`sp3_evo_global_key_${authUser.company_id}`) || ''; } catch { return ''; }
+    });
     const [showEvoGlobalKey, setShowEvoGlobalKey] = useState(false);
     const [evoKeySaved, setEvoKeySaved] = useState(false);
 
@@ -302,10 +300,18 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const [createUserError, setCreateUserError] = useState<string | null>(null);
     const [createUserSuccess, setCreateUserSuccess] = useState(false);
 
+    // Estados de Alteração de Senha (Perfil)
+    const [newPass, setNewPass] = useState('');
+    const [confirmPass, setConfirmPass] = useState('');
+    const [isUpdatingPass, setIsUpdatingPass] = useState(false);
+    const [passUpdateError, setPassUpdateError] = useState<string | null>(null);
+    const [passUpdateSuccess, setPassUpdateSuccess] = useState(false);
+    const [showProfilePass, setShowProfilePass] = useState(false);
+
     // Estados do Prompt da IA
     const [promptHistory, setPromptHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-    const [viewingPrompt, setViewingPrompt] = useState<any | null>(null);
+    const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
 
     // Estados de Lacunas da IA
     const [iaGaps, setIaGaps] = useState<IAGap[]>([]);
@@ -740,8 +746,6 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 await supabase.from('sp3_instances')
                     .update({ connection_status: 'connected' })
                     .eq('id', instance.id);
-                // Sempre reconfigurar webhook ao verificar status com sucesso
-                await configureInstanceWebhookAndSettings(apiUrl, instance.instance_name, apiKey);
             } else {
                 setStatus('disconnected');
                 await supabase.from('sp3_instances')
@@ -756,28 +760,21 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const configureInstanceWebhookAndSettings = async (apiUrl: string, instanceName: string, apiKey: string) => {
-        // Configurar webhook para o n8n (Evolution API v2.3.x — nested format)
+        // Configurar webhook para o n8n (Evolution API v2 — flat, snake_case)
         try {
-            const whRes = await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
+            await fetch(`${apiUrl}/webhook/set/${instanceName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
-                    webhook: {
-                        enabled: true,
-                        url: `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/sp3chat`,
-                        webhookByEvents: false,
-                        webhookBase64: true,
-                        events: ['MESSAGES_UPSERT']
-                    }
+                    enabled: true,
+                    url: `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/sp3chat`,
+                    webhook_by_events: false,
+                    webhook_base64: true,
+                    events: ['MESSAGES_UPSERT']
                 })
             });
-            if (!whRes.ok) {
-                console.error(`[EVO] Webhook config failed (${whRes.status}):`, await whRes.text());
-            } else {
-                console.log(`[EVO] Webhook configurado para ${instanceName}`);
-            }
         } catch (whErr) {
-            console.error('[EVO] Webhook config error:', whErr);
+            console.warn('Webhook config (non-critical):', whErr);
         }
 
         // Configurar settings da instância (base64 para mídia)
@@ -964,34 +961,20 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const startConnectionPolling = () => {
         stopConnectionPolling();
         let qrRefreshCount = 0;
-        // Iniciar countdown visual
-        setQrCountdown(24);
-        if (qrCountdownRef.current) clearInterval(qrCountdownRef.current);
-        qrCountdownRef.current = setInterval(() => {
-            setQrCountdown(prev => (prev <= 1 ? 24 : prev - 1));
-        }, 1000);
         pollingRef.current = setInterval(async () => {
             if (!activeInstance) return;
             qrRefreshCount++;
-            // Fallback para chave global e URL padrão (mesmo comportamento do getQrCode)
-            const apiKey = activeInstance.evo_api_key || evoGlobalKey || '';
-            const apiUrl = activeInstance.evo_api_url || 'https://evo.sp3company.shop';
-            if (!apiKey) {
-                console.error('[POLLING] Nenhuma apikey disponível para polling');
-                return;
-            }
             try {
                 // A cada 8 ciclos (~24s), buscar novo QR code (eles expiram em ~30s)
                 if (qrRefreshCount % 8 === 0) {
                     const qrRes = await fetch(
-                        `${apiUrl}/instance/connect/${activeInstance.instance_name}`,
-                        { headers: { 'apikey': apiKey } }
+                        `${activeInstance.evo_api_url}/instance/connect/${activeInstance.instance_name}`,
+                        { headers: { 'apikey': activeInstance.evo_api_key } }
                     );
                     if (qrRes.ok) {
                         const qrData = await qrRes.json();
                         if (qrData.base64) {
                             setQrCode(qrData.base64);
-                            setQrCountdown(24); // Resetar countdown
                         } else if (qrData.instance?.state === 'open') {
                             setStatus('connected');
                             setQrCode(null);
@@ -1005,8 +988,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 } else {
                     // Ciclos normais: só verificar status
                     const response = await fetch(
-                        `${apiUrl}/instance/connectionState/${activeInstance.instance_name}`,
-                        { headers: { 'apikey': apiKey } }
+                        `${activeInstance.evo_api_url}/instance/connectionState/${activeInstance.instance_name}`,
+                        { headers: { 'apikey': activeInstance.evo_api_key } }
                     );
                     if (response.ok) {
                         const data = await response.json();
@@ -1032,24 +1015,18 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
         }
-        if (qrCountdownRef.current) {
-            clearInterval(qrCountdownRef.current);
-            qrCountdownRef.current = null;
-        }
     };
 
     const handleLogout = async () => {
         if (!activeInstance) return;
         if (!await showConfirm('Deseja realmente desconectar o WhatsApp?')) return;
 
-        const apiKey = activeInstance.evo_api_key || evoGlobalKey || '';
-        const apiUrl = activeInstance.evo_api_url || 'https://evo.sp3company.shop';
         try {
             await fetch(
-                `${apiUrl}/instance/logout/${activeInstance.instance_name}`,
+                `${activeInstance.evo_api_url}/instance/logout/${activeInstance.instance_name}`,
                 {
                     method: 'DELETE',
-                    headers: { 'apikey': apiKey }
+                    headers: { 'apikey': activeInstance.evo_api_key }
                 }
             );
             await supabase.from('sp3_instances')
@@ -1146,8 +1123,43 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsLoadingUsers(false);
     };
 
+    const handleUpdatePassword = async () => {
+        if (!newPass) return;
+        if (newPass.length < 6) {
+            setPassUpdateError('A senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
+        if (newPass !== confirmPass) {
+            setPassUpdateError('As senhas não coincidem.');
+            return;
+        }
+
+        setIsUpdatingPass(true);
+        setPassUpdateError(null);
+        setPassUpdateSuccess(false);
+
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPass });
+            if (error) throw error;
+            
+            setPassUpdateSuccess(true);
+            setNewPass('');
+            setConfirmPass('');
+            setTimeout(() => setPassUpdateSuccess(false), 4000);
+        } catch (err: any) {
+            setPassUpdateError(err.message);
+        } finally {
+            setIsUpdatingPass(false);
+        }
+    };
+
     const handleCreateUser = async () => {
         if (!newUserNome.trim() || !newUserEmail.trim() || !newUserPassword.trim()) return;
+        
+        if (usersList.length >= 2 && !isSuperAdmin) {
+            setCreateUserError('Limite atingido. Cada conta pode ter no máximo 2 usuários (1 Master + 1 Operador).');
+            return;
+        }
         setIsCreatingUser(true);
         setCreateUserError(null);
 
@@ -1412,8 +1424,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
 
         setIsResettingChats(true);
         try {
-            // Ordem importa: respeitar foreign keys (dependentes primeiro)
-
+            // Ordem importa: respeitar foreign keys
             // 1. Execuções de fluxo (referencia sp3chat e sp3_flows)
             const { error: e1 } = await supabase
                 .from('sp3_flow_executions')
@@ -1421,49 +1432,21 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 .eq('company_id', authUser.company_id);
             if (e1) throw e1;
 
-            // 2. Estado de follow-up por lead
+            // 2. Histórico de conversas
             const { error: e2 } = await supabase
-                .from('sp3_followup_state')
+                .from('n8n_chat_histories')
                 .delete()
                 .eq('company_id', authUser.company_id);
             if (e2) throw e2;
 
-            // 3. Log de DMs do Instagram
+            // 3. Leads / contatos (sp3chat)
             const { error: e3 } = await supabase
-                .from('sp3_instagram_dm_log')
+                .from('sp3chat')
                 .delete()
                 .eq('company_id', authUser.company_id);
             if (e3) throw e3;
 
-            // 4. Lacunas da IA
-            const { error: e4 } = await supabase
-                .from('sp3_ia_gaps')
-                .delete()
-                .eq('company_id', authUser.company_id);
-            if (e4) throw e4;
-
-            // 5. Memória da IA (Postgres Chat Memory do n8n) — session_id = {company_id}_{telefone}
-            const { error: e5a } = await supabase
-                .from('memoria_ia_sarah')
-                .delete()
-                .like('session_id', `${authUser.company_id}_%`);
-            if (e5a) throw e5a;
-
-            // 6. Histórico de conversas
-            const { error: e6 } = await supabase
-                .from('n8n_chat_histories')
-                .delete()
-                .eq('company_id', authUser.company_id);
-            if (e6) throw e6;
-
-            // 7. Leads / contatos (sp3chat) — por último pois outras tabelas referenciam
-            const { error: e7 } = await supabase
-                .from('sp3chat')
-                .delete()
-                .eq('company_id', authUser.company_id);
-            if (e7) throw e7;
-
-            await showAlert('Todos os dados zerados com sucesso! A página será recarregada.');
+            await showAlert('Dados zerados com sucesso! A página será recarregada.');
             window.location.reload();
         } catch (err: any) {
             console.error('Erro ao limpar dados:', err);
@@ -1472,17 +1455,124 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             setIsResettingChats(false);
         }
     };
+    // --- CONFIGURAÇÃO DA AGENDA ---
+    const [calendarSettings, setCalendarSettings] = useState<any>({
+        google_access_token: null,
+        ai_can_schedule: false,
+        default_meeting_duration: 30,
+        business_hours: {
+            monday: { active: true, start: '09:00', end: '18:00' },
+            tuesday: { active: true, start: '09:00', end: '18:00' },
+            wednesday: { active: true, start: '09:00', end: '18:00' },
+            thursday: { active: true, start: '09:00', end: '18:00' },
+            friday: { active: true, start: '09:00', end: '18:00' },
+            saturday: { active: false, start: '09:00', end: '13:00' },
+            sunday: { active: false, start: '09:00', end: '13:00' }
+        }
+    });
+    const [isSavingCalendar, setIsSavingCalendar] = useState(false);
+    const [calendarSuccess, setCalendarSuccess] = useState<string | null>(null);
+
+    const fetchCalendarSettings = async () => {
+        try {
+            const { data } = await supabase
+                .from('sp3_calendar_settings')
+                .select('*')
+                .eq('company_id', authUser.company_id)
+                .single();
+            if (data) setCalendarSettings(data);
+        } catch (err) {
+            console.error('Erro ao buscar configs do calendário:', err);
+        }
+    };
+
+    // Google OAuth
+    const handleConnectGoogle = () => {
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        if (!clientId) {
+            alert('VITE_GOOGLE_CLIENT_ID não configurado. Adicione nas variáveis de ambiente.');
+            return;
+        }
+
+        const redirectUri = `${window.location.origin}/api/google-calendar-callback`;
+        const state = btoa(JSON.stringify({
+            company_id: authUser.company_id,
+            return_url: window.location.origin,
+        }));
+
+        const params = new URLSearchParams({
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            response_type: 'code',
+            scope: 'https://www.googleapis.com/auth/calendar',
+            access_type: 'offline',
+            prompt: 'consent',
+            state,
+        });
+
+        window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    };
+
+    const handleDisconnectGoogle = async () => {
+        if (!confirm('Desconectar Google Calendar? Os eventos já criados serão mantidos.')) return;
+        try {
+            await supabase.from('sp3_calendar_settings').update({
+                google_access_token: null,
+                google_refresh_token: null,
+                google_token_expiry: null,
+                google_calendar_id: null,
+            }).eq('company_id', authUser.company_id);
+            setCalendarSettings((prev: any) => ({ ...prev, google_access_token: null, google_refresh_token: null, google_token_expiry: null, google_calendar_id: null }));
+        } catch (err: any) {
+            alert('Erro ao desconectar: ' + err.message);
+        }
+    };
+
+    // Detectar retorno do OAuth via URL params
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('google_connected') === 'true') {
+            fetchCalendarSettings();
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+        if (params.get('google_error')) {
+            const error = params.get('google_error');
+            alert(`Erro ao conectar Google: ${error}`);
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    }, []);
+
+    const handleSaveCalendarSettings = async () => {
+        setIsSavingCalendar(true);
+        setCalendarSuccess(null);
+        try {
+            const { google_access_token, google_refresh_token, google_token_expiry, calendar_id, sync_token, ...safeData } = calendarSettings;
+            const { error } = await supabase
+                .from('sp3_calendar_settings')
+                .update(safeData)
+                .eq('company_id', authUser.company_id);
+
+            if (error) throw error;
+            setCalendarSuccess('Configurações da agenda salvas com sucesso!');
+            setTimeout(() => setCalendarSuccess(null), 3500);
+        } catch (err: any) {
+            await showAlert('Erro ao salvar agenda: ' + err.message);
+        } finally {
+            setIsSavingCalendar(false);
+        }
+    };
 
     useEffect(() => {
         fetchInstances(); // Always fetch instances on mount
         fetchClosingReasons();
+        fetchCalendarSettings();
 
         // Pré-preencher chave global da Evolution API do banco (somente super admin)
         if (!evoGlobalKey && isSuperAdmin) {
             supabase.rpc('get_evo_global_key').then(({ data }) => {
                 if (data) {
                     setEvoGlobalKey(data);
-                    // key carregada do banco, sem localStorage
+                    localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, data);
                 }
             });
         }
@@ -1522,7 +1612,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     setNewClientEvoKey(data);
                     if (!evoGlobalKey) {
                         setEvoGlobalKey(data);
-                        // key carregada do banco, sem localStorage
+                        localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, data);
                     }
                 }
             });
@@ -1593,6 +1683,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     >
                         <LayoutDashboard size={18} /> Kanban & Pipeline
                     </button>
+                    {authUser.permissions.calendar && (
+                        <button
+                            onClick={() => setActiveSubTab('calendar')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'calendar' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'calendar' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'calendar' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        >
+                            <CalendarIcon size={18} /> Agenda & Google API
+                        </button>
+                    )}
                     <button
                         onClick={() => setActiveSubTab('profile')}
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: activeSubTab === 'profile' ? 'var(--accent-soft)' : 'transparent', color: activeSubTab === 'profile' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: activeSubTab === 'profile' ? '600' : '500', width: '100%', textAlign: 'left', cursor: 'pointer' }}
@@ -1776,7 +1874,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                     onChange={(e) => {
                                                         const val = e.target.value;
                                                         setEvoGlobalKey(val);
-                                                        // salvo no banco via RPC, não em localStorage
+                                                        localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
                                                     }}
                                                     placeholder="Cole a Global API Key aqui"
                                                     style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace', background: 'var(--bg-secondary)' }}
@@ -1810,7 +1908,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
                                         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                            Aguardando conexão... Novo código em <span style={{ fontWeight: '700', color: 'var(--accent)' }}>{qrCountdown}s</span>
+                                            Aguardando conexão... O código expira em 60 segundos
                                         </p>
                                     </div>
                                 </div>
@@ -1832,6 +1930,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             onChange={(e) => {
                                                 const val = e.target.value;
                                                 setEvoGlobalKey(val);
+                                                localStorage.setItem(`sp3_evo_global_key_${authUser.company_id}`, val);
                                             }}
                                             placeholder="Cole aqui a Global API Key de automação"
                                             style={{ width: '100%', padding: '10px 40px 10px 14px', borderRadius: '10px', border: '1px solid var(--border-soft)', fontSize: '0.85rem', outline: 'none', fontFamily: 'monospace' }}
@@ -2046,6 +2145,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             companyId={authUser.company_id!}
                             currentPrompt={promptHistory.length > 0 ? promptHistory[0].content : ''}
                             onSavePrompt={async (content: string) => {
+                                // Sempre criar nova versão para manter histórico com data correta
                                 const { error } = await supabase
                                     .from('sp3_prompts')
                                     .insert([{ company_id: authUser.company_id, content }]);
@@ -2064,21 +2164,21 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                 {isLoadingHistory ? (
                                     <div style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className="animate-spin" /></div>
-                                ) : promptHistory.map((v, i) => (
+                                ) : promptHistory.map((v, i) => {
+                                    const isExpanded = expandedVersionId === v.id;
+                                    return (
                                     <div
                                         key={v.id}
-                                        onClick={() => setViewingPrompt({ ...v, index: i })}
+                                        onClick={() => setExpandedVersionId(isExpanded ? null : v.id)}
                                         style={{
                                             padding: '12px',
                                             borderRadius: '12px',
                                             background: i === 0 ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
                                             border: '1px solid',
-                                            borderColor: i === 0 ? 'var(--accent-soft)' : 'var(--border-soft)',
+                                            borderColor: isExpanded ? 'var(--accent)' : i === 0 ? 'var(--accent-soft)' : 'var(--border-soft)',
                                             cursor: 'pointer',
-                                            transition: 'transform 0.1s',
+                                            transition: 'all 0.2s ease',
                                         }}
-                                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; }}
-                                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                             <span style={{ fontSize: '0.7rem', fontWeight: '800', color: i === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
@@ -2088,118 +2188,57 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                 {new Date(v.created_at).toLocaleDateString('pt-BR')} {new Date(v.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                            {v.content.substring(0, 120)}...
-                                        </div>
+                                        {isExpanded ? (
+                                            <>
+                                                <div style={{
+                                                    fontSize: '0.75rem',
+                                                    color: 'var(--text-secondary)',
+                                                    whiteSpace: 'pre-wrap',
+                                                    maxHeight: '300px',
+                                                    overflowY: 'auto',
+                                                    lineHeight: '1.5',
+                                                    padding: '8px',
+                                                    background: 'var(--bg-primary)',
+                                                    borderRadius: '8px',
+                                                    marginTop: '8px',
+                                                    border: '1px solid var(--border-soft)',
+                                                }}>
+                                                    {v.content}
+                                                </div>
+                                                {i !== 0 && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleRestoreVersion(v.content); }}
+                                                        style={{
+                                                            marginTop: '8px',
+                                                            width: '100%',
+                                                            padding: '8px',
+                                                            borderRadius: '8px',
+                                                            border: 'none',
+                                                            background: 'var(--accent)',
+                                                            color: 'white',
+                                                            fontWeight: '700',
+                                                            fontSize: '0.75rem',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        Restaurar esta versão
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                {v.content.substring(0, 120)}...
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                                 {promptHistory.length === 0 && (
                                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Use o chat ao lado para criar seu primeiro prompt.</p>
                                 )}
                             </div>
                         </div>
                         </div>
-
-                        {/* Modal Visualizar Prompt */}
-                        {viewingPrompt && (
-                            <div
-                                onClick={() => setViewingPrompt(null)}
-                                style={{
-                                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    zIndex: 9999, padding: '2rem',
-                                }}
-                            >
-                                <div
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{
-                                        background: 'var(--bg-primary)', borderRadius: '16px',
-                                        width: '100%', maxWidth: '700px', maxHeight: '80vh',
-                                        display: 'flex', flexDirection: 'column',
-                                        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-                                        border: '1px solid var(--border-soft)',
-                                    }}
-                                >
-                                    {/* Header */}
-                                    <div style={{
-                                        padding: '1.25rem 1.5rem',
-                                        borderBottom: '1px solid var(--border-soft)',
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                    }}>
-                                        <div>
-                                            <span style={{
-                                                fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase',
-                                                color: viewingPrompt.index === 0 ? 'var(--accent)' : 'var(--text-muted)',
-                                            }}>
-                                                {viewingPrompt.index === 0 ? 'ATIVA AGORA' : `Versão #${promptHistory.length - viewingPrompt.index}`}
-                                            </span>
-                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                                                {new Date(viewingPrompt.created_at).toLocaleDateString('pt-BR')} {new Date(viewingPrompt.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={() => setViewingPrompt(null)}
-                                            style={{
-                                                background: 'none', border: 'none', cursor: 'pointer',
-                                                padding: '6px', color: 'var(--text-muted)', borderRadius: '8px',
-                                            }}
-                                        >
-                                            <X size={20} />
-                                        </button>
-                                    </div>
-
-                                    {/* Content */}
-                                    <div style={{
-                                        flex: 1, overflowY: 'auto', padding: '1.5rem',
-                                    }}>
-                                        <pre style={{
-                                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                                            fontSize: '0.82rem', lineHeight: '1.7',
-                                            color: 'var(--text-primary)', fontFamily: 'inherit',
-                                            margin: 0,
-                                        }}>
-                                            {viewingPrompt.content}
-                                        </pre>
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div style={{
-                                        padding: '1rem 1.5rem',
-                                        borderTop: '1px solid var(--border-soft)',
-                                        display: 'flex', justifyContent: 'flex-end', gap: '10px',
-                                    }}>
-                                        <button
-                                            onClick={() => { navigator.clipboard.writeText(viewingPrompt.content); }}
-                                            style={{
-                                                padding: '8px 16px', borderRadius: '10px',
-                                                border: '1px solid var(--border-soft)', background: 'transparent',
-                                                fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-secondary)',
-                                                fontWeight: '600',
-                                            }}
-                                        >
-                                            Copiar
-                                        </button>
-                                        {viewingPrompt.index !== 0 && (
-                                            <button
-                                                onClick={async () => {
-                                                    await handleRestoreVersion(viewingPrompt.content);
-                                                    setViewingPrompt(null);
-                                                }}
-                                                style={{
-                                                    padding: '8px 20px', borderRadius: '10px',
-                                                    border: 'none', background: 'var(--accent)',
-                                                    color: 'white', fontWeight: '700',
-                                                    fontSize: '0.8rem', cursor: 'pointer',
-                                                }}
-                                            >
-                                                Restaurar como Ativa
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -2613,24 +2652,166 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     </div>
                 )}
 
-                {activeSubTab === 'profile' && (
-                    <div className="glass-card" style={{ padding: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '1.5rem' }}>Perfil da conta</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome de Exibição</label>
-                                <input type="text" readOnly value={authUser.nome} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cargo</label>
-                                <input type="text" readOnly value={authUser.role === 'master' ? 'Master' : 'Operador'} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</label>
-                                <input type="text" readOnly value={authUser.email} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                {activeSubTab === 'calendar' && (
+                    <div className="glass-card animate-fade-in" style={{ padding: '24px' }}>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.35rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <CalendarIcon size={22} color="var(--accent)" /> Integração com Google Agenda
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
+                                Permita que a IA visualize disponibilidade e agende eventos no seu Google Agenda.
+                            </p>
+                        </div>
+
+                        <div className="glass-card" style={{ marginBottom: '24px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                                <div>
+                                    <h4 style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: calendarSettings.google_access_token ? 'var(--success)' : 'var(--error)' }} />
+                                        {calendarSettings.google_access_token ? 'Google Agenda Conectado' : 'Google Agenda Desconectado'}
+                                    </h4>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+                                        {calendarSettings.google_access_token ? 'Os eventos serão sincronizados com sua conta Google.' : 'Conecte sua conta para começar a sincronizar.'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={calendarSettings.google_access_token ? handleDisconnectGoogle : handleConnectGoogle}
+                                    style={{ padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none', background: calendarSettings.google_access_token ? 'white' : '#4285F4', color: calendarSettings.google_access_token ? 'var(--error)' : 'white', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                    {calendarSettings.google_access_token ? 'Desconectar' : 'Conectar com Google'}
+                                </button>
                             </div>
                         </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                            <div className="glass-card" style={{ padding: '24px', maxWidth: '600px' }}>
+                                <h4 style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '16px' }}>Preferências da Inteligência Artificial</h4>
+                                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', marginBottom: '20px' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={calendarSettings.ai_can_schedule}
+                                        onChange={(e) => setCalendarSettings({ ...calendarSettings, ai_can_schedule: e.target.checked })}
+                                        style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: 'var(--accent)' }} 
+                                    />
+                                    <div>
+                                        <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Permitir que a IA faça agendamentos</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: '2px' }}>A IA oferecerá horários automaticamente e agendará na pauta se autorizada. Caso desligado, o atendimento será transferido para um humano no momento do agendamento.</div>
+                                    </div>
+                                </label>
+                                
+                                <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '20px' }}>
+                                    <label style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Duração padrão (minutos)</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <input 
+                                            type="number" 
+                                            value={calendarSettings.default_meeting_duration} 
+                                            onChange={(e) => setCalendarSettings({ ...calendarSettings, default_meeting_duration: parseInt(e.target.value) })}
+                                            min="15" 
+                                            step="15"
+                                            style={{ width: '120px', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none', background: 'var(--bg-primary)' }}
+                                        />
+                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>minutos por sessão</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {calendarSuccess && (
+                            <div style={{ marginTop: '20px', padding: '12px', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '0.9rem', fontWeight: '600', animation: 'fadeIn 0.3s' }}>
+                                {calendarSuccess}
+                            </div>
+                        )}
+
+                        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+                            <button 
+                                onClick={handleSaveCalendarSettings} 
+                                disabled={isSavingCalendar}
+                                className="btn-primary" 
+                                style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', cursor: isSavingCalendar ? 'not-allowed' : 'pointer', opacity: isSavingCalendar ? 0.7 : 1 }}
+                            >
+                                {isSavingCalendar ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                {isSavingCalendar ? 'Salvando...' : 'Salvar Configurações'}
+                            </button>
+                        </div>
                     </div>
+                )}
+
+                {activeSubTab === 'profile' && (
+                    <>
+                        <div className="glass-card" style={{ padding: '2rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '1.5rem' }}>Perfil da conta</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nome de Exibição</label>
+                                    <input type="text" readOnly value={authUser.nome} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cargo</label>
+                                    <input type="text" readOnly value={authUser.role === 'master' ? 'Master' : 'Operador'} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</label>
+                                    <input type="text" readOnly value={authUser.email} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-tertiary)', outline: 'none' }} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid var(--border-soft)' }}>
+                            <h4 style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Alterar Senha</h4>
+                            
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', maxWidth: '800px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nova Senha</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <input 
+                                            type={showProfilePass ? 'text' : 'password'} 
+                                            value={newPass} 
+                                            onChange={(e) => setNewPass(e.target.value)} 
+                                            placeholder="Mínimo 6 caracteres"
+                                            style={{ width: '100%', padding: '12px 40px 12px 12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-primary)', outline: 'none', boxSizing: 'border-box' }} 
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowProfilePass(!showProfilePass)}
+                                            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex' }}
+                                        >
+                                            {showProfilePass ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confirmar Nova Senha</label>
+                                    <input 
+                                        type={showProfilePass ? 'text' : 'password'} 
+                                        value={confirmPass} 
+                                        onChange={(e) => setConfirmPass(e.target.value)} 
+                                        placeholder="Repita a senha"
+                                        style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border-soft)', background: 'var(--bg-primary)', outline: 'none' }} 
+                                    />
+                                </div>
+                            </div>
+
+                            {passUpdateError && (
+                                <div style={{ marginTop: '1rem', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', fontSize: '0.85rem', fontWeight: '600', maxWidth: '800px' }}>
+                                    {passUpdateError}
+                                </div>
+                            )}
+                            {passUpdateSuccess && (
+                                <div style={{ marginTop: '1rem', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', color: '#15803d', fontSize: '0.85rem', fontWeight: '600', maxWidth: '800px' }}>
+                                    ✓ Senha alterada com sucesso!
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleUpdatePassword}
+                                disabled={isUpdatingPass || !newPass}
+                                style={{ marginTop: '1.5rem', padding: '12px 24px', borderRadius: '12px', border: 'none', backgroundColor: (isUpdatingPass || !newPass) ? 'var(--accent-muted)' : 'var(--accent)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: (isUpdatingPass || !newPass) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                            >
+                                {isUpdatingPass ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                {isUpdatingPass ? 'Atualizando...' : 'Atualizar Senha'}
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {activeSubTab === 'usuarios' && authUser.role === 'master' && (
@@ -2681,8 +2862,15 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         </div>
 
                         {/* Formulário de criação */}
-                        <div className="glass-card" style={{ padding: '2rem' }}>
-                            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '1.5rem' }}>Adicionar Novo Usuário</h3>
+                        <div className="glass-card" style={{ padding: '2rem', opacity: (usersList.length >= 2 && !isSuperAdmin) ? 0.7 : 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0 }}>Adicionar Novo Usuário</h3>
+                                {(usersList.length >= 2 && !isSuperAdmin) && (
+                                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: '700' }}>
+                                        Limite de 2 usuários atingido
+                                    </span>
+                                )}
+                            </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -2780,8 +2968,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                             <div>
                                 <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--error)' }}>Zerar Todos os Dados de Clientes</h4>
                                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                    Apaga permanentemente <strong>todos os leads (nome, telefone, tags, observações), conversas, memória da IA, follow-ups, execuções de fluxo, lacunas da IA e logs de Instagram</strong>.
-                                    A empresa fica 100% zerada — ideal para recomeçar testes. <strong>Configurações</strong> (fluxos, prompts, IA, horários, mensagens rápidas) são mantidas.
+                                    Apaga permanentemente <strong>todos os leads, conversas, execuções de fluxo</strong> e dados salvos nos cards (etiquetas, observações, campos customizados, agendamentos).
+                                    A empresa fica como nova — ideal para limpar testes. <strong>Configurações</strong> (fluxos, prompts, IA, horários) são mantidas.
                                 </p>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
@@ -2954,6 +3142,9 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                         </div>
                     </div>
                 )}
+                {activeSubTab === 'logs' && (
+                    <ExecutionLogsPanel companyId={authUser.company_id!} />
+                )}
             </div>
 
             {dialog && (
@@ -2993,9 +3184,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                     </div>
                 </div>
             )}
-            {activeSubTab === 'logs' && (
-                <ExecutionLogsPanel companyId={authUser.company_id!} />
-            )}
+
         </div>
     );
 };
