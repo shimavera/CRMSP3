@@ -108,6 +108,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     });
 
     const [showCloseChatModal, setShowCloseChatModal] = useState(false);
+    const [showFlowSelector, setShowFlowSelector] = useState(false);
+    const [showFollowupSelector, setShowFollowupSelector] = useState(false);
+    const [showMeetingForm, setShowMeetingForm] = useState(false);
     const [closingReasons, setClosingReasons] = useState<string[]>(['Sem resposta', 'Muito caro', 'Sem interesse', 'Concorrente']);
     const [selectedCloseReason, setSelectedCloseReason] = useState<string>('');
 
@@ -208,8 +211,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const [nextMeeting, setNextMeeting] = useState<any>(null);
 
-    const [showFlowSelector, setShowFlowSelector] = useState(false);
-
     // Suporte ao ESC para fechar modais
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -227,29 +228,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [isStartingFlow, setIsStartingFlow] = useState(false);
 
 
-    // Sidebar accordion sections
-    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-        info: true, aiSummary: true, notes: false, customFields: false, tasks: false, meeting: false, flow: false,
-    });
-    const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
-
-    // Follow-up controls
-    const [showFollowupSelector, setShowFollowupSelector] = useState(false);
-    const followupSelectorRef = useRef<HTMLDivElement>(null);
-
-    // Inline meeting form
-    const [showMeetingForm, setShowMeetingForm] = useState(false);
-    const [meetingTitle, setMeetingTitle] = useState('');
-    const [meetingDate, setMeetingDate] = useState('');
-
-    // Custom fields editing
     const [editingCustomFields, setEditingCustomFields] = useState<Record<string, string>>({});
-    const [isSavingCustomFields, setIsSavingCustomFields] = useState(false);
+    const followupSelectorRef = useRef<HTMLDivElement>(null);
 
     // Tasks
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [newTaskDate, setNewTaskDate] = useState('');
-    const [isSavingTasks, setIsSavingTasks] = useState(false);
 
     // Funnel stage selector
     const [showStageSelector, setShowStageSelector] = useState(false);
@@ -899,12 +883,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const handleAddTask = async () => {
         if (!selectedLead || !newTaskTitle || !newTaskDate) return;
-        setIsSavingTasks(true);
         const currentTasks = selectedLead.tasks || [];
         const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
         const updatedTasks = [...currentTasks, newTask];
         const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
-        setIsSavingTasks(false);
         if (error) {
             await showAlert('Erro ao adicionar tarefa: ' + error.message);
         } else {
@@ -1720,189 +1702,437 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
             {/* Painel lateral — apenas desktop */}
             {
-                !isMobile && <div style={{ width: '300px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', backgroundColor: 'var(--bg-primary)', borderLeft: '1px solid var(--border-soft)' }}>
+                !isMobile && <div style={{ width: '300px', display: 'flex', flexDirection: 'column', overflowY: 'auto', backgroundColor: 'var(--bg-primary)', borderLeft: '1px solid var(--border-soft)' }}>
                     {selectedLead && (
                         <>
                             {/* Profile Header */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.75rem' }}>
-                                <div style={{ width: '72px', height: '72px', borderRadius: '50%', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', fontWeight: '800', boxShadow: '0 4px 14px rgba(0,0,0,0.1)' }}>
+                            <div style={{ padding: '1.25rem 1rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-soft)' }}>
+                                <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', fontWeight: '800', boxShadow: '0 3px 10px rgba(0,0,0,0.08)' }}>
                                     {(selectedLead.nome || 'L')[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>{selectedLead.nome || 'Lead sem nome'}</h3>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>{selectedLead.telefone}</p>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 2px', letterSpacing: '-0.02em' }}>{selectedLead.nome || 'Lead sem nome'}</h3>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{selectedLead.telefone}</p>
                                 </div>
-
-                                {/* Quick Actions (Toggles) */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.25rem' }}>
+                                {/* Quick Toggles */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.15rem' }}>
                                     <button
                                         onClick={handleToggleIA}
                                         style={{
-                                            padding: '6px 10px', borderRadius: '20px', border: `1px solid ${selectedLead.ia_active ? 'var(--success-soft)' : 'var(--border)'}`,
+                                            padding: '4px 10px', borderRadius: '20px', border: `1px solid ${selectedLead.ia_active ? 'var(--success-soft)' : 'var(--border)'}`,
                                             backgroundColor: selectedLead.ia_active ? 'var(--success-soft)' : 'var(--bg-secondary)',
                                             color: selectedLead.ia_active ? 'var(--success)' : 'var(--text-muted)',
-                                            fontWeight: '700', fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.2s'
+                                            fontWeight: '700', fontSize: '0.6rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.2s'
                                         }}
-                                        title={selectedLead.ia_active ? "Sarah está ativa" : "Intervenção Humana (Sarah em pausa)"}
+                                        title={selectedLead.ia_active ? "Sarah está ativa" : "Intervenção Humana"}
                                     >
                                         {selectedLead.ia_active ? <Power size={10} /> : <PowerOff size={10} />}
                                         {selectedLead.ia_active ? 'Sarah Ativa' : 'Pausada'}
                                     </button>
-                                </div>
-                            </div>
-
-                            {/* Informações Básicas (Clean layout) */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1rem', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-soft)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}><Building2 size={12} /> Funil</span>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{selectedLead.stage || 'Sem estágio'}</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> Localização</span>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{(selectedLead as any).cidade || 'Não informada'}</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={12} /> Início em</span>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{selectedLead.created_at ? format(new Date(selectedLead.created_at), "dd/MM/yy HH:mm") : '-'}</span>
-                                </div>
-
-                            </div>
-
-                            {/* Contexto IA Premium Card */}
-                            <div style={{
-                                padding: '1rem', borderRadius: 'var(--radius-lg)',
-                                background: 'linear-gradient(145deg, var(--bg-primary), var(--accent-light))',
-                                border: '1px solid var(--accent-soft)', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.05)',
-                                position: 'relative', overflow: 'hidden'
-                            }}>
-                                <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.05 }}><Bot size={80} /></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', position: 'relative', zIndex: 1 }}>
-                                    <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.05em' }}>
-                                        <Bot size={12} /> Resumo Sarah
-                                    </h4>
                                     <button
-                                        onClick={handleGenerateAiSummary}
-                                        disabled={isGeneratingSummary}
-                                        style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.6rem', padding: '4px 8px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)' }}
+                                        onClick={handleToggleFollowup}
+                                        style={{
+                                            padding: '4px 10px', borderRadius: '20px', border: `1px solid ${selectedLead.followup_locked ? 'var(--border)' : 'var(--warning-soft)'}`,
+                                            backgroundColor: selectedLead.followup_locked ? 'var(--bg-secondary)' : 'var(--warning-soft)',
+                                            color: selectedLead.followup_locked ? 'var(--text-muted)' : 'var(--warning)',
+                                            fontWeight: '700', fontSize: '0.6rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.2s'
+                                        }}
                                     >
-                                        {isGeneratingSummary ? <Loader2 size={10} className="animate-spin" /> : (aiSummary ? 'Atualizar' : 'Gerar')}
+                                        {selectedLead.followup_locked ? <Lock size={10} /> : <Unlock size={10} />}
+                                        {selectedLead.followup_locked ? 'F/U Travado' : 'F/U Ativo'}
                                     </button>
                                 </div>
-                                <p style={{ position: 'relative', zIndex: 1, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.5', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic', margin: 0 }}>
-                                    {aiSummary || 'Deixe a Sarah resumir os pontos importantes desta conversa para você.'}
-                                </p>
                             </div>
 
-                            {/* Observações */}
-                            <div>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.05em' }}>Notas do Especialista</h4>
-                                <textarea
-                                    value={observacoesInput}
-                                    onChange={(e) => setObservacoesInput(e.target.value)}
-                                    placeholder="Anotações estratégicas exclusivas para a equipe..."
-                                    rows={3}
-                                    style={{
-                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-soft)',
-                                        backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem', lineHeight: '1.5',
-                                        fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s',
-                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
-                                    }}
-                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border-soft)'}
-                                />
-                                <button
-                                    onClick={handleSaveObservacoes}
-                                    disabled={isSavingObs}
-                                    style={{
-                                        marginTop: '6px', width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                        backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontWeight: '800', fontSize: '0.75rem',
-                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: 'all 0.1s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
-                                >
-                                    {isSavingObs ? <Loader2 size={12} className="animate-spin" /> : '💾 Salvar Notas'}
-                                </button>
-                            </div>
+                            {/* Scrollable sections */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '0 1rem' }}>
 
-                            {/* Agenda / Reunião */}
-                            {nextMeeting && (
-                                <div style={{ padding: '14px', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.9 }}>
-                                        <CalendarIcon size={12} /> Próxima Reunião
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: '800', lineHeight: '1.2' }}>{nextMeeting.title}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', opacity: 0.9 }}>
-                                            <Clock size={10} />
-                                            {format(new Date(nextMeeting.start_time), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                {/* ── INFORMAÇÕES ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('info')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Building2 size={12} /> Informações
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.info ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.info && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)' }}>Funil</span>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-primary)', padding: '2px 8px', borderRadius: '10px', backgroundColor: 'var(--bg-secondary)' }}>{selectedLead.stage || 'Sem estágio'}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}><Unlock size={10} /> Follow-up</span>
+                                                <div ref={followupSelectorRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <button
+                                                        onClick={() => setShowFollowupSelector(!showFollowupSelector)}
+                                                        style={{
+                                                            padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)',
+                                                            backgroundColor: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning-soft)' : 'var(--bg-secondary)',
+                                                            color: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning)' : 'var(--text-primary)',
+                                                            fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        {(selectedLead.followup_stage || 0) === 0 ? 'Nenhum' : `${selectedLead.followup_stage}ª Etapa`}
+                                                    </button>
+                                                    {showFollowupSelector && (
+                                                        <div style={{
+                                                            position: 'absolute', top: '100%', right: 0, marginTop: '4px',
+                                                            background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)',
+                                                            boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
+                                                            zIndex: 999, overflow: 'hidden', minWidth: '100px',
+                                                        }}>
+                                                            {[0, 1, 2, 3, 4, 5].map(stage => (
+                                                                <div
+                                                                    key={stage}
+                                                                    onClick={() => handleChangeFollowupStage(stage)}
+                                                                    style={{
+                                                                        padding: '6px 12px', cursor: 'pointer', fontSize: '0.72rem',
+                                                                        fontWeight: (selectedLead.followup_stage || 0) === stage ? '800' : '600',
+                                                                        color: (selectedLead.followup_stage || 0) === stage ? 'var(--accent)' : 'var(--text-primary)',
+                                                                        backgroundColor: (selectedLead.followup_stage || 0) === stage ? 'var(--bg-secondary)' : 'transparent',
+                                                                        transition: 'background-color 0.1s',
+                                                                    }}
+                                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = (selectedLead.followup_stage || 0) === stage ? 'var(--bg-secondary)' : 'transparent'}
+                                                                >
+                                                                    {stage === 0 ? 'Nenhum' : `${stage}ª Etapa`}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={10} /> Local</span>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-primary)' }}>{(selectedLead as any).cidade || 'Não informada'}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={10} /> Criado</span>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-primary)' }}>{selectedLead.created_at ? format(new Date(selectedLead.created_at), "dd/MM/yy HH:mm") : '-'}</span>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
-                            )}
 
-                            {/* Agendar Reunião */}
-                            <div style={{ marginTop: '0.5rem' }}>
-                                <button
-                                    onClick={() => {
-                                        // Redirecionar para agenda ou abrir formulário mini?
-                                        // Vamos abrir um prompt simples por enquanto ou sugerir ir para a aba agenda
-                                        // Mas o usuário quer que "já adicione aqui na agenda"
-                                        const title = prompt('Título da Reunião:');
-                                        if (!title) return;
-                                        const date = prompt('Data e Hora (AAAA-MM-DD HH:MM):', format(new Date(), "yyyy-MM-dd HH:mm"));
-                                        if (!date) return;
+                                {/* ── RESUMO SARAH ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('aiSummary')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--accent)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Bot size={12} /> Resumo Sarah
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.aiSummary ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.aiSummary && (
+                                        <div style={{ paddingBottom: '12px' }}>
+                                            <div style={{
+                                                padding: '10px', borderRadius: 'var(--radius-md)',
+                                                background: 'linear-gradient(145deg, var(--bg-primary), var(--accent-light))',
+                                                border: '1px solid var(--accent-soft)', position: 'relative', overflow: 'hidden'
+                                            }}>
+                                                <div style={{ position: 'absolute', top: -8, right: -8, opacity: 0.04 }}><Bot size={60} /></div>
+                                                <p style={{ position: 'relative', zIndex: 1, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.5', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic', margin: '0 0 8px' }}>
+                                                    {aiSummary || 'Clique em Gerar para a Sarah resumir esta conversa.'}
+                                                </p>
+                                                <button
+                                                    onClick={handleGenerateAiSummary}
+                                                    disabled={isGeneratingSummary}
+                                                    style={{
+                                                        background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)',
+                                                        fontSize: '0.6rem', padding: '5px 10px', fontWeight: '800', cursor: 'pointer',
+                                                        transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)',
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                    }}
+                                                >
+                                                    {isGeneratingSummary ? <Loader2 size={10} className="animate-spin" /> : (aiSummary ? 'Atualizar' : 'Gerar Resumo')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
 
-                                        handleSaveMeeting(title, date);
-                                    }}
-                                    style={{
-                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                        backgroundColor: 'var(--bg-primary)', color: 'var(--accent)', fontWeight: '800', fontSize: '0.75rem',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
-                                >
-                                    <CalendarIcon size={16} /> Agendar Reunião
-                                </button>
+                                {/* ── NOTAS ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('notes')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <FileText size={12} /> Notas do Especialista
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.notes ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.notes && (
+                                        <div style={{ paddingBottom: '12px' }}>
+                                            <textarea
+                                                value={observacoesInput}
+                                                onChange={(e) => setObservacoesInput(e.target.value)}
+                                                placeholder="Anotações estratégicas..."
+                                                rows={3}
+                                                style={{
+                                                    width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-soft)',
+                                                    backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.75rem', lineHeight: '1.5',
+                                                    fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s',
+                                                }}
+                                                onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                                                onBlur={e => e.currentTarget.style.borderColor = 'var(--border-soft)'}
+                                            />
+                                            <button
+                                                onClick={handleSaveObservacoes}
+                                                disabled={isSavingObs}
+                                                style={{
+                                                    marginTop: '6px', width: '100%', padding: '7px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                                                    backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.7rem',
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: 'all 0.1s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                            >
+                                                {isSavingObs ? <Loader2 size={12} className="animate-spin" /> : 'Salvar Notas'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── CAMPOS PERSONALIZADOS ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('customFields')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <FileText size={12} /> Campos Extra
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.customFields ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.customFields && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px' }}>
+                                            {SIDEBAR_CUSTOM_FIELDS.map(field => (
+                                                <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                    <label style={{ fontSize: '0.6rem', fontWeight: '700', color: 'var(--text-muted)' }}>{field.label}</label>
+                                                    {field.type === 'select' ? (
+                                                        <select
+                                                            value={editingCustomFields[field.key] || ''}
+                                                            onChange={e => setEditingCustomFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                            style={{
+                                                                width: '100%', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                                border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                                                                color: 'var(--text-primary)', fontSize: '0.72rem', outline: 'none', boxSizing: 'border-box',
+                                                            }}
+                                                        >
+                                                            <option value="">Selecione</option>
+                                                            {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            type={field.type}
+                                                            placeholder={field.placeholder}
+                                                            value={editingCustomFields[field.key] || ''}
+                                                            onChange={e => setEditingCustomFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                            style={{
+                                                                width: '100%', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                                border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                                                                color: 'var(--text-primary)', fontSize: '0.72rem', outline: 'none', boxSizing: 'border-box',
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                            <button
+                                                onClick={handleSaveCustomFields}
+                                                disabled={isSavingCustomFields}
+                                                style={{
+                                                    marginTop: '4px', width: '100%', padding: '7px', borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)',
+                                                    color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.7rem',
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                }}
+                                            >
+                                                {isSavingCustomFields ? <Loader2 size={12} className="animate-spin" /> : 'Salvar Campos'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── TAREFAS ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('tasks')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <ListTodo size={12} /> Tarefas
+                                            {(selectedLead.tasks || []).filter(t => !t.completed).length > 0 && (
+                                                <span style={{ fontSize: '0.55rem', padding: '1px 5px', borderRadius: '8px', backgroundColor: 'var(--error)', color: 'white', fontWeight: '800' }}>
+                                                    {(selectedLead.tasks || []).filter(t => !t.completed).length}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.tasks ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.tasks && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px' }}>
+                                            {/* Add task form */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <input
+                                                    type="text" placeholder="Nova tarefa..." value={newTaskTitle}
+                                                    onChange={e => setNewTaskTitle(e.target.value)}
+                                                    style={{
+                                                        width: '100%', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                        border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                                                        color: 'var(--text-primary)', fontSize: '0.72rem', outline: 'none', boxSizing: 'border-box',
+                                                    }}
+                                                />
+                                                <div style={{ display: 'flex', gap: '5px' }}>
+                                                    <input
+                                                        type="datetime-local" value={newTaskDate}
+                                                        onChange={e => setNewTaskDate(e.target.value)}
+                                                        style={{
+                                                            flex: 1, padding: '6px 6px', borderRadius: 'var(--radius-sm)',
+                                                            border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                                                            color: 'var(--text-primary)', fontSize: '0.65rem', outline: 'none', boxSizing: 'border-box',
+                                                        }}
+                                                    />
+                                                    <button
+                                                        disabled={!newTaskTitle || !newTaskDate || isSavingTasks}
+                                                        onClick={handleAddTask}
+                                                        style={{
+                                                            padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+                                                            border: 'none', background: 'var(--accent)', color: 'white',
+                                                            fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer',
+                                                            opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1,
+                                                            display: 'flex', alignItems: 'center', gap: '3px',
+                                                        }}
+                                                    >
+                                                        {isSavingTasks ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {/* Task list */}
+                                            {(selectedLead.tasks || []).length === 0 ? (
+                                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>Nenhuma tarefa.</p>
+                                            ) : (
+                                                (selectedLead.tasks || [])
+                                                    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+                                                    .map(task => {
+                                                        const isOverdue = !task.completed && isPast(new Date(task.due_date));
+                                                        const isDueToday = !task.completed && isToday(new Date(task.due_date));
+                                                        return (
+                                                            <div key={task.id} style={{
+                                                                display: 'flex', alignItems: 'flex-start', gap: '6px',
+                                                                padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                                backgroundColor: task.completed ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                                                border: `1px solid ${isOverdue ? 'var(--error-soft)' : 'var(--border-soft)'}`,
+                                                                opacity: task.completed ? 0.6 : 1,
+                                                            }}>
+                                                                <button onClick={() => handleToggleTask(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px', color: task.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
+                                                                    {task.completed ? <CheckSquare size={14} /> : <Square size={14} />}
+                                                                </button>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <p style={{ fontSize: '0.72rem', fontWeight: '600', margin: 0, color: task.completed ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</p>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.58rem', marginTop: '2px', color: task.completed ? 'var(--text-muted)' : (isOverdue ? 'var(--error)' : (isDueToday ? 'var(--warning)' : 'var(--text-secondary)')), fontWeight: isOverdue || isDueToday ? '700' : '500' }}>
+                                                                        <Clock size={9} />
+                                                                        {format(new Date(task.due_date), "dd/MMM HH:mm", { locale: ptBR })}
+                                                                        {isOverdue && ' (Atrasada)'}
+                                                                        {isDueToday && ' (Hoje)'}
+                                                                    </div>
+                                                                </div>
+                                                                <button onClick={() => handleDeleteTask(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '1px', opacity: 0.3, flexShrink: 0 }}
+                                                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.3'}
+                                                                >
+                                                                    <Trash2 size={11} />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── AGENDA ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('meeting')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <CalendarIcon size={12} /> Agenda
+                                            {nextMeeting && <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'inline-block' }} />}
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.meeting ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.meeting && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px' }}>
+                                            {nextMeeting && (
+                                                <div style={{ padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--accent)', color: 'white' }}>
+                                                    <div style={{ fontSize: '0.6rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.9, marginBottom: '4px' }}>Próxima Reunião</div>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: '800', lineHeight: '1.2' }}>{nextMeeting.title}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', opacity: 0.9, marginTop: '4px' }}>
+                                                        <Clock size={10} />
+                                                        {format(new Date(nextMeeting.start_time), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {!showMeetingForm ? (
+                                                <button
+                                                    onClick={() => setShowMeetingForm(true)}
+                                                    style={{
+                                                        width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                                                        backgroundColor: 'var(--bg-primary)', color: 'var(--accent)', fontWeight: '700', fontSize: '0.7rem',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                                >
+                                                    <CalendarIcon size={12} /> Agendar Reunião
+                                                </button>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-soft)' }}>
+                                                    <input
+                                                        type="text" placeholder="Título da Reunião" value={meetingTitle}
+                                                        onChange={e => setMeetingTitle(e.target.value)}
+                                                        style={{ width: '100%', padding: '7px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.75rem', boxSizing: 'border-box', outline: 'none' }}
+                                                    />
+                                                    <input
+                                                        type="datetime-local" value={meetingDate}
+                                                        onChange={e => setMeetingDate(e.target.value)}
+                                                        style={{ width: '100%', padding: '7px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.75rem', boxSizing: 'border-box', outline: 'none' }}
+                                                    />
+                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                        <button
+                                                            onClick={() => { setShowMeetingForm(false); setMeetingTitle(''); setMeetingDate(''); }}
+                                                            style={{ flex: 1, padding: '7px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer' }}
+                                                        >Cancelar</button>
+                                                        <button
+                                                            disabled={!meetingTitle || !meetingDate}
+                                                            onClick={() => { handleSaveMeeting(meetingTitle, meetingDate); setShowMeetingForm(false); setMeetingTitle(''); setMeetingDate(''); }}
+                                                            style={{ flex: 1, padding: '7px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--accent)', color: 'white', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', opacity: (!meetingTitle || !meetingDate) ? 0.5 : 1 }}
+                                                        >Agendar</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
                             </div>
 
-
-                                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    {/* Fluxo Visual */}
-                                    {activeFlowExec ? (
+                            {/* Bottom actions — always visible */}
+                            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {/* Fluxo Visual */}
+                                {activeFlowExec ? (
                                     <div style={{
-                                        width: '100%', padding: '12px', borderRadius: 'var(--radius-md)',
+                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-md)',
                                         backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)',
-                                        display: 'flex', flexDirection: 'column', gap: '8px',
+                                        display: 'flex', flexDirection: 'column', gap: '6px',
                                     }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <GitBranch size={16} style={{ color: 'var(--accent)' }} />
-                                            <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--accent)', letterSpacing: '0.02em' }}>
-                                                Fluxo Ativo
-                                            </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <GitBranch size={14} style={{ color: 'var(--accent)' }} />
+                                            <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--accent)' }}>Fluxo Ativo</span>
                                             <span style={{
-                                                fontSize: '0.6rem', padding: '2px 8px', borderRadius: 'var(--radius-xl)',
+                                                fontSize: '0.55rem', padding: '2px 6px', borderRadius: 'var(--radius-xl)',
                                                 backgroundColor: activeFlowExec.status === 'running' ? 'var(--success-soft)' : 'var(--warning-soft)',
                                                 color: activeFlowExec.status === 'running' ? 'var(--success)' : 'var(--warning)',
-                                                fontWeight: '700', border: '1px solid var(--border)'
+                                                fontWeight: '700',
                                             }}>
                                                 {activeFlowExec.status === 'running' ? 'Rodando' : 'Pausado'}
                                             </span>
                                         </div>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>
                                             {activeFlowExec.flow_name || `Fluxo #${activeFlowExec.flow_id}`}
                                         </span>
-                                        <button
-                                            onClick={handleCancelFlow}
-                                            style={{
-                                                padding: '6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
-                                                backgroundColor: 'var(--bg-primary)', color: 'var(--error)',
-                                                fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
-                                            }}
-                                        >
-                                            <StopCircle size={14} /> Cancelar Fluxo
+                                        <button onClick={handleCancelFlow} style={{ padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', color: 'var(--error)', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                            <StopCircle size={12} /> Cancelar Fluxo
                                         </button>
                                     </div>
                                 ) : companyFlows.length > 0 ? (
@@ -1911,41 +2141,36 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             onClick={() => setShowFlowSelector(!showFlowSelector)}
                                             disabled={isStartingFlow}
                                             style={{
-                                                width: '100%', padding: '10px', borderRadius: 'var(--radius-md)',
+                                                width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)',
                                                 border: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)', color: 'var(--accent)',
-                                                fontWeight: '800', fontSize: '0.75rem', display: 'flex', alignItems: 'center',
-                                                justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.1s'
+                                                fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center',
+                                                justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
                                             }}
                                             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
                                         >
-                                            {isStartingFlow ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                                            {isStartingFlow ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                                             Iniciar Fluxo Visual
                                         </button>
                                         {showFlowSelector && (
                                             <div style={{
                                                 position: 'absolute', bottom: '100%', left: 0, right: 0,
-                                                marginBottom: '8px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)',
+                                                marginBottom: '6px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)',
                                                 boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
-                                                zIndex: 999, overflow: 'hidden', padding: '6px'
+                                                zIndex: 999, overflow: 'hidden', padding: '4px'
                                             }}>
-                                                <div style={{ padding: '8px 10px', fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                <div style={{ padding: '6px 10px', fontSize: '0.6rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                     Escolha um fluxo
                                                 </div>
                                                 {companyFlows.map(flow => (
                                                     <div
                                                         key={flow.id}
                                                         onClick={() => handleStartFlow(flow.id)}
-                                                        style={{
-                                                            padding: '10px 12px', cursor: 'pointer', fontSize: '0.8rem',
-                                                            fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px',
-                                                            color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)',
-                                                            transition: 'all 0.1s'
-                                                        }}
+                                                        style={{ padding: '8px 10px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)', transition: 'all 0.1s' }}
                                                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
                                                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                                                     >
-                                                        <GitBranch size={14} style={{ color: 'var(--accent)' }} />
+                                                        <GitBranch size={12} style={{ color: 'var(--accent)' }} />
                                                         {flow.name}
                                                     </div>
                                                 ))}
@@ -1958,20 +2183,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     <button
                                         onClick={handleCloseConversation}
                                         style={{
-                                            width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                            backgroundColor: 'var(--bg-primary)', color: 'var(--error)', fontWeight: '800', fontSize: '0.75rem',
+                                            width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                                            backgroundColor: 'var(--bg-primary)', color: 'var(--error)', fontWeight: '800', fontSize: '0.7rem',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
                                         }}
                                         onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--error-soft)'}
                                         onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
                                     >
-                                        <X size={16} /> Encerrar Caso
+                                        <X size={14} /> Encerrar Caso
                                     </button>
                                 ) : (
                                     <div style={{
-                                        width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-secondary)',
+                                        border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.7rem',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                                     }}>
-                                        <XCircle size={16} /> Lead Encerrado: {selectedLead.closed_reason || 'Sem motivo'}
+                                        <XCircle size={14} /> Encerrado: {selectedLead.closed_reason || 'Sem motivo'}
                                     </div>
                                 )}
                             </div>

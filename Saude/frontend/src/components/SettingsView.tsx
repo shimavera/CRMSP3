@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, Clock, ChevronDown, ChevronRight, User, PauseCircle, Calendar as CalendarIcon, Save } from 'lucide-react';
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { Settings as SettingsIcon, Shield, Smartphone, RefreshCw, CheckCircle, XCircle, Loader2, QrCode, History, Users, Trash2, Plus, Eye, EyeOff, Video, Upload, Power, PowerOff, X, MessageSquareText, Building2, Edit2, Activity, LayoutDashboard, ChevronRight, User, Calendar as CalendarIcon, Save } from 'lucide-react';
 import { supabase } from "../lib/supabase";
 import type { UserProfile, SocialProofVideo, QuickMessage, Instance, IAGap } from '../lib/supabase';
 import PromptBuilderChat from './PromptBuilderChat';
@@ -69,7 +69,6 @@ function ExecutionLogsPanel({ companyId }: { companyId: string }) {
     const filtered = statusFilter === 'all' ? executions : executions.filter(e => e.status === statusFilter);
     const counts = executions.reduce((acc: any, e: any) => { acc[e.status] = (acc[e.status] || 0) + 1; return acc; }, {} as Record<string, number>);
 
-    const fmtDate = (s?: string) => { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
     const fmtTime = (s?: string) => { if (!s) return '—'; return new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
     
     const fmtDuration = (s?: string, e?: string) => {
