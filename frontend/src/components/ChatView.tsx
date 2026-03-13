@@ -384,6 +384,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         let text = '';
         let msgStyle: string | null = null;
         let isImage = false;
+        let isSticker = false;
         let isAudio = false;
         let isVideo = false;
         let sender: string | null = null;
@@ -409,6 +410,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 text = potentialUrl;
             }
             isImage = msgData.msgStyle === 'image' || msgData.type === 'image' || type === 'image' || !!msgData.image;
+            isSticker = msgData.msgStyle === 'sticker' || msgData.type === 'sticker' || type === 'sticker';
+            if (isSticker) isImage = true;
             isAudio = msgData.msgStyle === 'audio' || msgData.type === 'audio' || type === 'audio' || msgData.type === 'ptt' || type === 'ptt' || !!msgData.audio || !!msgData.ptt;
             isVideo = msgData.msgStyle === 'video' || msgData.type === 'video' || !!msgData.video;
             if (isVideo) type = 'video';
@@ -430,6 +433,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             type: isVideo ? 'video' : type,
             msgStyle,
             isImage,
+            isSticker,
             isAudio,
             isVideo,
             isAudioSent,
@@ -1515,21 +1519,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
                                                     <div className={`chat-bubble-wa ${!isOutgoing ? 'incoming' : 'outgoing'}`}>
                                                         {msg.isImage ? (
-                                                            <div style={{ position: 'relative' }}>
+                                                            <div style={{ position: 'relative', maxWidth: msg.isSticker ? '150px' : '280px' }}>
                                                                 <img
                                                                     src={msg.text.trim()}
-                                                                    alt="imagem"
-                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
+                                                                    alt={msg.isSticker ? 'sticker' : 'imagem'}
+                                                                    style={{ maxWidth: '100%', maxHeight: msg.isSticker ? '150px' : '280px', borderRadius: msg.isSticker ? '8px' : '4px', display: 'block', objectFit: 'contain' }}
                                                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                                 />
-                                                                <span className="wa-time" style={{ color: 'white', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>{msg.time}</span>
+                                                                {!msg.isSticker && <span className="wa-time" style={{ color: 'white', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>{msg.time}</span>}
+                                                                {msg.isSticker && <span className="wa-time">{msg.time}</span>}
                                                             </div>
                                                         ) : msg.isVideo || msg.type === 'video' ? (
-                                                            <div style={{ position: 'relative' }}>
+                                                            <div style={{ position: 'relative', maxWidth: '280px' }}>
                                                                 <video
                                                                     controls
                                                                     src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
-                                                                    style={{ maxWidth: '100%', borderRadius: '4px', display: 'block' }}
+                                                                    style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '4px', display: 'block' }}
                                                                     onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
                                                                 />
                                                                 <span className="wa-time" style={{ color: 'white', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>{msg.time}</span>
