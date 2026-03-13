@@ -18,6 +18,7 @@ export type UserProfile = {
     kanban: boolean;
     leads: boolean;
     settings: boolean;
+    calendar?: boolean;
   };
   created_at?: string;
 };
@@ -165,6 +166,35 @@ export type InstagramPost = {
   timestamp: string;
 };
 
+export type CalendarSettings = {
+  company_id: string;
+  ai_can_schedule: boolean;
+  google_access_token?: string;
+  google_refresh_token?: string;
+  google_token_expiry?: string;
+  google_calendar_id?: string;
+  default_meeting_duration: number;
+  business_hours: Record<string, { active: boolean; start: string; end: string }>;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CalendarEvent = {
+  id: number;
+  company_id: string;
+  lead_id?: number;
+  google_event_id?: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  status: 'scheduled' | 'cancelled' | 'completed' | 'no_show';
+  confirmation_status?: 'pending' | 'confirmed' | 'unconfirmed';
+  attendees?: any;
+  created_at?: string;
+  updated_at?: string;
+};
+
 // ===== Flow Builder Visual =====
 
 export type FlowNodeType = 'trigger' | 'send_message' | 'wait_delay' | 'condition' | 'action' | 'end';
@@ -181,7 +211,7 @@ export type FlowMessageItem = {
 
 export type TriggerNodeData = {
   label: string;
-  triggerType: 'manual' | 'stage_change' | 'new_lead' | 'no_response_timeout' | 'external_lead';
+  triggerType: 'manual' | 'stage_change' | 'new_lead' | 'no_response_timeout' | 'external_lead' | 'meeting_scheduled';
   config: Record<string, string>;
 };
 
@@ -199,23 +229,25 @@ export type WaitDelayNodeData = {
 
 export type ConditionNodeData = {
   label: string;
-  condition_type: 'lead_responded' | 'field_check' | 'stage_check' | 'custom_field_check';
+  condition_type: 'lead_responded' | 'field_check' | 'stage_check' | 'custom_field_check' | 'message_contains';
   config: {
     field?: string;
     operator?: 'equals' | 'not_equals' | 'contains' | 'exists';
     value?: string;
     stage?: string;
+    keyword?: string;
   };
 };
 
 export type ActionNodeData = {
   label: string;
-  action_type: 'move_stage' | 'update_field' | 'lock_followup' | 'unlock_followup' | 'close_conversation';
+  action_type: 'move_stage' | 'update_field' | 'lock_followup' | 'unlock_followup' | 'close_conversation' | 'update_calendar_confirmation';
   config: {
     stage?: string;
     field?: string;
     value?: string;
     reason?: string;
+    confirmation_status?: 'confirmed' | 'unconfirmed';
   };
 };
 
@@ -252,7 +284,7 @@ export type FlowDefinition = {
   company_id?: string;
   name: string;
   description?: string;
-  trigger_type: 'manual' | 'stage_change' | 'new_lead' | 'no_response_timeout' | 'external_lead';
+  trigger_type: 'manual' | 'stage_change' | 'new_lead' | 'no_response_timeout' | 'external_lead' | 'meeting_scheduled';
   trigger_config: Record<string, string>;
   flow_data: FlowData;
   is_active: boolean;
@@ -277,6 +309,7 @@ export type FlowExecution = {
   created_at?: string;
   updated_at?: string;
 };
+
 
 export type IAGap = {
   id: number;

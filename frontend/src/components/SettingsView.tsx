@@ -965,12 +965,19 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         pollingRef.current = setInterval(async () => {
             if (!activeInstance) return;
             qrRefreshCount++;
+            // Fallback para chave global e URL padrão (mesmo comportamento do getQrCode)
+            const apiKey = activeInstance.evo_api_key || evoGlobalKey || '';
+            const apiUrl = activeInstance.evo_api_url || 'https://evo.sp3company.shop';
+            if (!apiKey) {
+                console.error('[POLLING] Nenhuma apikey disponível para polling');
+                return;
+            }
             try {
                 // A cada 8 ciclos (~24s), buscar novo QR code (eles expiram em ~30s)
                 if (qrRefreshCount % 8 === 0) {
                     const qrRes = await fetch(
-                        `${activeInstance.evo_api_url}/instance/connect/${activeInstance.instance_name}`,
-                        { headers: { 'apikey': activeInstance.evo_api_key } }
+                        `${apiUrl}/instance/connect/${activeInstance.instance_name}`,
+                        { headers: { 'apikey': apiKey } }
                     );
                     if (qrRes.ok) {
                         const qrData = await qrRes.json();
@@ -989,8 +996,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 } else {
                     // Ciclos normais: só verificar status
                     const response = await fetch(
-                        `${activeInstance.evo_api_url}/instance/connectionState/${activeInstance.instance_name}`,
-                        { headers: { 'apikey': activeInstance.evo_api_key } }
+                        `${apiUrl}/instance/connectionState/${activeInstance.instance_name}`,
+                        { headers: { 'apikey': apiKey } }
                     );
                     if (response.ok) {
                         const data = await response.json();
@@ -1022,12 +1029,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         if (!activeInstance) return;
         if (!await showConfirm('Deseja realmente desconectar o WhatsApp?')) return;
 
+        const apiKey = activeInstance.evo_api_key || evoGlobalKey || '';
+        const apiUrl = activeInstance.evo_api_url || 'https://evo.sp3company.shop';
         try {
             await fetch(
-                `${activeInstance.evo_api_url}/instance/logout/${activeInstance.instance_name}`,
+                `${apiUrl}/instance/logout/${activeInstance.instance_name}`,
                 {
                     method: 'DELETE',
-                    headers: { 'apikey': activeInstance.evo_api_key }
+                    headers: { 'apikey': apiKey }
                 }
             );
             await supabase.from('sp3_instances')
