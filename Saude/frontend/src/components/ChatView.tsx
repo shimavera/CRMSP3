@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, User, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2 , Calendar as CalendarIcon} from 'lucide-react';
+import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, ArrowLeft, User, Paperclip, Clock, XCircle, GitBranch, Play, CheckCircle2, Calendar as CalendarIcon } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Theme } from 'emoji-picker-react';
-import { format, isPast, isToday, isYesterday, isSameDay } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import type { Lead, UserProfile, QuickMessage, FlowDefinition, FlowExecution } from '../lib/supabase';
@@ -13,16 +13,6 @@ interface ChatViewProps {
     openPhone?: string | null;
     onPhoneOpened?: () => void;
 }
-
-const InfoItem = ({ icon: Icon, label, value }: { icon: any, label: string, value: string }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ color: 'var(--text-muted)' }}><Icon size={16} /></div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500' }}>{label}</span>
-            <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{value || 'Pendente...'}</span>
-        </div>
-    </div>
-);
 
 const parseTextVariables = (text: string, lead: any) => {
     if (!text) return '';
@@ -58,11 +48,19 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     // Sincronizar leads se o componente pai (App.tsx) atualizar (Realtime ou refetch)
     useEffect(() => {
         setLeads(initialLeads);
-        // Se o lead selecionado estiver na lista que atualizou, atualiza ele também para pegar novos campos (como ai_summary)
-        if (selectedLead) {
-            const updated = initialLeads.find(l => l.id === selectedLead.id);
-            if (updated && JSON.stringify(updated.custom_fields) !== JSON.stringify(selectedLead.custom_fields)) {
-                setSelectedLead(updated);
+        // Usar ref para evitar closure stale do selectedLead
+        const current = selectedLeadRef.current;
+        if (current) {
+            const updated = initialLeads.find(l => l.id === current.id);
+            if (updated) {
+                // Atualizar selectedLead se qualquer campo mudou (observacoes, custom_fields, etc.)
+                const hasChanges = updated.observacoes !== current.observacoes
+                    || JSON.stringify(updated.custom_fields) !== JSON.stringify(current.custom_fields)
+                    || updated.ia_active !== current.ia_active
+                    || updated.status_funil !== current.status_funil;
+                if (hasChanges) {
+                    setSelectedLead(updated);
+                }
             }
         }
     }, [initialLeads]);
@@ -86,7 +84,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [chatFilter, setChatFilter] = useState<'all' | 'ia' | 'followup'>('all');
+    const [chatFilter, setChatFilter] = useState<'all' | 'ia'>('all');
     const [dialog, setDialog] = useState<{
         type: 'alert' | 'confirm' | 'prompt';
         title: string;
@@ -103,6 +101,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [showCloseChatModal, setShowCloseChatModal] = useState(false);
     const [closingReasons, setClosingReasons] = useState<string[]>(['Sem resposta', 'Muito caro', 'Sem interesse', 'Concorrente']);
     const [selectedCloseReason, setSelectedCloseReason] = useState<string>('');
+
 
     useEffect(() => {
         const fetchReasons = async () => {
@@ -135,62 +134,36 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputBarRef = useRef<HTMLDivElement>(null);
 
-    const [newTaskTitle, setNewTaskTitle] = useState('');
-    const [newTaskDate, setNewTaskDate] = useState('');
-
-    const CUSTOM_FIELDS_CONFIG: Array<{ key: string, label: string, type: string, placeholder?: string, options?: string[] }> = [
-        { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
-        { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
-        { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' },
-        { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' },
-        { key: 'email', label: 'E-mail', type: 'email', placeholder: 'email@exemplo.com' },
-        { key: 'proposta_valor', label: 'Valor da Proposta / Forecast', type: 'number', placeholder: 'Ex: 1500' }
-    ];
-
-    const handleUpdateCustomField = async (key: string, value: string) => {
+    const handleSaveMeeting = async (title: string, dateStr: string) => {
         if (!selectedLead) return;
+        try {
+            const startTime = new Date(dateStr);
+            if (isNaN(startTime.getTime())) {
+                alert('Data inválida. Use o formato AAAA-MM-DD HH:MM');
+                return;
+            }
+            const endTime = new Date(startTime.getTime() + 30 * 60000); // 30 min default
 
-        let finalValue = value;
-        // Se for campo de valor, remove caracteres não numéricos mas mantém o ponto decimal se houver
-        if (key === 'proposta_valor') {
-            finalValue = value.replace(/[^\d.]/g, '');
+            const { data, error } = await supabase
+                .from('sp3_calendar_events')
+                .insert({
+                    company_id: authUser.company_id,
+                    lead_id: selectedLead.id,
+                    title: title,
+                    start_time: startTime.toISOString(),
+                    end_time: endTime.toISOString(),
+                    status: 'scheduled'
+                })
+                .select();
+
+            if (error) throw error;
+            if (data && data.length > 0) {
+                setNextMeeting(data[0]);
+                alert('Reunião agendada com sucesso e adicionada à agenda!');
+            }
+        } catch (err: any) {
+            alert('Erro ao agendar: ' + err.message);
         }
-
-        const newCustomFields = { ...(selectedLead.custom_fields || {}), [key]: finalValue };
-        const updatedLead = { ...selectedLead, custom_fields: newCustomFields };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
-    };
-
-    const handleAddTask = async () => {
-        if (!selectedLead || !newTaskTitle || !newTaskDate) return;
-        const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
-        const newTasks = [...(selectedLead.tasks || []), newTask];
-        const updatedLead = { ...selectedLead, tasks: newTasks };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        setNewTaskTitle('');
-        setNewTaskDate('');
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
-    };
-
-    const handleToggleTask = async (taskId: string) => {
-        if (!selectedLead) return;
-        const newTasks = (selectedLead.tasks || []).map((t: any) => t.id === taskId ? { ...t, completed: !t.completed } : t);
-        const updatedLead = { ...selectedLead, tasks: newTasks };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
-    };
-
-    const handleDeleteTask = async (taskId: string) => {
-        if (!selectedLead) return;
-        const newTasks = (selectedLead.tasks || []).filter((t: any) => t.id !== taskId);
-        const updatedLead = { ...selectedLead, tasks: newTasks };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id);
     };
 
     const handleCloseConversation = () => {
@@ -227,12 +200,21 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const [nextMeeting, setNextMeeting] = useState<any>(null);
 
     const [showFlowSelector, setShowFlowSelector] = useState(false);
+
+    // Suporte ao ESC para fechar modais
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (showCloseChatModal) setShowCloseChatModal(false);
+                if (showFlowSelector) setShowFlowSelector(false);
+                if (dialog) setDialog(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showCloseChatModal, showFlowSelector, dialog]);
     const [isStartingFlow, setIsStartingFlow] = useState(false);
 
-    // Follow-up stage selector
-    const [showFollowupSelector, setShowFollowupSelector] = useState(false);
-    const [totalFollowupSteps, setTotalFollowupSteps] = useState(3);
-    const followupSelectorRef = useRef<HTMLDivElement>(null);
 
     // Funnel stage selector
     const [showStageSelector, setShowStageSelector] = useState(false);
@@ -274,34 +256,17 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         return () => window.removeEventListener('resize', handler);
     }, []);
 
-    // Carregar total de etapas de follow-up
-    useEffect(() => {
-        const loadTotalSteps = async () => {
-            const { data } = await supabase
-                .from('sp3_followup_steps')
-                .select('step_number')
-                .eq('company_id', authUser.company_id)
-                .order('step_number', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-            if (data) setTotalFollowupSteps(data.step_number);
-        };
-        loadTotalSteps();
-    }, [authUser.company_id]);
 
-    // Fechar dropdown de follow-up e stage selector ao clicar fora
+    // Fechar dropdown de stage selector ao clicar fora
     useEffect(() => {
         const handler = (e: MouseEvent) => {
-            if (showFollowupSelector && followupSelectorRef.current && !followupSelectorRef.current.contains(e.target as Node)) {
-                setShowFollowupSelector(false);
-            }
             if (showStageSelector && stageSelectorRef.current && !stageSelectorRef.current.contains(e.target as Node)) {
                 setShowStageSelector(false);
             }
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
-    }, [showFollowupSelector, showStageSelector]);
+    }, [showStageSelector]);
 
     // Carregar instância ativa da Evolution API
     useEffect(() => {
@@ -353,11 +318,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     }, [leads, openPhone]);
 
-    // Salvar seleção no localStorage + sincronizar observações e zerar contador
+    // Salvar seleção no localStorage + sincronizar observações/resumo + zerar contador
     useEffect(() => {
         if (selectedLead) {
             localStorage.setItem('last_selected_chat', selectedLead.telefone);
             setObservacoesInput(selectedLead.observacoes || '');
+            setAiSummary((selectedLead.custom_fields as any)?.ai_summary || null);
 
             // Zerar contador ao abrir
             setUnreadCounts(prev => {
@@ -368,6 +334,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 }
                 return prev;
             });
+        } else {
+            setObservacoesInput('');
+            setAiSummary(null);
         }
     }, [selectedLead?.id]);
 
@@ -552,7 +521,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             if ((lead as any).closed) return false;
             if (chatFilter === 'all') return true;
             if (chatFilter === 'ia') return lead.ia_active === true;
-            if (chatFilter === 'followup') return (lead.followup_stage || 0) > 0;
             return true;
         });
 
@@ -568,7 +536,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         return {
             all: activeLeads.length,
             ia: activeLeads.filter(l => l.ia_active).length,
-            followup: activeLeads.filter(l => (l.followup_stage || 0) > 0).length
         }
     }, [leads]);
 
@@ -613,13 +580,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     }, [messages]);
 
-    useEffect(() => {
-        if (selectedLead) {
-            setObservacoesInput(selectedLead.observacoes || '');
-            setAiSummary((selectedLead.custom_fields as any)?.ai_summary || null);
-        }
-    }, [selectedLead]);
-
     const handleGenerateAiSummary = async () => {
         if (!selectedLead) return;
         setIsGeneratingSummary(true);
@@ -645,7 +605,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         if (selectedLead) {
             fetchMessages();
         }
-    }, [selectedLead]);
+    }, [selectedLead?.id]);
 
     const handleToggleIA = async () => {
         if (!selectedLead) return;
@@ -674,75 +634,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     };
 
-    const handleToggleFollowup = async () => {
-        if (!selectedLead) return;
-        const newLocked = !selectedLead.followup_locked;
-
-        const { error } = await supabase
-            .from('sp3chat')
-            .update({ followup_locked: newLocked })
-            .eq('id', selectedLead.id);
-
-        if (error) {
-            await showAlert('Erro ao atualizar follow-up: ' + error.message);
-        } else {
-            setSelectedLead({ ...selectedLead, followup_locked: newLocked });
-            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const firstName = authUser.nome.split(' ')[0];
-            await supabase.from('n8n_chat_histories').insert([{
-                company_id: authUser.company_id,
-                session_id: selectedLead.telefone,
-                message: JSON.stringify({
-                    type: 'system',
-                    msgStyle: newLocked ? 'warning' : 'info',
-                    content: newLocked ? `🔒 Follow-up travado por ${firstName} em ${now}` : `🔓 Follow-up desbloqueado por ${firstName} em ${now}`
-                })
-            }]);
-        }
-    };
-
-    const handleChangeFollowupStage = async (newStage: number) => {
-        if (!selectedLead) return;
-        setShowFollowupSelector(false);
-
-        const updates: Record<string, any> = {
-            followup_stage: newStage,
-            followup_locked: false,
-        };
-        // Se definiu etapa > 0, garantir que o motor possa enviar a próxima
-        if (newStage > 0) {
-            updates.last_outbound_at = new Date().toISOString();
-        }
-
-        const { error } = await supabase
-            .from('sp3chat')
-            .update(updates)
-            .eq('id', selectedLead.id);
-
-        if (error) {
-            await showAlert('Erro ao alterar etapa: ' + error.message);
-        } else {
-            const updatedLead = { ...selectedLead, followup_stage: newStage, followup_locked: false };
-            setSelectedLead(updatedLead);
-            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-
-            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const firstName = authUser.nome.split(' ')[0];
-            const label = newStage === 0
-                ? `🔄 Follow-up removido por ${firstName} em ${now}`
-                : `📌 Follow-up alterado para ${newStage}ª etapa por ${firstName} em ${now}`;
-
-            await supabase.from('n8n_chat_histories').insert([{
-                company_id: authUser.company_id,
-                session_id: selectedLead.telefone,
-                message: JSON.stringify({
-                    type: 'system',
-                    msgStyle: newStage === 0 ? 'info' : 'followup',
-                    content: label
-                })
-            }]);
-        }
-    };
 
     // ─── Visual Flows: fetch available flows + active execution ─────────────
     useEffect(() => {
@@ -907,7 +798,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         if (error) {
             await showAlert('Erro ao salvar observações: ' + error.message);
         } else {
-            setSelectedLead({ ...selectedLead, observacoes: observacoesInput });
+            const updatedLead = { ...selectedLead, observacoes: observacoesInput };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
         }
     };
 
@@ -1238,12 +1131,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             >
                                 IA <span style={{ backgroundColor: chatFilter === 'ia' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 'var(--radius-xl)', fontSize: '0.65rem', border: '1px solid var(--border)' }}>{stats.ia}</span>
                             </button>
-                            <button
-                                onClick={() => setChatFilter('followup')}
-                                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', border: 'none', backgroundColor: chatFilter === 'followup' ? 'var(--bg-primary)' : 'transparent', color: chatFilter === 'followup' ? 'var(--warning)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: chatFilter === 'followup' ? '700' : '500', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: chatFilter === 'followup' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.1s' }}
-                            >
-                                F.UP <span style={{ backgroundColor: chatFilter === 'followup' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 'var(--radius-xl)', fontSize: '0.65rem', border: '1px solid var(--border)' }}>{stats.followup}</span>
-                            </button>
                         </div>
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -1336,56 +1223,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             <GitBranch size={14} /> FLUXO ATIVO
                                         </div>
                                     )}
-                                    <div style={{ position: 'relative' }} ref={followupSelectorRef}>
-                                        <div
-                                            onClick={() => setShowFollowupSelector(!showFollowupSelector)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--bg-primary)' : 'var(--bg-tertiary)', color: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--warning)' : 'var(--text-muted)', border: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', transition: 'all 0.1s' }}
-                                        >
-                                            <Clock size={14} /> {(selectedLead.followup_stage && selectedLead.followup_stage > 0) ? `F.UP: ${selectedLead.followup_stage}ª` : 'F.UP'} {selectedLead.followup_locked && <Lock size={12} />}
-                                        </div>
-
-                                        {showFollowupSelector && (
-                                            <div style={{
-                                                position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                                background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                                border: '1px solid #e5e7eb', zIndex: 999, minWidth: '200px', overflow: 'hidden'
-                                            }}>
-                                                <div style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '0.7rem', fontWeight: '800', color: '#6b7280', textTransform: 'uppercase' }}>
-                                                    Definir Etapa
-                                                </div>
-                                                <div
-                                                    onClick={() => handleChangeFollowupStage(0)}
-                                                    style={{
-                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
-                                                        display: 'flex', alignItems: 'center', gap: '8px',
-                                                        backgroundColor: (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent',
-                                                        color: 'var(--success)'
-                                                    }}
-                                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = (!selectedLead.followup_stage || selectedLead.followup_stage === 0) ? 'var(--success-soft)' : 'transparent')}
-                                                >
-                                                    🔄 Remover follow-up
-                                                </div>
-                                                {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
-                                                    <div
-                                                        key={stage}
-                                                        onClick={() => handleChangeFollowupStage(stage)}
-                                                        style={{
-                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
-                                                            display: 'flex', alignItems: 'center', gap: '8px',
-                                                            backgroundColor: selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent',
-                                                            color: selectedLead.followup_stage === stage ? 'var(--accent)' : 'var(--text-primary)'
-                                                        }}
-                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? 'var(--bg-tertiary)' : 'transparent')}
-                                                    >
-                                                        {selectedLead.followup_stage === stage ? '✓ ' : ''}{stage}ª Etapa
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
                                     <div style={{ position: 'relative' }} ref={stageSelectorRef}>
                                         <div
                                             onClick={() => setShowStageSelector(!showStageSelector)}
@@ -1579,20 +1416,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             </div>
                         </div>
 
-                        {(() => {
-                                if (!selectedLead) return null;
-                                const pendingTasks = (selectedLead.tasks || []).filter((t: any) => {
-                                    if (t.completed) return false;
-                                    const targetDate = new Date(t.due_date);
-                                    return isPast(targetDate) || isToday(targetDate);
-                                });
-                                if (pendingTasks.length === 0) return null;
-                                return (
-                                    <div className="animate-pulse" style={{ backgroundColor: 'var(--error-soft)', borderTop: '2px solid var(--error)', color: 'var(--error)', padding: '10px 16px', fontSize: '0.85rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
-                                        <AlertCircle size={18} /> ATENÇÃO: Lead com {pendingTasks.length} {pendingTasks.length === 1 ? 'tarefa vencendo ou em atraso' : 'tarefas vencendo ou em atraso'}!
-                                    </div>
-                                );
-                            })()}
 
                             <div ref={inputBarRef} style={{ padding: '1rem', display: 'flex', gap: '12px', backgroundColor: 'var(--bg-primary)', borderTop: '1px solid var(--border)', alignItems: 'center', position: 'relative' }}>
                                 {showEmojiPicker && (
@@ -1741,272 +1564,157 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
             {/* Painel lateral — apenas desktop */}
             {
-                !isMobile && <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', backgroundColor: 'var(--bg-primary)' }}>
+                !isMobile && <div style={{ width: '300px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', backgroundColor: 'var(--bg-primary)', borderLeft: '1px solid var(--border-soft)' }}>
                     {selectedLead && (
                         <>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
-                                    <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>
-                                        {(selectedLead.nome || 'L')[0].toUpperCase()}
-                                    </div>
-                                    <div style={{ minWidth: 0 }}>
-                                        <h3 style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{selectedLead.nome || 'Lead s/ nome'}</h3>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{selectedLead.telefone}</p>
-                                    </div>
+                            {/* Profile Header */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.75rem' }}>
+                                <div style={{ width: '72px', height: '72px', borderRadius: '50%', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', fontWeight: '800', boxShadow: '0 4px 14px rgba(0,0,0,0.1)' }}>
+                                    {(selectedLead.nome || 'L')[0].toUpperCase()}
+                                </div>
+                                <div>
+                                    <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>{selectedLead.nome || 'Lead sem nome'}</h3>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>{selectedLead.telefone}</p>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                                    <InfoItem icon={Building2} label="Status no Funil" value={selectedLead.stage || 'Sem estágio'} />
-                                    <InfoItem icon={MapPin} label="Localização" value={(selectedLead as any).cidade || 'Não informada'} />
-                                    <InfoItem icon={Clock} label="Criado em" value={selectedLead.created_at ? format(new Date(selectedLead.created_at), "dd/MM/yyyy HH:mm") : '-'} />
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                                    <div style={{ position: 'relative', flex: 1 }}>
-                                        <select
-                                            value={selectedLead.followup_stage || 0}
-                                            onChange={e => handleChangeFollowupStage(Number(e.target.value))}
-                                            style={{
-                                                width: '100%', fontSize: '0.75rem', padding: '6px 12px', borderRadius: 'var(--radius-md)', fontWeight: '700', cursor: 'pointer',
-                                                border: '1px solid var(--border)',
-                                                backgroundColor: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning-soft)' : 'var(--bg-tertiary)',
-                                                color: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning)' : 'var(--text-muted)',
-                                                outline: 'none', appearance: 'none', WebkitAppearance: 'none', transition: 'all 0.1s'
-                                            }}
-                                        >
-                                            <option value={0}>Sem follow-up</option>
-                                            {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
-                                                <option key={stage} value={stage}>
-                                                    {stage}º Follow-up
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }}>
-                                            <ArrowLeft size={10} style={{ transform: 'rotate(-90deg)' }} />
-                                        </div>
-                                    </div>
-                                    {selectedLead.followup_locked && (
-                                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--warning)', cursor: 'help' }} title="Follow-up travado">
-                                            <Lock size={14} />
-                                        </div>
-                                    )}
+                                {/* Quick Actions (Toggles) */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.25rem' }}>
+                                    <button
+                                        onClick={handleToggleIA}
+                                        style={{
+                                            padding: '6px 10px', borderRadius: '20px', border: `1px solid ${selectedLead.ia_active ? 'var(--success-soft)' : 'var(--border)'}`,
+                                            backgroundColor: selectedLead.ia_active ? 'var(--success-soft)' : 'var(--bg-secondary)',
+                                            color: selectedLead.ia_active ? 'var(--success)' : 'var(--text-muted)',
+                                            fontWeight: '700', fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.2s'
+                                        }}
+                                        title={selectedLead.ia_active ? "Sarah está ativa" : "Intervenção Humana (Sarah em pausa)"}
+                                    >
+                                        {selectedLead.ia_active ? <Power size={10} /> : <PowerOff size={10} />}
+                                        {selectedLead.ia_active ? 'Sarah Ativa' : 'Pausada'}
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* Contexto IA */}
-                            <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                    <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
-                                        <Bot size={14} /> Resumo Sarah
+                            {/* Informações Básicas (Clean layout) */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1rem', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-soft)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}><Building2 size={12} /> Funil</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{selectedLead.stage || 'Sem estágio'}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> Localização</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{(selectedLead as any).cidade || 'Não informada'}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={12} /> Início em</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{selectedLead.created_at ? format(new Date(selectedLead.created_at), "dd/MM/yy HH:mm") : '-'}</span>
+                                </div>
+
+                            </div>
+
+                            {/* Contexto IA Premium Card */}
+                            <div style={{
+                                padding: '1rem', borderRadius: 'var(--radius-lg)',
+                                background: 'linear-gradient(145deg, var(--bg-primary), var(--accent-light))',
+                                border: '1px solid var(--accent-soft)', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.05)',
+                                position: 'relative', overflow: 'hidden'
+                            }}>
+                                <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.05 }}><Bot size={80} /></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', position: 'relative', zIndex: 1 }}>
+                                    <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.05em' }}>
+                                        <Bot size={12} /> Resumo Sarah
                                     </h4>
                                     <button
                                         onClick={handleGenerateAiSummary}
                                         disabled={isGeneratingSummary}
-                                        style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '0.65rem', padding: '4px 10px', fontWeight: '700', cursor: 'pointer', color: 'var(--text-primary)', transition: 'all 0.1s' }}
-                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                        style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.6rem', padding: '4px 8px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)' }}
                                     >
-                                        {isGeneratingSummary ? <Loader2 size={12} className="animate-spin" /> : (aiSummary ? 'Atualizar' : 'Gerar')}
+                                        {isGeneratingSummary ? <Loader2 size={10} className="animate-spin" /> : (aiSummary ? 'Atualizar' : 'Gerar')}
                                     </button>
                                 </div>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.6', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic', margin: 0 }}>
-                                    {aiSummary || 'Analise a conversa para obter um resumo estratégico e próximos passos.'}
+                                <p style={{ position: 'relative', zIndex: 1, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.5', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic', margin: 0 }}>
+                                    {aiSummary || 'Deixe a Sarah resumir os pontos importantes desta conversa para você.'}
                                 </p>
                             </div>
 
                             {/* Observações */}
                             <div>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '0.05em' }}>Observações</h4>
+                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.05em' }}>Notas do Especialista</h4>
                                 <textarea
                                     value={observacoesInput}
                                     onChange={(e) => setObservacoesInput(e.target.value)}
-                                    placeholder="Anotações estratégicas sobre este lead..."
-                                    rows={4}
+                                    placeholder="Anotações estratégicas exclusivas para a equipe..."
+                                    rows={3}
                                     style={{
-                                        width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-soft)',
                                         backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem', lineHeight: '1.5',
-                                        fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'all 0.1s'
+                                        fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s',
+                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
                                     }}
                                     onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border-soft)'}
                                 />
                                 <button
                                     onClick={handleSaveObservacoes}
                                     disabled={isSavingObs}
                                     style={{
-                                        marginTop: '8px', width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                        backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.75rem',
+                                        marginTop: '6px', width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                        backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontWeight: '800', fontSize: '0.75rem',
                                         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: 'all 0.1s'
                                     }}
                                     onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
                                 >
-                                    {isSavingObs ? <Loader2 size={14} className="animate-spin" /> : '💾 Salvar Notas'}
+                                    {isSavingObs ? <Loader2 size={12} className="animate-spin" /> : '💾 Salvar Notas'}
                                 </button>
                             </div>
 
-                            {/* Campos Extra */}
-                            <div>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '0.05em' }}>Campos Extra</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    {CUSTOM_FIELDS_CONFIG.map(field => (
-                                        <div key={field.key}>
-                                            <label style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>{field.label}</label>
-                                            {field.type === 'select' ? (
-                                                <div style={{ position: 'relative' }}>
-                                                    <select
-                                                        value={(selectedLead.custom_fields || {})[field.key] || ''}
-                                                        onChange={e => handleUpdateCustomField(field.key, e.target.value)}
-                                                        style={{
-                                                            width: '100%', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                                            backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem',
-                                                            outline: 'none', appearance: 'none', WebkitAppearance: 'none', transition: 'all 0.1s'
-                                                        }}
-                                                    >
-                                                        <option value="">Selecione</option>
-                                                        {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                    </select>
-                                                    <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }}>
-                                                        <ArrowLeft size={10} style={{ transform: 'rotate(-90deg)' }} />
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <input
-                                                    type={field.type}
-                                                    placeholder={field.placeholder}
-                                                    value={(selectedLead.custom_fields || {})[field.key] || ''}
-                                                    onChange={e => handleUpdateCustomField(field.key, e.target.value)}
-                                                    style={{
-                                                        width: '100%', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                                        backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem',
-                                                        outline: 'none', boxSizing: 'border-box', transition: 'all 0.1s'
-                                                    }}
-                                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                                                />
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            
-                                {/* Agenda / Reunião */}
-                                {nextMeeting && (
-                                    <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--accent-soft)', border: '1px solid var(--accent)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent)', fontWeight: '800', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            <CalendarIcon size={14} /> Próxima Reunião
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-primary)' }}>{nextMeeting.title}</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                                <Clock size={12} />
-                                                {format(new Date(nextMeeting.start_time), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                                            </div>
+                            {/* Agenda / Reunião */}
+                            {nextMeeting && (
+                                <div style={{ padding: '14px', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.9 }}>
+                                        <CalendarIcon size={12} /> Próxima Reunião
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <span style={{ fontSize: '0.9rem', fontWeight: '800', lineHeight: '1.2' }}>{nextMeeting.title}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', opacity: 0.9 }}>
+                                            <Clock size={10} />
+                                            {format(new Date(nextMeeting.start_time), "dd/MM 'às' HH:mm", { locale: ptBR })}
                                         </div>
                                     </div>
-                                )}
-
-                                {/* Tarefas */}
-                            <div>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Tarefas</h4>
-
-                                {/* Nova Tarefa */}
-                                <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-                                    <input type="text" placeholder="O que precisa ser feito?" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', fontSize: '0.75rem', outline: 'none' }} />
-                                    <input type="datetime-local" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', fontSize: '0.75rem', outline: 'none' }} />
-                                    <button
-                                        disabled={!newTaskTitle || !newTaskDate}
-                                        onClick={handleAddTask}
-                                        style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent)', color: 'white', border: 'none', fontWeight: '800', fontSize: '0.7rem', cursor: 'pointer', opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1, transition: 'all 0.1s' }}
-                                    >
-                                        Adicionar Tarefa
-                                    </button>
                                 </div>
+                            )}
 
-                                {/* Lista de Tarefas */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    {(!selectedLead.tasks || selectedLead.tasks.length === 0) ? (
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', margin: '10px 0' }}>Sem tarefas pendentes.</p>
-                                    ) : (
-                                        [...selectedLead.tasks].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()).map(task => {
-                                            const isOverdue = !task.completed && isPast(new Date(task.due_date));
-                                            const isDueToday = !task.completed && isToday(new Date(task.due_date));
+                            {/* Agendar Reunião */}
+                            <div style={{ marginTop: '0.5rem' }}>
+                                <button
+                                    onClick={() => {
+                                        // Redirecionar para agenda ou abrir formulário mini?
+                                        // Vamos abrir um prompt simples por enquanto ou sugerir ir para a aba agenda
+                                        // Mas o usuário quer que "já adicione aqui na agenda"
+                                        const title = prompt('Título da Reunião:');
+                                        if (!title) return;
+                                        const date = prompt('Data e Hora (AAAA-MM-DD HH:MM):', format(new Date(), "yyyy-MM-dd HH:mm"));
+                                        if (!date) return;
 
-                                            return (
-                                                <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: task.completed ? 'var(--bg-tertiary)' : 'var(--bg-primary)', border: '1px solid var(--border)', opacity: task.completed ? 0.6 : 1, transition: 'all 0.1s' }}>
-                                                    <button
-                                                        onClick={() => handleToggleTask(task.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: task.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', marginTop: '2px' }}
-                                                    >
-                                                        {task.completed ? <CheckCircle2 size={16} /> : <div style={{ width: '14px', height: '14px', borderRadius: 'var(--radius-xs)', border: '1.5px solid currentColor' }} />}
-                                                    </button>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <p style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', marginBottom: '2px', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</p>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: isOverdue ? 'var(--error)' : (isDueToday ? 'var(--warning)' : 'var(--text-muted)'), fontWeight: '700' }}>
-                                                            <Clock size={10} />
-                                                            {format(new Date(task.due_date), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handleDeleteTask(task.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '2px', opacity: 0.4, transition: 'all 0.1s' }}
-                                                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                        onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
+                                        handleSaveMeeting(title, date);
+                                    }}
+                                    style={{
+                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                                        backgroundColor: 'var(--bg-primary)', color: 'var(--accent)', fontWeight: '800', fontSize: '0.75rem',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                >
+                                    <CalendarIcon size={16} /> Agendar Reunião
+                                </button>
                             </div>
 
-                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                    <button
-                                        onClick={handleToggleIA}
-                                        style={{
-                                            padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                            backgroundColor: selectedLead.ia_active ? 'var(--error-soft)' : 'var(--success-soft)',
-                                            color: selectedLead.ia_active ? 'var(--error)' : 'var(--success)',
-                                            fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
-                                        }}
-                                    >
-                                        {selectedLead.ia_active ? <PowerOff size={14} /> : <Power size={14} />}
-                                        {selectedLead.ia_active ? 'Pausar Sarah' : 'Ativar Sarah'}
-                                    </button>
 
-                                    <button
-                                        onClick={handleToggleFollowup}
-                                        style={{
-                                            padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                            backgroundColor: selectedLead.followup_locked ? 'var(--success-soft)' : 'var(--warning-soft)',
-                                            color: selectedLead.followup_locked ? 'var(--success)' : 'var(--warning)',
-                                            fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
-                                        }}
-                                    >
-                                        {selectedLead.followup_locked ? <Unlock size={14} /> : <Lock size={14} />}
-                                        {selectedLead.followup_locked ? 'Liberar F/U' : 'Travar F/U'}
-                                    </button>
-                                </div>
-
-                                {/* Sarah Intervention Block */}
-                                <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead.ia_active ? 'var(--success-soft)' : 'var(--warning-soft)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: selectedLead.ia_active ? 'var(--success)' : 'var(--warning)', boxShadow: `0 0 10px ${selectedLead.ia_active ? 'var(--success)' : 'var(--warning)'}` }} />
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.7rem', fontWeight: '800', color: selectedLead.ia_active ? 'var(--success)' : 'var(--warning)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            {selectedLead.ia_active ? 'Sarah Ativa' : 'Intervenção Humana'}
-                                        </span>
-                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-                                            {selectedLead.ia_active ? 'IA conduzindo a conversa' : 'Aguardando ação manual'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Fluxo Visual */}
-                                {activeFlowExec ? (
+                                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {/* Fluxo Visual */}
+                                    {activeFlowExec ? (
                                     <div style={{
                                         width: '100%', padding: '12px', borderRadius: 'var(--radius-md)',
                                         backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)',

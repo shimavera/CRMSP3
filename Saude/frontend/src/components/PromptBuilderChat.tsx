@@ -153,14 +153,12 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
         try {
             await onSavePrompt(pendingPrompt);
             setPendingPrompt(null);
-            setMessages([]);
-            localStorage.removeItem(storageKey);
             setSaveSuccess(true);
             setTimeout(() => {
                 setSaveSuccess(false);
-                setMessages([{
+                setMessages(prev => [...prev, {
                     role: 'assistant',
-                    content: 'Prompt salvo com sucesso! Uma nova versão foi criada no histórico. Se precisar de mais ajustes no futuro, é só voltar aqui.',
+                    content: 'Prompt atualizado com sucesso! Você pode continuar ajustando aqui se precisar.',
                     timestamp: new Date().toISOString(),
                 }]);
             }, 1500);

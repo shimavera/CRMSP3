@@ -71,6 +71,7 @@ function ExecutionLogsPanel({ companyId }: { companyId: string }) {
 
     const fmtDate = (s?: string) => { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
     const fmtTime = (s?: string) => { if (!s) return '—'; return new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+    
     const fmtDuration = (s?: string, e?: string) => {
         if (!s || !e) return '—';
         const ms = new Date(e).getTime() - new Date(s).getTime();
@@ -82,146 +83,144 @@ function ExecutionLogsPanel({ companyId }: { companyId: string }) {
         return `${Math.floor(min / 60)}h ${min % 60}m`;
     };
 
+    const selectedExec = expandedId ? executions.find(e => e.id === expandedId) : null;
+    const logEntries = selectedExec?.execution_log || [];
+
     return (
-        <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                <Activity size={20} style={{ color: 'var(--accent)' }} />
-                <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0 }}>Logs de Execução</h3>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
-                        {executions.length} execuç{executions.length === 1 ? 'ão' : 'ões'} total
-                        {counts.running ? ` · ${counts.running} rodando` : ''}
-                        {counts.failed ? ` · ${counts.failed} falha(s)` : ''}
-                    </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 450px', gap: '1.25rem', height: 'calc(100vh - 200px)', animation: 'fadeIn 0.3s ease-out' }}>
+            {/* LIST PANEL */}
+            <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                    <Activity size={18} style={{ color: 'var(--accent)' }} />
+                    <div style={{ flex: 1 }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: '800', margin: 0 }}>Logs de Execução</h3>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', marginTop: '2px' }}>
+                            {executions.length} total {counts.running ? ` · ${counts.running} rodando` : ''}
+                        </div>
+                    </div>
+                    <button onClick={loadLogs} title="Atualizar" style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border-soft)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                        <RefreshCw size={12} style={isLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
+                    </button>
                 </div>
 
-                {/* Filter chips */}
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {/* Filter bar */}
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)', display: 'flex', gap: '4px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     {(['all', 'running', 'completed', 'failed', 'paused'] as const).map(s => (
                         <button key={s} onClick={() => setStatusFilter(s)} style={{
-                            padding: '4px 10px', borderRadius: '20px', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                            background: statusFilter === s ? (s === 'all' ? 'var(--accent)' : LOG_STATUS_CFG[s].bg) : 'var(--bg-tertiary)',
-                            color: statusFilter === s ? (s === 'all' ? 'white' : LOG_STATUS_CFG[s].color) : 'var(--text-muted)',
+                            padding: '4px 8px', borderRadius: '6px', border: 'none', fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                            background: statusFilter === s ? (s === 'all' ? 'var(--text-primary)' : LOG_STATUS_CFG[s].bg) : 'transparent',
+                            color: statusFilter === s ? (s === 'all' ? 'var(--bg-primary)' : LOG_STATUS_CFG[s].color) : 'var(--text-muted)',
                         }}>
-                            {s === 'all' ? `Todos (${executions.length})` : `${LOG_STATUS_CFG[s].label} (${counts[s] || 0})`}
+                            {s === 'all' ? `TODOS` : LOG_STATUS_CFG[s].label.toUpperCase()}
                         </button>
                     ))}
                 </div>
 
-                <button onClick={loadLogs} title="Atualizar" style={{
-                    padding: '8px', borderRadius: '8px', border: '1px solid var(--border-soft)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0,
-                }}>
-                    <RefreshCw size={14} style={isLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
-                </button>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                    {isLoading ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}><Loader2 size={24} className="animate-spin" color="var(--accent)" /></div>
+                    ) : filtered.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '60px 20px', opacity: 0.5 }}>
+                            <Activity size={32} style={{ marginBottom: '8px' }} />
+                            <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>Nenhuma execução encontrada</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {filtered.map(exec => {
+                                const cfg = LOG_STATUS_CFG[exec.status] || LOG_STATUS_CFG.failed;
+                                const isActive = expandedId === exec.id;
+                                return (
+                                    <button 
+                                        key={exec.id} 
+                                        onClick={() => setExpandedId(isActive ? null : exec.id)} 
+                                        style={{
+                                            width: '100%', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px',
+                                            borderRadius: '10px', border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-soft)', 
+                                            background: isActive ? 'var(--accent-soft)' : 'var(--bg-secondary)', cursor: 'pointer', textAlign: 'left',
+                                            transition: 'all 0.1s ease', position: 'relative'
+                                        }}
+                                    >
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0 }} />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between' }}>
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exec.flow_name}</span>
+                                                <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{fmtTime(exec.started_at)}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                <User size={10} /> {exec.lead_nome || `Lead #${exec.lead_id}`}
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={14} style={{ opacity: 0.4, transform: isActive ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-                {isLoading ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
-                        <Loader2 size={28} style={{ color: 'var(--accent)', animation: 'spin 1s linear infinite' }} />
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                        <Activity size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
-                        <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '4px' }}>
-                            {executions.length === 0 ? 'Nenhuma execução registrada' : 'Nenhuma execução com esse filtro'}
-                        </p>
-                        <p style={{ fontSize: '0.8rem' }}>
-                            {executions.length === 0 ? 'Quando seus fluxos de follow-up forem disparados, os logs aparecerão aqui.' : 'Tente mudar o filtro de status.'}
-                        </p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {filtered.map(exec => {
-                            const cfg = LOG_STATUS_CFG[exec.status] || LOG_STATUS_CFG.failed;
-                            const isExpanded = expandedId === exec.id;
-                            const log = exec.execution_log || [];
-                            return (
-                                <div key={exec.id} style={{
-                                    borderRadius: '10px', border: `1px solid ${isExpanded ? 'var(--accent)' : 'var(--border-soft)'}`, background: 'var(--bg-secondary)', overflow: 'hidden',
-                                }}>
-                                    <button onClick={() => setExpandedId(isExpanded ? null : exec.id)} style={{
-                                        width: '100%', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
-                                        border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
-                                    }}>
-                                        {/* Status */}
-                                        <span style={{
-                                            padding: '3px 8px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 600, minWidth: '76px',
-                                            background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', gap: '4px',
-                                        }}>
-                                            {exec.status === 'running' && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
-                                            {exec.status === 'paused' && <PauseCircle size={10} />}
-                                            {exec.status === 'completed' && <CheckCircle size={10} />}
-                                            {exec.status === 'failed' && <XCircle size={10} />}
-                                            {cfg.label}
-                                        </span>
-
-                                        {/* Flow name */}
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
-                                            {exec.flow_name}
-                                        </span>
-
-                                        {/* Lead */}
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-secondary)', flex: 1, minWidth: 0 }}>
-                                            <User size={11} style={{ flexShrink: 0 }} />
-                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {exec.lead_nome || `Lead #${exec.lead_id}`}
-                                            </span>
-                                        </span>
-
-                                        {/* Date */}
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                                            <Clock size={11} /> {fmtDate(exec.started_at)}
-                                        </span>
-
-                                        {/* Duration */}
-                                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', minWidth: '50px', textAlign: 'right', flexShrink: 0 }}>
-                                            {fmtDuration(exec.started_at, exec.completed_at)}
-                                        </span>
-
-                                        {isExpanded ? <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
-                                    </button>
-
-                                    {isExpanded && (
-                                        <div style={{ borderTop: '1px solid var(--border-soft)', padding: '12px 14px', background: 'var(--bg-tertiary)' }}>
-                                            <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                                <span>ID: #{exec.id}</span>
-                                                {exec.lead_telefone && <span>Tel: {exec.lead_telefone}</span>}
-                                                <span>Início: {fmtDate(exec.started_at)}</span>
-                                                {exec.completed_at && <span>Fim: {fmtDate(exec.completed_at)}</span>}
-                                            </div>
-                                            {log.length === 0 ? (
-                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem detalhes de execução.</p>
-                                            ) : (
-                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                    {log.map((entry: any, i: number) => (
-                                                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', position: 'relative', paddingLeft: '18px', paddingBottom: i < log.length - 1 ? '8px' : 0 }}>
-                                                            {i < log.length - 1 && <div style={{ position: 'absolute', left: '6px', top: '12px', width: '1px', bottom: 0, background: 'var(--border-soft)' }} />}
-                                                            <div style={{
-                                                                position: 'absolute', left: '2px', top: '4px', width: '9px', height: '9px', borderRadius: '50%',
-                                                                background: (entry.action || '').includes('Erro') ? '#ef4444' : (entry.action || '').includes('finalizado') ? '#10b981' : 'var(--accent)',
-                                                                border: '2px solid var(--bg-tertiary)',
-                                                            }} />
-                                                            <div style={{ flex: 1 }}>
-                                                                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                                                    {entry.action}
-                                                                    {entry.result && <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '6px' }}>— {entry.result}</span>}
-                                                                </div>
-                                                                <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
-                                                                    {entry.node_id && `${entry.node_id} · `}{fmtTime(entry.timestamp)}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+            {/* DETAILS PANEL */}
+            <div className="glass-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {selectedExec ? (
+                    <Fragment>
+                        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-secondary)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800' }}>{selectedExec.flow_name}</h4>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '600', marginTop: '2px' }}>EXECUÇÃO #{selectedExec.id}</div>
                                 </div>
-                            );
-                        })}
+                                <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '0.62rem', fontWeight: 800, background: (LOG_STATUS_CFG[selectedExec.status] || LOG_STATUS_CFG.failed).bg, color: (LOG_STATUS_CFG[selectedExec.status] || LOG_STATUS_CFG.failed).color, textTransform: 'uppercase' }}>
+                                    {(LOG_STATUS_CFG[selectedExec.status] || LOG_STATUS_CFG.failed).label}
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div style={{ background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}>
+                                    <div style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Lead</div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: '700', marginTop: '2px' }}>{selectedExec.lead_nome || 'N/A'}</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>{selectedExec.lead_telefone || ''}</div>
+                                </div>
+                                <div style={{ background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-soft)' }}>
+                                    <div style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tempo Total</div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: '700', marginTop: '2px' }}>{fmtDuration(selectedExec.started_at, selectedExec.completed_at)}</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>Início: {fmtTime(selectedExec.started_at)}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                            {logEntries.length === 0 ? (
+                                <div style={{ textAlign: 'center', marginTop: '40px', opacity: 0.5 }}>
+                                    <Activity size={32} style={{ marginBottom: '8px' }} />
+                                    <p style={{ fontSize: '0.75rem' }}>Nenhum log detalhado disponível</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                                    {logEntries.map((entry: any, i: number) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', position: 'relative', paddingLeft: '20px', paddingBottom: '16px' }}>
+                                            {i < logEntries.length - 1 && <div style={{ position: 'absolute', left: '7px', top: '14px', width: '1px', bottom: 0, background: 'var(--border-soft)' }} />}
+                                            <div style={{ 
+                                                position: 'absolute', left: '3px', top: '5px', width: '9px', height: '9px', borderRadius: '50%', 
+                                                background: (entry.action || '').includes('Erro') ? '#ef4444' : (entry.action || '').includes('finalizado') ? '#10b981' : 'var(--accent)',
+                                                border: '2px solid var(--bg-primary)', zIndex: 1
+                                            }} />
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)' }}>{entry.action}</div>
+                                                {entry.result && <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px', background: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-soft)' }}>{entry.result}</div>}
+                                                <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                                    {fmtTime(entry.timestamp)} {entry.node_id ? ` · No: ${entry.node_id}` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </Fragment>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.4 }}>
+                        <History size={48} style={{ marginBottom: '1rem' }} />
+                        <p style={{ fontWeight: '600', fontSize: '0.85rem' }}>Selecione um log ao lado</p>
                     </div>
                 )}
             </div>

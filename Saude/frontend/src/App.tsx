@@ -547,7 +547,31 @@ function App() {
       </aside>
 
       <main className="main-content" style={activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : activeTab !== 'dashboard' ? { paddingTop: '1.5rem' } : undefined}>
-        {activeTab !== 'chats' && (
+        {/* Toggle button when header is hidden */}
+        {activeTab !== 'dashboard' && activeTab !== 'chats' && (
+          <button
+            onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
+            style={{ 
+              position: 'fixed', 
+              top: '1rem', 
+              left: desktopSidebarOpen ? '250px' : '1rem', 
+              zIndex: 1000, 
+              background: 'var(--accent-soft)', 
+              border: 'none', 
+              cursor: 'pointer', 
+              color: 'var(--accent)', 
+              padding: '8px', 
+              borderRadius: 'var(--radius-md)', 
+              display: isMobile ? 'none' : 'flex', 
+              alignItems: 'center', 
+              transition: 'all 0.3s ease' 
+            }}
+            title={desktopSidebarOpen ? "Ocultar Menu" : "Mostrar Menu"}
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        {activeTab === 'dashboard' && (
           <header className="main-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: activeTab === 'dashboard' ? '3rem' : '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
