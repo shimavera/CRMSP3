@@ -21,6 +21,8 @@ const WEBHOOK_URL = `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/prompt-bui
 function cleanMessageContent(content: string): string {
     return content
         .replace(/\[PROMPT_FINAL\][\s\S]*?\[\/PROMPT_FINAL\]/g, '')
+        .replace(/\[PROMPT_FINAL\][\s\S]*/g, '')
+        .replace(/\[\/PROMPT_FINAL\]/g, '')
         .replace(/---[\s\S]*?---/g, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
