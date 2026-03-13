@@ -66,7 +66,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 const hasChanges = updated.observacoes !== current.observacoes
                     || JSON.stringify(updated.custom_fields) !== JSON.stringify(current.custom_fields)
                     || updated.ia_active !== current.ia_active
-                    || updated.status_funil !== current.status_funil;
+                    || updated.stage !== current.stage;
                 if (hasChanges) {
                     setSelectedLead(updated);
                 }
@@ -164,13 +164,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                     title: title,
                     start_time: startTime.toISOString(),
                     end_time: endTime.toISOString(),
-                    status: 'scheduled'
+                    status: 'scheduled',
+                    confirmation_status: 'pending'
                 })
                 .select();
 
             if (error) throw error;
+
+            // Setar meeting_datetime no lead (dispara fluxo de confirmação)
+            await supabase
+                .from('sp3chat')
+                .update({ meeting_datetime: startTime.toISOString() })
+                .eq('id', selectedLead.id);
+
             if (data && data.length > 0) {
                 setNextMeeting(data[0]);
+                setSelectedLead({ ...selectedLead, meeting_datetime: startTime.toISOString() });
                 await showAlert('Reunião agendada com sucesso!');
             }
         } catch (err: any) {
@@ -229,11 +238,23 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
 
     const [editingCustomFields, setEditingCustomFields] = useState<Record<string, string>>({});
+    const [isSavingCustomFields, setIsSavingCustomFields] = useState(false);
     const followupSelectorRef = useRef<HTMLDivElement>(null);
+
+    // Sidebar accordion
+    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+        info: true, aiSummary: true, notes: false, customFields: false, tasks: false, meeting: false,
+    });
+    const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+    // Inline meeting form
+    const [meetingTitle, setMeetingTitle] = useState('');
+    const [meetingDate, setMeetingDate] = useState('');
 
     // Tasks
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [newTaskDate, setNewTaskDate] = useState('');
+    const [isSavingTasks, setIsSavingTasks] = useState(false);
 
     // Funnel stage selector
     const [showStageSelector, setShowStageSelector] = useState(false);
@@ -868,8 +889,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const handleSaveCustomFields = async () => {
         if (!selectedLead) return;
+        setIsSavingCustomFields(true);
         const merged = { ...(selectedLead.custom_fields || {}), ...editingCustomFields };
         const { error } = await supabase.from('sp3chat').update({ custom_fields: merged }).eq('id', selectedLead.id);
+        setIsSavingCustomFields(false);
         if (error) {
             await showAlert('Erro ao salvar campos: ' + error.message);
         } else {
@@ -881,10 +904,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
     const handleAddTask = async () => {
         if (!selectedLead || !newTaskTitle || !newTaskDate) return;
+        setIsSavingTasks(true);
         const currentTasks = selectedLead.tasks || [];
         const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
         const updatedTasks = [...currentTasks, newTask];
         const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        setIsSavingTasks(false);
         if (error) {
             await showAlert('Erro ao adicionar tarefa: ' + error.message);
         } else {
@@ -2052,8 +2077,23 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     {expandedSections.meeting && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px' }}>
                                             {nextMeeting && (
-                                                <div style={{ padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--accent)', color: 'white' }}>
-                                                    <div style={{ fontSize: '0.6rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.9, marginBottom: '4px' }}>Próxima Reunião</div>
+                                                <div style={{
+                                                    padding: '10px', borderRadius: 'var(--radius-md)', color: 'white',
+                                                    backgroundColor: nextMeeting.confirmation_status === 'confirmed' ? '#10b981'
+                                                        : nextMeeting.confirmation_status === 'unconfirmed' ? '#ef4444'
+                                                        : 'var(--accent)',
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                        <span style={{ fontSize: '0.6rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.9 }}>Próxima Reunião</span>
+                                                        <span style={{
+                                                            fontSize: '0.55rem', fontWeight: '700', padding: '2px 6px',
+                                                            borderRadius: '100px', backgroundColor: 'rgba(255,255,255,0.2)',
+                                                        }}>
+                                                            {nextMeeting.confirmation_status === 'confirmed' ? 'Confirmada'
+                                                                : nextMeeting.confirmation_status === 'unconfirmed' ? 'Não confirmada'
+                                                                : 'Pendente'}
+                                                        </span>
+                                                    </div>
                                                     <span style={{ fontSize: '0.8rem', fontWeight: '800', lineHeight: '1.2' }}>{nextMeeting.title}</span>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', opacity: 0.9, marginTop: '4px' }}>
                                                         <Clock size={10} />

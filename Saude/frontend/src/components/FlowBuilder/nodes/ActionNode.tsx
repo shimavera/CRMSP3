@@ -9,6 +9,7 @@ const ACTION_LABELS: Record<string, string> = {
   lock_followup: 'Pausar Follow-up',
   unlock_followup: 'Retomar Follow-up',
   close_conversation: 'Fechar Conversa',
+  update_calendar_confirmation: 'Atualizar Confirmação',
 };
 
 export default function ActionNode({ data, selected }: NodeProps) {
@@ -30,6 +31,9 @@ export default function ActionNode({ data, selected }: NodeProps) {
       )}
       {d.action_type === 'close_conversation' && d.config?.reason && (
         <div style={s.badge}>{d.config.reason}</div>
+      )}
+      {d.action_type === 'update_calendar_confirmation' && d.config?.confirmation_status && (
+        <div style={s.badge}>{d.config.confirmation_status === 'confirmed' ? '✓ Confirmado' : '✗ Não confirmado'}</div>
       )}
       <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE_OUTPUT} />
     </div>

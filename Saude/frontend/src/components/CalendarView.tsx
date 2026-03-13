@@ -173,6 +173,23 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
                         />
                     </div>
 
+                    {/* Status de Confirmação */}
+                    {!isNew && event?.confirmation_status && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Confirmação:</span>
+                            <span style={{
+                                padding: '4px 12px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700,
+                                backgroundColor: event.confirmation_status === 'confirmed' ? 'rgba(16,185,129,0.1)'
+                                    : event.confirmation_status === 'unconfirmed' ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.1)',
+                                color: event.confirmation_status === 'confirmed' ? '#10b981'
+                                    : event.confirmation_status === 'unconfirmed' ? '#ef4444' : 'var(--accent)',
+                            }}>
+                                {event.confirmation_status === 'confirmed' ? 'Confirmado'
+                                    : event.confirmation_status === 'unconfirmed' ? 'Não confirmado' : 'Pendente'}
+                            </span>
+                        </div>
+                    )}
+
                     {/* Ações Finais */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px', borderTop: '1px solid var(--border-soft)', paddingTop: '20px' }}>
                         {!isNew && onDelete && event?.id && (
@@ -505,7 +522,11 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                                                         height: `${lengthMin * pixelsPerMin}px`,
                                                         left: `${leftOffset}%`,
                                                         width: `${width}%`,
-                                                        background: event.status === 'cancelled' ? 'var(--bg-tertiary)' : (event.status === 'completed' ? '#e6f4ea' : 'var(--accent)'),
+                                                        background: event.status === 'cancelled' ? 'var(--bg-tertiary)'
+                                                            : event.status === 'completed' ? '#e6f4ea'
+                                                            : event.confirmation_status === 'confirmed' ? '#10b981'
+                                                            : event.confirmation_status === 'unconfirmed' ? '#ef4444'
+                                                            : 'var(--accent)',
                                                         color: event.status === 'cancelled' ? 'var(--text-muted)' : (event.status === 'completed' ? '#1e8e3e' : 'white'),
                                                         border: '1px solid rgba(255,255,255,0.2)',
                                                         borderRadius: '6px',
@@ -536,6 +557,11 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                                                     <div style={{ fontSize: '0.65rem', opacity: 0.9 }}>
                                                         {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                     </div>
+                                                    {event.confirmation_status && event.confirmation_status !== 'pending' && event.status === 'scheduled' && (
+                                                        <div style={{ fontSize: '0.55rem', fontWeight: 700, opacity: 0.9, marginTop: '1px' }}>
+                                                            {event.confirmation_status === 'confirmed' ? '✓ Confirmado' : '✗ Não confirmado'}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
