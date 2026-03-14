@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, Lock, Unlock, ArrowLeft, Paperclip, Clock, Trash2, AlertCircle, XCircle, GitBranch, Play, CheckCircle2, Download } from 'lucide-react';
+import { Send, MapPin, Building2, Bot, Loader2, Power, PowerOff, Smile, TrendingUp, Mic, Search, X, StopCircle, ArrowLeft, User, Paperclip, Clock, XCircle, GitBranch, Play, CheckCircle2, Calendar as CalendarIcon, ChevronRight, Trash2, Square, CheckSquare, Plus, FileText, ListTodo, Lock, Unlock, Download, StickyNote } from 'lucide-react';
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
+import DateTimePicker from './DateTimePicker';
 import { Theme } from 'emoji-picker-react';
-import { format, isPast, isToday, isYesterday, isSameDay } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import type { Lead, UserProfile, QuickMessage, FlowDefinition, FlowExecution } from '../lib/supabase';
@@ -14,15 +15,14 @@ interface ChatViewProps {
     onPhoneOpened?: () => void;
 }
 
-const InfoItem = ({ icon: Icon, label, value }: { icon: any, label: string, value: string }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ color: 'var(--text-muted)' }}><Icon size={16} /></div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500' }}>{label}</span>
-            <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{value || 'Pendente...'}</span>
-        </div>
-    </div>
-);
+const SIDEBAR_CUSTOM_FIELDS: Array<{ key: string; label: string; type: string; placeholder?: string; options?: string[] }> = [
+    { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
+    { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
+    { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' },
+    { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' },
+    { key: 'email', label: 'E-mail', type: 'email', placeholder: 'email@exemplo.com' },
+    { key: 'proposta_valor', label: 'Valor da Proposta / Forecast', type: 'number', placeholder: 'Ex: 1500' },
+];
 
 const parseTextVariables = (text: string, lead: any) => {
     if (!text) return '';
@@ -51,17 +51,26 @@ const parseTextVariables = (text: string, lead: any) => {
 };
 
 const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatViewProps) => {
+    const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
     // Sincronizar leads se o componente pai (App.tsx) atualizar (Realtime ou refetch)
     useEffect(() => {
         setLeads(initialLeads);
-        // Se o lead selecionado estiver na lista que atualizou, atualiza ele também para pegar novos campos (como ai_summary)
-        if (selectedLead) {
-            const updated = initialLeads.find(l => l.id === selectedLead.id);
-            if (updated && JSON.stringify(updated.custom_fields) !== JSON.stringify(selectedLead.custom_fields)) {
-                setSelectedLead(updated);
+        // Usar ref para evitar closure stale do selectedLead
+        const current = selectedLeadRef.current;
+        if (current) {
+            const updated = initialLeads.find(l => l.id === current.id);
+            if (updated) {
+                // Atualizar selectedLead se qualquer campo mudou (observacoes, custom_fields, etc.)
+                const hasChanges = updated.observacoes !== current.observacoes
+                    || JSON.stringify(updated.custom_fields) !== JSON.stringify(current.custom_fields)
+                    || updated.ia_active !== current.ia_active
+                    || updated.stage !== current.stage;
+                if (hasChanges) {
+                    setSelectedLead(updated);
+                }
             }
         }
     }, [initialLeads]);
@@ -84,8 +93,9 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const timerRef = useRef<any>(null);
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState('');
+    const [noteMode, setNoteMode] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [chatFilter, setChatFilter] = useState<'all' | 'ia' | 'followup'>('all');
+    const [chatFilter, setChatFilter] = useState<'all' | 'ia'>('all');
     const [dialog, setDialog] = useState<{
         type: 'alert' | 'confirm' | 'prompt';
         title: string;
@@ -100,8 +110,12 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     });
 
     const [showCloseChatModal, setShowCloseChatModal] = useState(false);
+    const [showFlowSelector, setShowFlowSelector] = useState(false);
+    const [showFollowupSelector, setShowFollowupSelector] = useState(false);
+    const [showMeetingForm, setShowMeetingForm] = useState(false);
     const [closingReasons, setClosingReasons] = useState<string[]>(['Sem resposta', 'Muito caro', 'Sem interesse', 'Concorrente']);
     const [selectedCloseReason, setSelectedCloseReason] = useState<string>('');
+
 
     useEffect(() => {
         const fetchReasons = async () => {
@@ -120,8 +134,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             const { error } = await supabase
                 .from('sp3chat')
                 .update({ nome: tempName })
-                .eq('id', selectedLead.id)
-                .eq('company_id', authUser.company_id);
+                .eq('id', selectedLead.id);
             if (error) throw error;
             setSelectedLead({ ...selectedLead, nome: tempName });
         } catch (e: any) {
@@ -135,62 +148,45 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputBarRef = useRef<HTMLDivElement>(null);
 
-    const [newTaskTitle, setNewTaskTitle] = useState('');
-    const [newTaskDate, setNewTaskDate] = useState('');
-
-    const CUSTOM_FIELDS_CONFIG: Array<{ key: string, label: string, type: string, placeholder?: string, options?: string[] }> = [
-        { key: 'cpf', label: 'CPF', type: 'text', placeholder: '000.000.000-00' },
-        { key: 'plano_saude', label: 'Plano de Saúde', type: 'select', options: ['Particular', 'Unimed', 'Amil', 'Bradesco Saúde', 'SulAmérica'] },
-        { key: 'data_nascimento', label: 'Data de Nascimento', type: 'date' },
-        { key: 'data_avaliacao', label: 'Data da Avaliação', type: 'date' },
-        { key: 'email', label: 'E-mail', type: 'email', placeholder: 'email@exemplo.com' },
-        { key: 'proposta_valor', label: 'Valor da Proposta / Forecast', type: 'number', placeholder: 'Ex: 1500' }
-    ];
-
-    const handleUpdateCustomField = async (key: string, value: string) => {
+    const handleSaveMeeting = async (title: string, dateStr: string) => {
         if (!selectedLead) return;
+        try {
+            const startTime = new Date(dateStr);
+            if (isNaN(startTime.getTime())) {
+                await showAlert('Data inválida.');
+                return;
+            }
+            const endTime = new Date(startTime.getTime() + 30 * 60000); // 30 min default
 
-        let finalValue = value;
-        // Se for campo de valor, remove caracteres não numéricos mas mantém o ponto decimal se houver
-        if (key === 'proposta_valor') {
-            finalValue = value.replace(/[^\d.]/g, '');
+            const { data, error } = await supabase
+                .from('sp3_calendar_events')
+                .insert({
+                    company_id: authUser.company_id,
+                    lead_id: selectedLead.id,
+                    title: title,
+                    start_time: startTime.toISOString(),
+                    end_time: endTime.toISOString(),
+                    status: 'scheduled',
+                    confirmation_status: 'pending'
+                })
+                .select();
+
+            if (error) throw error;
+
+            // Setar meeting_datetime no lead (dispara fluxo de confirmação)
+            await supabase
+                .from('sp3chat')
+                .update({ meeting_datetime: startTime.toISOString() })
+                .eq('id', selectedLead.id);
+
+            if (data && data.length > 0) {
+                setNextMeeting(data[0]);
+                setSelectedLead({ ...selectedLead, meeting_datetime: startTime.toISOString() });
+                await showAlert('Reunião agendada com sucesso!');
+            }
+        } catch (err: any) {
+            await showAlert('Erro ao agendar: ' + err.message);
         }
-
-        const newCustomFields = { ...(selectedLead.custom_fields || {}), [key]: finalValue };
-        const updatedLead = { ...selectedLead, custom_fields: newCustomFields };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
-    };
-
-    const handleAddTask = async () => {
-        if (!selectedLead || !newTaskTitle || !newTaskDate) return;
-        const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
-        const newTasks = [...(selectedLead.tasks || []), newTask];
-        const updatedLead = { ...selectedLead, tasks: newTasks };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        setNewTaskTitle('');
-        setNewTaskDate('');
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
-    };
-
-    const handleToggleTask = async (taskId: string) => {
-        if (!selectedLead) return;
-        const newTasks = (selectedLead.tasks || []).map((t: any) => t.id === taskId ? { ...t, completed: !t.completed } : t);
-        const updatedLead = { ...selectedLead, tasks: newTasks };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
-    };
-
-    const handleDeleteTask = async (taskId: string) => {
-        if (!selectedLead) return;
-        const newTasks = (selectedLead.tasks || []).filter((t: any) => t.id !== taskId);
-        const updatedLead = { ...selectedLead, tasks: newTasks };
-        setSelectedLead(updatedLead);
-        setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-        await supabase.from('sp3chat').update({ tasks: newTasks }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
     };
 
     const handleCloseConversation = () => {
@@ -208,7 +204,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             closed_reason: selectedCloseReason || 'Sem motivo informado',
             stage: 'Perdido' // or Fechado, let's just mark it as Perdido for generic closing
         };
-        const { error } = await supabase.from('sp3chat').update(updates).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
+        const { error } = await supabase.from('sp3chat').update(updates).eq('id', selectedLead.id);
         if (!error) {
             const updatedLead = { ...selectedLead, ...updates };
             setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
@@ -223,13 +219,44 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     // Visual Flows
     const [companyFlows, setCompanyFlows] = useState<FlowDefinition[]>([]);
     const [activeFlowExec, setActiveFlowExec] = useState<(FlowExecution & { flow_name?: string }) | null>(null);
-    const [showFlowSelector, setShowFlowSelector] = useState(false);
+
+    const [nextMeeting, setNextMeeting] = useState<any>(null);
+
+    // Suporte ao ESC para fechar modais
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (showCloseChatModal) setShowCloseChatModal(false);
+                if (showFlowSelector) setShowFlowSelector(false);
+                if (showFollowupSelector) setShowFollowupSelector(false);
+                if (showMeetingForm) setShowMeetingForm(false);
+                if (dialog) setDialog(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showCloseChatModal, showFlowSelector, showFollowupSelector, showMeetingForm, dialog]);
     const [isStartingFlow, setIsStartingFlow] = useState(false);
 
-    // Follow-up stage selector
-    const [showFollowupSelector, setShowFollowupSelector] = useState(false);
-    const [totalFollowupSteps, setTotalFollowupSteps] = useState(3);
+
+    const [editingCustomFields, setEditingCustomFields] = useState<Record<string, string>>({});
+    const [isSavingCustomFields, setIsSavingCustomFields] = useState(false);
     const followupSelectorRef = useRef<HTMLDivElement>(null);
+
+    // Sidebar accordion
+    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+        info: true, aiSummary: true, notes: false, customFields: false, tasks: false, meeting: false,
+    });
+    const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+    // Inline meeting form
+    const [meetingTitle, setMeetingTitle] = useState('');
+    const [meetingDate, setMeetingDate] = useState('');
+
+    // Tasks
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [newTaskDate, setNewTaskDate] = useState('');
+    const [isSavingTasks, setIsSavingTasks] = useState(false);
 
     // Funnel stage selector
     const [showStageSelector, setShowStageSelector] = useState(false);
@@ -271,34 +298,28 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         return () => window.removeEventListener('resize', handler);
     }, []);
 
-    // Carregar total de etapas de follow-up
-    useEffect(() => {
-        const loadTotalSteps = async () => {
-            const { data } = await supabase
-                .from('sp3_followup_steps')
-                .select('step_number')
-                .eq('company_id', authUser.company_id)
-                .order('step_number', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-            if (data) setTotalFollowupSteps(data.step_number);
-        };
-        loadTotalSteps();
-    }, [authUser.company_id]);
 
-    // Fechar dropdown de follow-up e stage selector ao clicar fora
+    // Fechar dropdown de stage selector ao clicar fora
     useEffect(() => {
         const handler = (e: MouseEvent) => {
-            if (showFollowupSelector && followupSelectorRef.current && !followupSelectorRef.current.contains(e.target as Node)) {
-                setShowFollowupSelector(false);
-            }
             if (showStageSelector && stageSelectorRef.current && !stageSelectorRef.current.contains(e.target as Node)) {
                 setShowStageSelector(false);
             }
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
-    }, [showFollowupSelector, showStageSelector]);
+    }, [showStageSelector]);
+
+    // Fechar dropdown de followup selector ao clicar fora
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (showFollowupSelector && followupSelectorRef.current && !followupSelectorRef.current.contains(e.target as Node)) {
+                setShowFollowupSelector(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showFollowupSelector]);
 
     // Carregar instância ativa da Evolution API
     useEffect(() => {
@@ -350,11 +371,16 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     }, [leads, openPhone]);
 
-    // Salvar seleção no localStorage + sincronizar observações e zerar contador
+    // Salvar seleção no localStorage + sincronizar observações/resumo + zerar contador
     useEffect(() => {
         if (selectedLead) {
             localStorage.setItem('last_selected_chat', selectedLead.telefone);
             setObservacoesInput(selectedLead.observacoes || '');
+            setAiSummary((selectedLead.custom_fields as any)?.ai_summary || null);
+            setEditingCustomFields(selectedLead.custom_fields || {});
+            setNewTaskTitle('');
+            setNewTaskDate('');
+            setShowMeetingForm(false);
 
             // Zerar contador ao abrir
             setUnreadCounts(prev => {
@@ -365,6 +391,10 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 }
                 return prev;
             });
+        } else {
+            setObservacoesInput('');
+            setAiSummary(null);
+            setEditingCustomFields({});
         }
     }, [selectedLead?.id]);
 
@@ -443,9 +473,11 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const isAudioSent = msgStyle === 'audio_sent';
         const isFollowup = msgData?.isFollowup || false;
         const followupStep = msgData?.followupStep || null;
+        const isNote = type === 'note' || msgStyle === 'note';
+        const noteAuthor = msgData?.author || null;
         return {
             id: m.id,
-            type: isVideo ? 'video' : type,
+            type: isNote ? 'note' : isVideo ? 'video' : type,
             msgStyle,
             isImage,
             isSticker,
@@ -454,6 +486,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             isAudioSent,
             isFollowup,
             followupStep,
+            isNote,
+            noteAuthor,
             sender,
             sentByCRM,
             text: typeof text === 'string' ? text : JSON.stringify(text),
@@ -568,7 +602,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
             if ((lead as any).closed) return false;
             if (chatFilter === 'all') return true;
             if (chatFilter === 'ia') return lead.ia_active === true;
-            if (chatFilter === 'followup') return (lead.followup_stage || 0) > 0;
             return true;
         });
 
@@ -584,9 +617,23 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         return {
             all: activeLeads.length,
             ia: activeLeads.filter(l => l.ia_active).length,
-            followup: activeLeads.filter(l => (l.followup_stage || 0) > 0).length
         }
     }, [leads]);
+
+    
+    useEffect(() => {
+        if (!selectedLead) return;
+        supabase.from('sp3_calendar_events')
+            .select('*')
+            .eq('lead_id', selectedLead.id)
+            .gte('start_time', new Date().toISOString())
+            .order('start_time', { ascending: true })
+            .limit(1)
+            .then(({ data }) => {
+                if (data && data.length > 0) setNextMeeting(data[0]);
+                else setNextMeeting(null);
+            });
+    }, [selectedLead]);
 
     const fetchMessages = async () => {
         if (!selectedLead) return;
@@ -614,13 +661,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     }, [messages]);
 
-    useEffect(() => {
-        if (selectedLead) {
-            setObservacoesInput(selectedLead.observacoes || '');
-            setAiSummary((selectedLead.custom_fields as any)?.ai_summary || null);
-        }
-    }, [selectedLead]);
-
     const handleGenerateAiSummary = async () => {
         if (!selectedLead) return;
         setIsGeneratingSummary(true);
@@ -630,7 +670,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
         // Salvar no banco
         const newCustomFields = { ...(selectedLead.custom_fields || {}), ai_summary: summary };
-        const { error } = await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id).eq('company_id', authUser.company_id);
+        const { error } = await supabase.from('sp3chat').update({ custom_fields: newCustomFields }).eq('id', selectedLead.id);
 
         if (!error) {
             setAiSummary(summary);
@@ -646,7 +686,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         if (selectedLead) {
             fetchMessages();
         }
-    }, [selectedLead]);
+    }, [selectedLead?.id]);
 
     const handleToggleIA = async () => {
         if (!selectedLead) return;
@@ -655,8 +695,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update({ ia_active: newState })
-            .eq('id', selectedLead.id)
-            .eq('company_id', authUser.company_id);
+            .eq('id', selectedLead.id);
 
         if (error) {
             await showAlert('Erro ao atualizar status da IA: ' + error.message);
@@ -676,77 +715,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         }
     };
 
-    const handleToggleFollowup = async () => {
-        if (!selectedLead) return;
-        const newLocked = !selectedLead.followup_locked;
-
-        const { error } = await supabase
-            .from('sp3chat')
-            .update({ followup_locked: newLocked })
-            .eq('id', selectedLead.id)
-            .eq('company_id', authUser.company_id);
-
-        if (error) {
-            await showAlert('Erro ao atualizar follow-up: ' + error.message);
-        } else {
-            setSelectedLead({ ...selectedLead, followup_locked: newLocked });
-            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const firstName = authUser.nome.split(' ')[0];
-            await supabase.from('n8n_chat_histories').insert([{
-                company_id: authUser.company_id,
-                session_id: selectedLead.telefone,
-                message: JSON.stringify({
-                    type: 'system',
-                    msgStyle: newLocked ? 'warning' : 'info',
-                    content: newLocked ? `🔒 Follow-up travado por ${firstName} em ${now}` : `🔓 Follow-up desbloqueado por ${firstName} em ${now}`
-                })
-            }]);
-        }
-    };
-
-    const handleChangeFollowupStage = async (newStage: number) => {
-        if (!selectedLead) return;
-        setShowFollowupSelector(false);
-
-        const updates: Record<string, any> = {
-            followup_stage: newStage,
-            followup_locked: false,
-        };
-        // Se definiu etapa > 0, garantir que o motor possa enviar a próxima
-        if (newStage > 0) {
-            updates.last_outbound_at = new Date().toISOString();
-        }
-
-        const { error } = await supabase
-            .from('sp3chat')
-            .update(updates)
-            .eq('id', selectedLead.id)
-            .eq('company_id', authUser.company_id);
-
-        if (error) {
-            await showAlert('Erro ao alterar etapa: ' + error.message);
-        } else {
-            const updatedLead = { ...selectedLead, followup_stage: newStage, followup_locked: false };
-            setSelectedLead(updatedLead);
-            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-
-            const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const firstName = authUser.nome.split(' ')[0];
-            const label = newStage === 0
-                ? `🔄 Follow-up removido por ${firstName} em ${now}`
-                : `📌 Follow-up alterado para ${newStage}ª etapa por ${firstName} em ${now}`;
-
-            await supabase.from('n8n_chat_histories').insert([{
-                company_id: authUser.company_id,
-                session_id: selectedLead.telefone,
-                message: JSON.stringify({
-                    type: 'system',
-                    msgStyle: newStage === 0 ? 'info' : 'followup',
-                    content: label
-                })
-            }]);
-        }
-    };
 
     // ─── Visual Flows: fetch available flows + active execution ─────────────
     useEffect(() => {
@@ -839,8 +807,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3_flow_executions')
             .update({ status: 'cancelled', completed_at: new Date().toISOString() })
-            .eq('id', activeFlowExec.id)
-            .eq('company_id', authUser.company_id);
+            .eq('id', activeFlowExec.id);
 
         if (!error) {
             const firstName = authUser.nome.split(' ')[0];
@@ -867,8 +834,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update({ stage: newStage, stage_updated_at: new Date().toISOString() })
-            .eq('id', selectedLead.id)
-            .eq('company_id', authUser.company_id);
+            .eq('id', selectedLead.id);
 
         if (error) {
             await showAlert('Erro ao alterar etapa: ' + error.message);
@@ -908,13 +874,110 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         const { error } = await supabase
             .from('sp3chat')
             .update({ observacoes: observacoesInput })
-            .eq('id', selectedLead.id)
-            .eq('company_id', authUser.company_id);
+            .eq('id', selectedLead.id);
         setIsSavingObs(false);
         if (error) {
             await showAlert('Erro ao salvar observações: ' + error.message);
         } else {
-            setSelectedLead({ ...selectedLead, observacoes: observacoesInput });
+            const updatedLead = { ...selectedLead, observacoes: observacoesInput };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    // ─── SIDEBAR HANDLERS ────────────────────────────────────────
+    const handleToggleFollowup = async () => {
+        if (!selectedLead) return;
+        const newState = !selectedLead.followup_locked;
+        const { error } = await supabase.from('sp3chat').update({ followup_locked: newState }).eq('id', selectedLead.id);
+        if (error) {
+            await showAlert('Erro ao alterar follow-up: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, followup_locked: newState };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleChangeFollowupStage = async (newStage: number) => {
+        if (!selectedLead) return;
+        setShowFollowupSelector(false);
+        const { error } = await supabase.from('sp3chat').update({ followup_stage: newStage }).eq('id', selectedLead.id);
+        if (error) {
+            await showAlert('Erro ao alterar etapa de follow-up: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, followup_stage: newStage };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleSaveCustomFields = async () => {
+        if (!selectedLead) return;
+        setIsSavingCustomFields(true);
+        const merged = { ...(selectedLead.custom_fields || {}), ...editingCustomFields };
+        const { error } = await supabase.from('sp3chat').update({ custom_fields: merged }).eq('id', selectedLead.id);
+        setIsSavingCustomFields(false);
+        if (error) {
+            await showAlert('Erro ao salvar campos: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, custom_fields: merged };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleAddTask = async () => {
+        if (!selectedLead || !newTaskTitle || !newTaskDate) return;
+        setIsSavingTasks(true);
+        const currentTasks = selectedLead.tasks || [];
+        const newTask = { id: Date.now().toString(), title: newTaskTitle, due_date: newTaskDate, completed: false };
+        const updatedTasks = [...currentTasks, newTask];
+        const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        // Também criar evento no calendário para a tarefa aparecer na agenda
+        const startTime = new Date(newTaskDate);
+        if (!isNaN(startTime.getTime())) {
+            const endTime = new Date(startTime.getTime() + 30 * 60000);
+            await supabase.from('sp3_calendar_events').insert({
+                company_id: authUser.company_id,
+                lead_id: selectedLead.id,
+                title: newTaskTitle,
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                status: 'scheduled',
+            });
+        }
+        setIsSavingTasks(false);
+        if (error) {
+            await showAlert('Erro ao adicionar tarefa: ' + error.message);
+        } else {
+            const updatedLead = { ...selectedLead, tasks: updatedTasks };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+            setNewTaskTitle('');
+            setNewTaskDate('');
+        }
+    };
+
+    const handleToggleTask = async (taskId: string) => {
+        if (!selectedLead) return;
+        const updatedTasks = (selectedLead.tasks || []).map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
+        const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        if (!error) {
+            const updatedLead = { ...selectedLead, tasks: updatedTasks };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+        }
+    };
+
+    const handleDeleteTask = async (taskId: string) => {
+        if (!selectedLead) return;
+        const updatedTasks = (selectedLead.tasks || []).filter(t => t.id !== taskId);
+        const { error } = await supabase.from('sp3chat').update({ tasks: updatedTasks }).eq('id', selectedLead.id);
+        if (!error) {
+            const updatedLead = { ...selectedLead, tasks: updatedTasks };
+            setSelectedLead(updatedLead);
+            setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
         }
     };
 
@@ -957,6 +1020,24 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
         } finally {
             setIsSending(false);
         }
+    };
+
+    const handleSendNote = async () => {
+        if (!inputValue.trim() || !selectedLead) return;
+        const noteText = inputValue.trim();
+        setInputValue('');
+
+        await supabase.from('n8n_chat_histories').insert([{
+            company_id: authUser.company_id,
+            session_id: selectedLead.telefone,
+            message: JSON.stringify({
+                type: 'note',
+                msgStyle: 'note',
+                content: noteText,
+                author: authUser.nome
+            })
+        }]);
+        fetchMessages();
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1245,12 +1326,6 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                             >
                                 IA <span style={{ backgroundColor: chatFilter === 'ia' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 'var(--radius-xl)', fontSize: '0.65rem', border: '1px solid var(--border)' }}>{stats.ia}</span>
                             </button>
-                            <button
-                                onClick={() => setChatFilter('followup')}
-                                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', border: 'none', backgroundColor: chatFilter === 'followup' ? 'var(--bg-primary)' : 'transparent', color: chatFilter === 'followup' ? 'var(--warning)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: chatFilter === 'followup' ? '700' : '500', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: chatFilter === 'followup' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.1s' }}
-                            >
-                                F.UP <span style={{ backgroundColor: chatFilter === 'followup' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 'var(--radius-xl)', fontSize: '0.65rem', border: '1px solid var(--border)' }}>{stats.followup}</span>
-                            </button>
                         </div>
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -1262,14 +1337,14 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     padding: '0.75rem 1rem',
                                     borderBottom: '1px solid var(--border-soft)',
                                     cursor: 'pointer',
-                                    backgroundColor: selectedLead?.id === lead.id ? 'var(--accent-soft)' : !lead.ia_active ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                                    backgroundColor: selectedLead?.id === lead.id ? 'var(--accent-soft)' : 'transparent',
                                     display: 'flex',
                                     alignItems: 'center', gap: '12px',
                                     transition: 'all 0.2s ease',
-                                    borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : !lead.ia_active ? '3px solid var(--error)' : '3px solid transparent'
+                                    borderLeft: selectedLead?.id === lead.id ? '3px solid var(--accent)' : '3px solid transparent'
                                 }}
-                                onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = !lead.ia_active ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-tertiary)' }}
-                                onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = !lead.ia_active ? 'rgba(239, 68, 68, 0.08)' : 'transparent' }}
+                                onMouseEnter={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)' }}
+                                onMouseLeave={(e) => { if (selectedLead?.id !== lead.id) e.currentTarget.style.backgroundColor = 'transparent' }}
                             >
                                 <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead?.id === lead.id ? 'var(--accent)' : 'var(--bg-tertiary)', color: selectedLead?.id === lead.id ? 'var(--bg-primary)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '1.1rem', border: '1px solid var(--border)' }}>
                                     {(lead.nome || 'L')[0].toUpperCase()}
@@ -1299,20 +1374,17 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                 <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}>
                     {selectedLead ? (
                         <>
-                            <div style={{ padding: '0.65rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--wa-header)', zIndex: 10 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-primary)', zIndex: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     {isMobile && (
                                         <button onClick={() => setMobilePanel('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px', display: 'flex', alignItems: 'center' }}>
                                             <ArrowLeft size={22} />
                                         </button>
                                     )}
-                                    <div style={{ position: 'relative' }}>
-                                        <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', overflow: 'hidden' }}>
-                                            {(selectedLead.nome || 'L')[0].toUpperCase()}
-                                        </div>
-                                        <div style={{ position: 'absolute', bottom: '2px', right: '2px', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: selectedLead.ia_active ? '#25d366' : '#94a3b8', border: '2px solid var(--wa-header)' }} />
+                                    <div style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                                        {(selectedLead.nome || 'L')[0].toUpperCase()}
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <div>
                                         {isEditingName ? (
                                             <input
                                                 autoFocus
@@ -1325,126 +1397,71 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         ) : (
                                             <h4
                                                 onDoubleClick={() => { setTempName(selectedLead.nome || ''); setIsEditingName(true); }}
-                                                style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', cursor: 'text', margin: 0 }}
+                                                style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', cursor: 'text' }}
+                                                title="Clique duplo para editar nome"
                                             >
                                                 {selectedLead.nome || selectedLead.telefone}
                                             </h4>
                                         )}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <span style={{ fontSize: '0.75rem', color: 'var(--wa-text-time)' }}>{selectedLead.telefone}</span>
-                                            <div style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'var(--wa-text-time)' }} />
-                                            <span style={{ fontSize: '0.75rem', color: selectedLead.ia_active ? '#25d366' : 'var(--wa-text-time)', fontWeight: '600' }}>
-                                                {selectedLead.ia_active ? 'IA Online' : 'IA em Pausa'}
-                                            </span>
-                                        </div>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{selectedLead.telefone}</span>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <div
-                                            onClick={handleToggleIA}
-                                            title={selectedLead.ia_active ? 'Pausar IA' : 'Ativar IA'}
-                                            style={{ padding: '8px', borderRadius: '50%', cursor: 'pointer', color: selectedLead.ia_active ? 'var(--accent)' : 'var(--text-muted)', backgroundColor: selectedLead.ia_active ? 'var(--accent-soft)' : 'transparent', transition: 'all 0.2s' }}
-                                        >
-                                            {selectedLead.ia_active ? <Power size={20} /> : <PowerOff size={20} />}
-                                        </div>
-                                        <div style={{ position: 'relative' }} ref={followupSelectorRef}>
-                                            <div
-                                                onClick={() => setShowFollowupSelector(!showFollowupSelector)}
-                                                title="Configurar Follow-up"
-                                                style={{ padding: '8px', borderRadius: '50%', cursor: 'pointer', color: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--warning)' : 'var(--text-muted)', backgroundColor: (selectedLead.followup_stage && selectedLead.followup_stage > 0) ? 'var(--warning-soft)' : 'transparent', transition: 'all 0.2s' }}
-                                            >
-                                                <Clock size={20} />
-                                            </div>
-
-                                            {showFollowupSelector && (
-                                                <div style={{
-                                                    position: 'absolute', top: '100%', right: 0, marginTop: '12px',
-                                                    background: 'var(--bg-primary)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)',
-                                                    border: '1px solid var(--border)', zIndex: 999, minWidth: '220px', overflow: 'hidden'
-                                                }}>
-                                                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                                        Etapa de Follow-up
-                                                    </div>
-                                                    <div
-                                                        onClick={() => handleChangeFollowupStage(0)}
-                                                        style={{
-                                                            padding: '12px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
-                                                            display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.2s',
-                                                            color: 'var(--error)'
-                                                        }}
-                                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                                    >
-                                                        <Trash2 size={16} /> Remover Follow-up
-                                                    </div>
-                                                    {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
-                                                        <div
-                                                            key={stage}
-                                                            onClick={() => handleChangeFollowupStage(stage)}
-                                                            style={{
-                                                                padding: '12px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
-                                                                display: 'flex', alignItems: 'center', gap: '10px',
-                                                                backgroundColor: selectedLead.followup_stage === stage ? 'var(--accent-soft)' : 'transparent',
-                                                                color: selectedLead.followup_stage === stage ? 'var(--accent)' : 'var(--text-primary)',
-                                                                transition: 'background 0.2s'
-                                                            }}
-                                                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.followup_stage === stage ? 'var(--accent-soft)' : 'transparent')}
-                                                        >
-                                                            <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>{stage}</div>
-                                                            {stage}ª Etapa
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div
+                                        onClick={handleToggleIA}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead.ia_active ? 'var(--bg-primary)' : 'var(--bg-tertiary)', color: selectedLead.ia_active ? 'var(--accent)' : 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', border: '1px solid var(--border)', transition: 'all 0.1s' }}
+                                    >
+                                        {selectedLead.ia_active ? <Power size={14} /> : <PowerOff size={14} />} {selectedLead.ia_active ? 'IA ATIVA' : 'IA PAUSADA'}
                                     </div>
-
+                                    {activeFlowExec && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-primary)', color: 'var(--accent)', border: '1px solid var(--border)', fontSize: '0.75rem', fontWeight: '800' }}>
+                                            <GitBranch size={14} /> FLUXO ATIVO
+                                        </div>
+                                    )}
                                     <div style={{ position: 'relative' }} ref={stageSelectorRef}>
                                         <div
                                             onClick={() => setShowStageSelector(!showStageSelector)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', borderRadius: '20px', backgroundColor: 'var(--accent)', color: 'white', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent)', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', border: '1px solid var(--border)' }}
+                                            title="Clique para definir o status do funil"
                                         >
                                             <TrendingUp size={14} /> {selectedLead.stage || 'SEM ETAPA'}
                                         </div>
 
                                         {showStageSelector && (
                                             <div style={{
-                                                position: 'absolute', top: '100%', right: 0, marginTop: '12px',
-                                                background: 'var(--bg-primary)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)',
-                                                border: '1px solid var(--border)', zIndex: 999, minWidth: '220px', overflow: 'hidden', padding: '8px'
+                                                position: 'absolute', top: '100%', right: 0, marginTop: '8px',
+                                                background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                                                border: '1px solid var(--border)', zIndex: 999, minWidth: '200px', overflow: 'hidden', padding: '8px'
                                             }}>
-                                                <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                                    Funil de Vendas
+                                                <div style={{ padding: '8px 12px', fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Estágio no Funil
                                                 </div>
-                                                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                                                 {AVAILABLE_STAGES.map(stage => (
                                                     <div
                                                         key={stage}
                                                         onClick={() => handleChangeStage(stage)}
                                                         style={{
-                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: selectedLead.stage === stage ? '700' : '500',
-                                                            display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px',
-                                                            backgroundColor: selectedLead.stage === stage ? 'var(--accent-soft)' : 'transparent',
+                                                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: selectedLead.stage === stage ? '700' : '500',
+                                                            display: 'flex', alignItems: 'center', gap: '8px', borderRadius: 'var(--radius-sm)',
+                                                            backgroundColor: selectedLead.stage === stage ? 'var(--bg-tertiary)' : 'transparent',
                                                             color: selectedLead.stage === stage ? 'var(--accent)' : 'var(--text-primary)',
                                                             transition: 'all 0.1s'
                                                         }}
                                                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.stage === stage ? 'var(--accent-soft)' : 'transparent')}
+                                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = selectedLead.stage === stage ? 'var(--bg-tertiary)' : 'transparent')}
                                                     >
                                                         {stage}
-                                                        {selectedLead.stage === stage && <CheckCircle2 size={14} style={{ marginLeft: 'auto' }} />}
+                                                        {selectedLead.stage === stage && <CheckCircle2 size={12} style={{ marginLeft: 'auto' }} />}
                                                     </div>
                                                 ))}
-                                                </div>
                                             </div>
                                         )}
                                     </div>
+
                                 </div>
                             </div>
 
-                            <div ref={scrollRef} className="wa-message-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                            <div ref={scrollRef} className="wa-message-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
                                 <div className="wa-message-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 {messages.map((msg, index) => {
                                     const prevMsg = messages[index - 1];
@@ -1453,65 +1470,103 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         isYesterday(msg.timestamp) ? 'Ontem' :
                                             format(msg.timestamp, "dd 'de' MMMM", { locale: ptBR });
 
-                                    const isOutgoing = msg.type !== 'human';
-
                                     return (
-                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             {showDateDivider && (
-                                                <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0', alignSelf: 'stretch' }}>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
                                                     <span style={{
-                                                        fontSize: '0.7rem', fontWeight: '600', color: 'var(--wa-text-time)',
-                                                        backgroundColor: 'var(--wa-header)', padding: '5px 12px', borderRadius: '8px',
-                                                        boxShadow: 'var(--wa-message-shadow)', textTransform: 'uppercase'
+                                                        fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)',
+                                                        backgroundColor: 'var(--bg-primary)', padding: '4px 12px', borderRadius: 'var(--radius-xl)',
+                                                        border: '1px solid var(--border)', textTransform: 'uppercase',
+                                                        letterSpacing: '0.05em'
                                                     }}>
                                                         {dateLabel}
                                                     </span>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
                                                 </div>
                                             )}
 
                                             {msg.type === 'system' ? (
-                                                <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
+                                                // Separador horizontal estilo Kommo
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0', alignSelf: 'stretch' }}>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
                                                     <span style={{
-                                                        fontSize: '0.65rem', fontWeight: '700',
-                                                        padding: '4px 12px', borderRadius: '8px',
-                                                        backgroundColor: 'var(--wa-header)',
-                                                        color: (msg.msgStyle === 'error' ? 'var(--error)' :
-                                                              msg.msgStyle === 'success' ? '#15803d' :
-                                                              msg.msgStyle === 'warning' ? 'var(--warning)' :
-                                                              'var(--text-muted)'),
-                                                        boxShadow: 'var(--wa-message-shadow)',
-                                                        textAlign: 'center',
-                                                        maxWidth: '80%',
+                                                        fontSize: '0.65rem', fontWeight: '800', whiteSpace: 'nowrap',
+                                                        padding: '4px 12px', borderRadius: 'var(--radius-xl)',
+                                                        border: '1px solid var(--border)',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        gap: '4px'
+                                                        gap: '4px',
+                                                        ...(msg.msgStyle === 'error' ? { color: 'var(--error)', backgroundColor: 'var(--bg-primary)' } :
+                                                            msg.msgStyle === 'success' ? { color: 'var(--success)', backgroundColor: 'var(--bg-primary)' } :
+                                                                msg.msgStyle === 'warning' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
+                                                                    msg.msgStyle === 'info' ? { color: 'var(--accent)', backgroundColor: 'var(--bg-primary)' } :
+                                                                        msg.msgStyle === 'followup' ? { color: 'var(--warning)', backgroundColor: 'var(--bg-primary)' } :
+                                                                            { color: 'var(--text-muted)', backgroundColor: 'var(--bg-secondary)' })
                                                     }}>
                                                         {msg.isFollowup && <Clock size={10} />}
                                                         {msg.text.replace('hours', 'horas').replace('minutes', 'minutos')}
                                                     </span>
+                                                    <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                                                </div>
+                                            ) : msg.type === 'note' ? (
+                                                // Nota interna — estilo sticky note amarelo
+                                                <div style={{ alignSelf: 'center', maxWidth: '85%', width: '100%', margin: '4px 0' }}>
+                                                    <div style={{
+                                                        background: '#fef9c3',
+                                                        border: '1px solid #fbbf24',
+                                                        borderLeft: '4px solid #d97706',
+                                                        borderRadius: '8px',
+                                                        padding: '10px 14px',
+                                                        fontSize: '0.85rem',
+                                                        color: '#92400e',
+                                                        lineHeight: '1.4'
+                                                    }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontSize: '0.7rem', fontWeight: '700', color: '#b45309' }}>
+                                                            <StickyNote size={12} />
+                                                            <span>Nota interna — {msg.noteAuthor || 'Equipe'}</span>
+                                                            <span style={{ marginLeft: 'auto', fontWeight: '500', color: '#d97706' }}>{msg.time}</span>
+                                                        </div>
+                                                        {msg.text}
+                                                    </div>
                                                 </div>
                                             ) : (
+                                                // Mensagem com avatar + nome do remetente
                                                 <div style={{
                                                     display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignSelf: !isOutgoing ? 'flex-start' : 'flex-end',
-                                                    maxWidth: '85%',
-                                                    marginBottom: '2px',
-                                                    marginTop: (prevMsg?.type === msg.type) ? '0' : '8px'
+                                                    alignItems: 'flex-end',
+                                                    gap: '7px',
+                                                    alignSelf: msg.type === 'human' ? 'flex-start' : 'flex-end',
+                                                    maxWidth: '80%',
+                                                    flexDirection: msg.type === 'human' ? 'row' : 'row-reverse',
+                                                    marginBottom: '4px'
                                                 }}>
-                                                    {/* Sender name for group-like feel or CRM context */}
-                                                    {(!prevMsg || prevMsg.type !== msg.type || prevMsg.sender !== msg.sender) && (
-                                                        <div style={{
-                                                            fontSize: '0.68rem', fontWeight: '700',
-                                                            marginBottom: '2px',
-                                                            marginLeft: !isOutgoing ? '4px' : '0',
-                                                            marginRight: !isOutgoing ? '0' : '4px',
-                                                            textAlign: !isOutgoing ? 'left' : 'right',
-                                                            color: !isOutgoing ? 'var(--wa-text-time)' : 'var(--accent)'
-                                                        }}>
-                                                            {!isOutgoing
-                                                                ? (selectedLead.nome || selectedLead.telefone)
-                                                                : msg.sentByCRM ? (msg.sender || authUser.nome) : (
+                                                    {/* Avatar */}
+                                                    <div style={{
+                                                        width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', flexShrink: 0,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontWeight: '700', fontSize: '0.75rem', border: '1px solid var(--border)',
+                                                        backgroundColor: msg.type === 'human' ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                                                        color: 'var(--text-secondary)'
+                                                    }}>
+                                                        {msg.type === 'human'
+                                                            ? (selectedLead.nome || 'C')[0].toUpperCase()
+                                                            : msg.sentByCRM ? <User size={14} /> : <Bot size={14} />
+                                                        }
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', maxWidth: '100%' }}>
+                                                        {/* Nome do remetente (WhatsApp style) */}
+                                                        {msg.type === 'human' ? null : (
+                                                            <div style={{
+                                                                fontSize: '0.72rem', fontWeight: '700',
+                                                                paddingLeft: '4px',
+                                                                marginBottom: '2px',
+                                                                color: msg.sentByCRM ? 'var(--chat-icon-text-crm)' : '#06d755',
+                                                                display: 'flex', alignItems: 'center', gap: '4px'
+                                                            }}>
+                                                                {msg.sentByCRM ? (msg.sender || authUser.nome) : (
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                                                                         {msg.isFollowup && (
                                                                             <span style={{ 
@@ -1524,106 +1579,95 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                                                 letterSpacing: '0.05em'
                                                                             }}>F.UP</span>
                                                                         )}
-                                                                        <span style={{ color: '#15803d' }}>Sarah IA</span>
-                                                                        <Bot size={12} style={{ color: '#15803d' }} />
+                                                                        <span style={{ color: '#06d755' }}>Sarah IA</span>
+                                                                        <Bot size={12} style={{ color: '#06d755' }} />
                                                                     </div>
-                                                                )
-                                                            }
-                                                        </div>
-                                                    )}
+                                                                )}
+                                                                {msg.isFollowup && (
+                                                                    <span style={{ fontSize: '0.6rem', fontWeight: '600', color: 'var(--warning)', backgroundColor: 'var(--warning-soft)', padding: '0px 4px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                                                                        F.UP {msg.followupStep}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
 
-                                                    <div className={`chat-bubble-wa ${!isOutgoing ? 'incoming' : 'outgoing'}`}>
-                                                        {msg.isImage ? (
-                                                            <div style={{ position: 'relative', maxWidth: msg.isSticker ? '150px' : '280px' }}>
-                                                                <img
-                                                                    src={msg.text.trim()}
-                                                                    alt={msg.isSticker ? 'sticker' : 'imagem'}
-                                                                    style={{ maxWidth: '100%', maxHeight: msg.isSticker ? '150px' : '280px', borderRadius: msg.isSticker ? '8px' : '4px', display: 'block', objectFit: 'contain' }}
-                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                                />
-                                                                {!msg.isSticker && (
+                                                        {/* Balão WhatsApp */}
+                                                        <div className={`chat-bubble-wa ${msg.type === 'human' ? 'incoming' : 'outgoing'}`}>
+                                                            {msg.isImage ? (
+                                                                <div style={{ position: 'relative', maxWidth: msg.isSticker ? '150px' : '280px' }}>
+                                                                    <img
+                                                                        src={msg.text.trim()}
+                                                                        alt={msg.isSticker ? 'sticker' : 'imagem'}
+                                                                        style={{ maxWidth: '100%', maxHeight: msg.isSticker ? '150px' : '280px', borderRadius: msg.isSticker ? '8px' : '4px', display: 'block', objectFit: 'contain' }}
+                                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                    />
+                                                                    {!msg.isSticker && (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                                                                            <button onClick={() => handleDownloadMedia(msg.text.trim(), 'image')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', opacity: 0.7 }} title="Baixar imagem">
+                                                                                <Download size={12} />
+                                                                            </button>
+                                                                            <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {msg.isSticker && <span className="wa-time">{msg.time}</span>}
+                                                                </div>
+                                                            ) : msg.isVideo || msg.type === 'video' ? (
+                                                                <div style={{ position: 'relative', maxWidth: '280px' }}>
+                                                                    <video
+                                                                        controls
+                                                                        src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
+                                                                        style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '4px', display: 'block' }}
+                                                                        onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                                                                    />
                                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                                                                        <button
-                                                                            onClick={() => handleDownloadMedia(msg.text.trim(), 'image')}
-                                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', opacity: 0.7 }}
-                                                                            title="Baixar imagem"
-                                                                        >
+                                                                        <button onClick={() => handleDownloadMedia(msg.text.trim(), 'video')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', opacity: 0.7 }} title="Baixar vídeo">
                                                                             <Download size={12} />
                                                                         </button>
                                                                         <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
                                                                     </div>
-                                                                )}
-                                                                {msg.isSticker && <span className="wa-time">{msg.time}</span>}
-                                                            </div>
-                                                        ) : msg.isVideo || msg.type === 'video' ? (
-                                                            <div style={{ position: 'relative', maxWidth: '280px' }}>
-                                                                <video
-                                                                    controls
-                                                                    src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:video') ? msg.text.trim() : undefined}
-                                                                    style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '4px', display: 'block' }}
-                                                                    onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
-                                                                />
-                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                                                                    <button
-                                                                        onClick={() => handleDownloadMedia(msg.text.trim(), 'video')}
-                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', opacity: 0.7 }}
-                                                                        title="Baixar vídeo"
-                                                                    >
-                                                                        <Download size={12} />
-                                                                    </button>
-                                                                    <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
                                                                 </div>
-                                                            </div>
-                                                        ) : msg.isAudio ? (
-                                                            <div style={{ padding: '4px 0', minWidth: '220px' }}>
-                                                                <audio
-                                                                    controls
-                                                                    src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
-                                                                    style={{ width: '100%', height: '32px' }}
-                                                                />
-                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
-                                                                    <button
-                                                                        onClick={() => handleDownloadMedia(msg.text.trim(), 'audio')}
-                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', opacity: 0.7 }}
-                                                                        title="Baixar áudio"
-                                                                    >
-                                                                        <Download size={12} />
-                                                                    </button>
-                                                                    <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                            ) : msg.isAudio ? (
+                                                                <div style={{ padding: '4px 0', minWidth: '220px' }}>
+                                                                    <audio
+                                                                        controls
+                                                                        src={msg.text.trim().startsWith('http') || msg.text.trim().startsWith('data:audio') ? msg.text.trim() : undefined}
+                                                                        style={{ width: '100%', height: '32px' }}
+                                                                    />
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                                                                        <button onClick={() => handleDownloadMedia(msg.text.trim(), 'audio')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', opacity: 0.7 }} title="Baixar áudio">
+                                                                            <Download size={12} />
+                                                                        </button>
+                                                                        <span className="wa-time" style={{ position: 'static' }}>{msg.time}</span>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        ) : (
-                                                            <>
-                                                                {msg.isAudioSent && (
+                                                            ) : msg.isAudioSent ? (
+                                                                <>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700' }}>
                                                                         <Mic size={13} /> Áudio Enviado
                                                                     </div>
-                                                                )}
-                                                                <div style={{ paddingRight: '40px' }}>{msg.text}</div>
-                                                                <span className="wa-time">{msg.time}</span>
-                                                            </>
-                                                        )}
+                                                                    <div style={{ color: 'var(--text-secondary)' }}>{msg.text}</div>
+                                                                </>
+                                                            ) : msg.text}
+                                                            <span className="wa-time">{msg.time}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
                                     );
                                 })}
-                                </div>
-                            </div>
 
                                 {isSarahThinking && (
                                     <div style={{
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        alignItems: 'flex-start',
+                                        alignItems: 'flex-end',
                                         gap: '2px',
-                                        marginBottom: '8px',
-                                        marginLeft: '16px',
+                                        marginBottom: '4px',
                                         animation: 'fadeIn 0.3s ease-out'
                                     }}>
-                                        <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <Bot size={11} /> Sarah IA
+                                                                                <div style={{ fontSize: '0.63rem', fontWeight: '700', color: '#15803d', paddingRight: '4px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                                            Sarah IA <Bot size={11} />
                                         </div>
                                         <div className="sarah-thinking">
                                             <div className="dot"></div>
@@ -1632,155 +1676,47 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        </div>
 
 
-                            {(() => {
-                                if (!selectedLead) return null;
-                                const pendingTasks = (selectedLead.tasks || []).filter((t: any) => {
-                                    if (t.completed) return false;
-                                    const targetDate = new Date(t.due_date);
-                                    return isPast(targetDate) || isToday(targetDate);
-                                });
-                                if (pendingTasks.length === 0) return null;
-                                return (
-                                    <div className="animate-pulse" style={{ backgroundColor: 'var(--error-soft)', borderTop: '2px solid var(--error)', color: 'var(--error)', padding: '10px 16px', fontSize: '0.85rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10 }}>
-                                        <AlertCircle size={18} /> ATENÇÃO: Lead com {pendingTasks.length} {pendingTasks.length === 1 ? 'tarefa vencendo ou em atraso' : 'tarefas vencendo ou em atraso'}!
-                                    </div>
-                                );
-                            })()}
-
-                            <div ref={inputBarRef} style={{ padding: '10px 16px', display: 'flex', gap: '8px', backgroundColor: 'var(--wa-header)', borderTop: '1px solid var(--border)', alignItems: 'center', position: 'relative' }}>
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                    <button 
-                                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-text-time)', padding: '6px' }}
-                                    >
-                                        <Smile size={24} />
-                                    </button>
-                                    <button 
-                                        onClick={() => fileInputRef.current?.click()}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wa-text-time)', padding: '6px' }}
-                                    >
-                                        <Paperclip size={24} />
-                                    </button>
-                                </div>
-
-                                <div className="wa-input-container">
-                                    <textarea
-                                        rows={1}
-                                        value={inputValue}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setInputValue(val);
-                                            const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
-                                            if (match) {
-                                                setShowQuickMessagesStore(true);
-                                                setQuickMessageFilter(match[1]);
-                                            } else {
-                                                setShowQuickMessagesStore(false);
-                                            }
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault();
-                                                handleSendMessage();
-                                            }
-                                        }}
-                                        placeholder="Mensagem"
-                                        style={{
-                                            border: 'none',
-                                            background: 'transparent',
-                                            flex: 1,
-                                            resize: 'none',
-                                            padding: '8px 0',
-                                            fontSize: '1rem',
-                                            outline: 'none',
-                                            color: 'var(--text-primary)',
-                                            maxHeight: '120px'
-                                        }}
-                                    />
-                                </div>
-
-                                <button
-                                    onClick={inputValue.trim() ? handleSendMessage : (isRecording ? stopRecording : startRecording)}
-                                    disabled={isSending || isUploading}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        width: '45px', height: '45px', borderRadius: '50%',
-                                        backgroundColor: '#128c7e', color: 'white', border: 'none', cursor: 'pointer',
-                                        flexShrink: 0, transition: 'all 0.2s',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                                    }}
-                                >
-                                    {isSending || isUploading ? (
-                                        <Loader2 className="animate-spin" size={20} />
-                                    ) : inputValue.trim() ? (
-                                        <Send size={20} />
-                                    ) : isRecording ? (
-                                        <StopCircle size={20} className="animate-pulse" />
-                                    ) : (
-                                        <Mic size={20} />
-                                    )}
-                                </button>
-                                
-                                {showQuickMessagesStore && quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).length > 0 && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        bottom: '100%',
-                                        left: '16px',
-                                        right: '16px',
-                                        marginBottom: '10px',
-                                        background: 'var(--bg-primary)',
-                                        borderRadius: '12px',
-                                        boxShadow: 'var(--shadow-xl)',
-                                        maxHeight: '200px',
-                                        overflowY: 'auto',
-                                        zIndex: 2000,
-                                        border: '1px solid var(--border)'
-                                    }}>
-                                        <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)' }}>
-                                            Mensagens Rápidas
-                                        </div>
-                                        {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
-                                            <div
-                                                key={msg.id}
-                                                onClick={() => {
-                                                    const parsedMsg = parseTextVariables(msg.content, selectedLead);
-                                                    const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, parsedMsg);
-                                                    setInputValue(newVal);
-                                                    setShowQuickMessagesStore(false);
-                                                }}
-                                                style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '4px' }}
-                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                            >
-                                                <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
-                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parseTextVariables(msg.content, selectedLead)}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
+                            <div ref={inputBarRef} style={{ padding: '1rem', display: 'flex', gap: '12px', backgroundColor: 'var(--bg-primary)', borderTop: '1px solid var(--border)', alignItems: 'center', position: 'relative' }}>
                                 {showEmojiPicker && (
                                     <div style={{
                                         position: 'absolute',
                                         bottom: '100%',
-                                        left: '16px',
+                                        left: isMobile ? '1rem' : '0',
                                         marginBottom: '10px',
-                                        zIndex: 100,
-                                        boxShadow: 'var(--shadow-xl)'
+                                        zIndex: 1000,
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                                        borderRadius: '12px',
+                                        overflow: 'hidden'
                                     }}>
-                                        <Suspense fallback={<div style={{ padding: '20px', background: 'var(--bg-primary)' }}>Carregando emojis...</div>}>
-                                            <EmojiPicker 
+                                        <Suspense fallback={<div style={{ width: 320, height: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}><Loader2 className="animate-spin" /></div>}>
+                                            <EmojiPicker
+                                                theme={Theme.LIGHT}
                                                 onEmojiClick={(emojiData) => setInputValue(prev => prev + emojiData.emoji)}
-                                                autoFocusSearch={false}
-                                                theme={localStorage.getItem('theme') === 'dark' ? Theme.DARK : Theme.LIGHT}
-                                                width={350}
-                                                height={400}
+                                                width={isMobile ? 'calc(100vw - 2rem)' : 320}
+                                                height={350}
                                             />
                                         </Suspense>
                                     </div>
                                 )}
+
+                                <button
+                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                >
+                                    <Smile size={24} />
+                                </button>
+
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isUploading || isSending}
+                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                >
+                                    {isUploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
+                                </button>
 
                                 <input
                                     type="file"
@@ -1790,22 +1726,108 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     style={{ display: 'none' }}
                                 />
 
-                                {isRecording && (
-                                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'var(--wa-header)', display: 'flex', alignItems: 'center', gap: '16px', padding: '0 16px', zIndex: 10 }}>
-                                        <div className="animate-pulse" style={{ color: 'var(--error)' }}>
-                                            <Mic size={20} />
-                                        </div>
-                                        <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--wa-text-time)' }}>Gravando... {formatTime(recordingTime)}</span>
-                                        <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold' }}>
-                                            CANCELAR
+                                {isRecording ? (
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 16px' }}>
+                                        <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--error)' }}></div>
+                                        <span style={{ flex: 1, fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Gravando... {formatTime(recordingTime)}</span>
+                                        <button onClick={cancelRecording} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer' }}>
+                                            <X size={20} />
                                         </button>
-                                        <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: '#128c7e', cursor: 'pointer', fontWeight: 'bold' }}>
-                                            ENVIAR
+                                        <button onClick={stopRecording} style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer' }}>
+                                            <Send size={22} />
                                         </button>
                                     </div>
+                                ) : (
+                                    <>
+                                        {showQuickMessagesStore && quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).length > 0 && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: '100%',
+                                                left: isMobile ? '0' : '60px',
+                                                right: isMobile ? '0' : '60px',
+                                                marginBottom: '10px',
+                                                background: 'var(--bg-secondary)',
+                                                borderRadius: '12px',
+                                                boxShadow: '0 -4px 15px rgba(0,0,0,0.1)',
+                                                maxHeight: '200px',
+                                                overflowY: 'auto',
+                                                zIndex: 2000,
+                                                border: '1px solid var(--border-soft)'
+                                            }}>
+                                                <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-soft)', backgroundColor: 'var(--bg-tertiary)' }}>
+                                                    Mensagens Rápidas
+                                                </div>
+                                                {quickMessages.filter(m => m.title.toLowerCase().includes(quickMessageFilter.toLowerCase())).map(msg => (
+                                                    <div
+                                                        key={msg.id}
+                                                        onClick={() => {
+                                                            const parsedMsg = parseTextVariables(msg.content, selectedLead);
+                                                            const newVal = inputValue.replace(/\/([a-zA-Z0-9_-]*)$/, parsedMsg);
+                                                            setInputValue(newVal);
+                                                            setShowQuickMessagesStore(false);
+                                                        }}
+                                                        style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '4px' }}
+                                                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--accent-soft)')}
+                                                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                    >
+                                                        <span style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--accent)' }}>/{msg.title}</span>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parseTextVariables(msg.content, selectedLead)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={() => setNoteMode(!noteMode)}
+                                            title={noteMode ? 'Voltar para mensagem' : 'Adicionar nota interna'}
+                                            style={{ background: 'none', border: 'none', color: noteMode ? '#d97706' : 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                        >
+                                            <StickyNote size={24} />
+                                        </button>
+
+                                        <div style={{ flex: 1, background: noteMode ? '#fef9c3' : 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '4px 12px', border: noteMode ? '1.5px solid #d97706' : '1px solid var(--border)', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}>
+                                            <input
+                                                type="text"
+                                                value={inputValue}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setInputValue(val);
+                                                    if (!noteMode) {
+                                                        const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
+                                                        if (match) {
+                                                            setShowQuickMessagesStore(true);
+                                                            setQuickMessageFilter(match[1]);
+                                                        } else {
+                                                            setShowQuickMessagesStore(false);
+                                                        }
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => e.key === 'Enter' && (noteMode ? handleSendNote() : handleSendMessage())}
+                                                placeholder={noteMode ? 'Escreva uma nota interna (só a equipe vê)...' : 'Envie uma mensagem (Intervenção)... (Digite / para atalhos)'}
+                                                disabled={isSending}
+                                                style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem', background: 'transparent', color: noteMode ? '#92400e' : undefined }}
+                                            />
+                                        </div>
+
+                                        {inputValue.trim() ? (
+                                            <button onClick={noteMode ? handleSendNote : handleSendMessage} disabled={isSending} style={{ background: 'none', border: 'none', color: noteMode ? '#d97706' : 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                                {isSending ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
+                                            </button>
+                                        ) : isSuperAdmin ? (
+                                            <button
+                                                onTouchStart={startRecording}
+                                                onMouseDown={startRecording}
+                                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                                            >
+                                                <Mic size={24} />
+                                            </button>
+                                        ) : (
+                                            <button onClick={handleSendMessage} disabled={isSending || !inputValue.trim()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.4, padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                                <Send size={24} />
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </div>
-
                         </>
                     ) : (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Selecione uma conversa para começar</div>
@@ -1815,287 +1837,455 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
 
             {/* Painel lateral — apenas desktop */}
             {
-                !isMobile && <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', backgroundColor: 'var(--bg-primary)' }}>
+                !isMobile && <div style={{ width: '300px', display: 'flex', flexDirection: 'column', overflowY: 'auto', backgroundColor: 'var(--bg-primary)', borderLeft: '1px solid var(--border-soft)' }}>
                     {selectedLead && (
                         <>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
-                                    <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>
-                                        {(selectedLead.nome || 'L')[0].toUpperCase()}
-                                    </div>
-                                    <div style={{ minWidth: 0 }}>
-                                        <h3 style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{selectedLead.nome || 'Lead s/ nome'}</h3>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{selectedLead.telefone}</p>
-                                    </div>
+                            {/* Profile Header */}
+                            <div style={{ padding: '1.25rem 1rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-soft)' }}>
+                                <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', fontWeight: '800', boxShadow: '0 3px 10px rgba(0,0,0,0.08)' }}>
+                                    {(selectedLead.nome || 'L')[0].toUpperCase()}
                                 </div>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                                    <InfoItem icon={Building2} label="Status no Funil" value={selectedLead.stage || 'Sem estágio'} />
-                                    <InfoItem icon={MapPin} label="Localização" value={(selectedLead as any).cidade || 'Não informada'} />
-                                    <InfoItem icon={Clock} label="Criado em" value={selectedLead.created_at ? format(new Date(selectedLead.created_at), "dd/MM/yyyy HH:mm") : '-'} />
+                                <div>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 0 2px', letterSpacing: '-0.02em' }}>{selectedLead.nome || 'Lead sem nome'}</h3>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{selectedLead.telefone}</p>
                                 </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                                    <div style={{ position: 'relative', flex: 1 }}>
-                                        <select
-                                            value={selectedLead.followup_stage || 0}
-                                            onChange={e => handleChangeFollowupStage(Number(e.target.value))}
-                                            style={{
-                                                width: '100%', fontSize: '0.75rem', padding: '6px 12px', borderRadius: 'var(--radius-md)', fontWeight: '700', cursor: 'pointer',
-                                                border: '1px solid var(--border)',
-                                                backgroundColor: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning-soft)' : 'var(--bg-tertiary)',
-                                                color: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning)' : 'var(--text-muted)',
-                                                outline: 'none', appearance: 'none', WebkitAppearance: 'none', transition: 'all 0.1s'
-                                            }}
-                                        >
-                                            <option value={0}>Sem follow-up</option>
-                                            {Array.from({ length: totalFollowupSteps }, (_, i) => i + 1).map(stage => (
-                                                <option key={stage} value={stage}>
-                                                    {stage}º Follow-up
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }}>
-                                            <ArrowLeft size={10} style={{ transform: 'rotate(-90deg)' }} />
-                                        </div>
-                                    </div>
-                                    {selectedLead.followup_locked && (
-                                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--warning)', cursor: 'help' }} title="Follow-up travado">
-                                            <Lock size={14} />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Contexto IA */}
-                            <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                    <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
-                                        <Bot size={14} /> Resumo Sarah
-                                    </h4>
-                                    <button
-                                        onClick={handleGenerateAiSummary}
-                                        disabled={isGeneratingSummary}
-                                        style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '0.65rem', padding: '4px 10px', fontWeight: '700', cursor: 'pointer', color: 'var(--text-primary)', transition: 'all 0.1s' }}
-                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
-                                    >
-                                        {isGeneratingSummary ? <Loader2 size={12} className="animate-spin" /> : (aiSummary ? 'Atualizar' : 'Gerar')}
-                                    </button>
-                                </div>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.6', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic', margin: 0 }}>
-                                    {aiSummary || 'Analise a conversa para obter um resumo estratégico e próximos passos.'}
-                                </p>
-                            </div>
-
-                            {/* Observações */}
-                            <div>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '0.05em' }}>Observações</h4>
-                                <textarea
-                                    value={observacoesInput}
-                                    onChange={(e) => setObservacoesInput(e.target.value)}
-                                    placeholder="Anotações estratégicas sobre este lead..."
-                                    rows={4}
-                                    style={{
-                                        width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                        backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem', lineHeight: '1.5',
-                                        fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'all 0.1s'
-                                    }}
-                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                                />
-                                <button
-                                    onClick={handleSaveObservacoes}
-                                    disabled={isSavingObs}
-                                    style={{
-                                        marginTop: '8px', width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                        backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.75rem',
-                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: 'all 0.1s'
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-                                >
-                                    {isSavingObs ? <Loader2 size={14} className="animate-spin" /> : '💾 Salvar Notas'}
-                                </button>
-                            </div>
-
-                            {/* Campos Extra */}
-                            <div>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '0.05em' }}>Campos Extra</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    {CUSTOM_FIELDS_CONFIG.map(field => (
-                                        <div key={field.key}>
-                                            <label style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>{field.label}</label>
-                                            {field.type === 'select' ? (
-                                                <div style={{ position: 'relative' }}>
-                                                    <select
-                                                        value={(selectedLead.custom_fields || {})[field.key] || ''}
-                                                        onChange={e => handleUpdateCustomField(field.key, e.target.value)}
-                                                        style={{
-                                                            width: '100%', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                                            backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem',
-                                                            outline: 'none', appearance: 'none', WebkitAppearance: 'none', transition: 'all 0.1s'
-                                                        }}
-                                                    >
-                                                        <option value="">Selecione</option>
-                                                        {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                    </select>
-                                                    <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }}>
-                                                        <ArrowLeft size={10} style={{ transform: 'rotate(-90deg)' }} />
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <input
-                                                    type={field.type}
-                                                    placeholder={field.placeholder}
-                                                    value={(selectedLead.custom_fields || {})[field.key] || ''}
-                                                    onChange={e => handleUpdateCustomField(field.key, e.target.value)}
-                                                    style={{
-                                                        width: '100%', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                                        backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem',
-                                                        outline: 'none', boxSizing: 'border-box', transition: 'all 0.1s'
-                                                    }}
-                                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                                                />
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Tarefas */}
-                            <div>
-                                <h4 style={{ fontWeight: '800', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Tarefas</h4>
-
-                                {/* Nova Tarefa */}
-                                <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-                                    <input type="text" placeholder="O que precisa ser feito?" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', fontSize: '0.75rem', outline: 'none' }} />
-                                    <input type="datetime-local" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', fontSize: '0.75rem', outline: 'none' }} />
-                                    <button
-                                        disabled={!newTaskTitle || !newTaskDate}
-                                        onClick={handleAddTask}
-                                        style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent)', color: 'white', border: 'none', fontWeight: '800', fontSize: '0.7rem', cursor: 'pointer', opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1, transition: 'all 0.1s' }}
-                                    >
-                                        Adicionar Tarefa
-                                    </button>
-                                </div>
-
-                                {/* Lista de Tarefas */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    {(!selectedLead.tasks || selectedLead.tasks.length === 0) ? (
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', margin: '10px 0' }}>Sem tarefas pendentes.</p>
-                                    ) : (
-                                        [...selectedLead.tasks].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()).map(task => {
-                                            const isOverdue = !task.completed && isPast(new Date(task.due_date));
-                                            const isDueToday = !task.completed && isToday(new Date(task.due_date));
-
-                                            return (
-                                                <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: task.completed ? 'var(--bg-tertiary)' : 'var(--bg-primary)', border: '1px solid var(--border)', opacity: task.completed ? 0.6 : 1, transition: 'all 0.1s' }}>
-                                                    <button
-                                                        onClick={() => handleToggleTask(task.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: task.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', marginTop: '2px' }}
-                                                    >
-                                                        {task.completed ? <CheckCircle2 size={16} /> : <div style={{ width: '14px', height: '14px', borderRadius: 'var(--radius-xs)', border: '1.5px solid currentColor' }} />}
-                                                    </button>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <p style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', marginBottom: '2px', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</p>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: isOverdue ? 'var(--error)' : (isDueToday ? 'var(--warning)' : 'var(--text-muted)'), fontWeight: '700' }}>
-                                                            <Clock size={10} />
-                                                            {format(new Date(task.due_date), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handleDeleteTask(task.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '2px', opacity: 0.4, transition: 'all 0.1s' }}
-                                                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                        onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-
-                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                {/* Quick Toggles */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.15rem' }}>
                                     <button
                                         onClick={handleToggleIA}
                                         style={{
-                                            padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                            backgroundColor: selectedLead.ia_active ? 'var(--error-soft)' : 'var(--success-soft)',
-                                            color: selectedLead.ia_active ? 'var(--error)' : 'var(--success)',
-                                            fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                            padding: '4px 10px', borderRadius: '20px', border: `1px solid ${selectedLead.ia_active ? 'var(--success-soft)' : 'var(--border)'}`,
+                                            backgroundColor: selectedLead.ia_active ? 'var(--success-soft)' : 'var(--bg-secondary)',
+                                            color: selectedLead.ia_active ? 'var(--success)' : 'var(--text-muted)',
+                                            fontWeight: '700', fontSize: '0.6rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.2s'
                                         }}
+                                        title={selectedLead.ia_active ? "Sarah está ativa" : "Intervenção Humana"}
                                     >
-                                        {selectedLead.ia_active ? <PowerOff size={14} /> : <Power size={14} />}
-                                        {selectedLead.ia_active ? 'Pausar Sarah' : 'Ativar Sarah'}
+                                        {selectedLead.ia_active ? <Power size={10} /> : <PowerOff size={10} />}
+                                        {selectedLead.ia_active ? 'Sarah Ativa' : 'Pausada'}
                                     </button>
-
                                     <button
                                         onClick={handleToggleFollowup}
                                         style={{
-                                            padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                            backgroundColor: selectedLead.followup_locked ? 'var(--success-soft)' : 'var(--warning-soft)',
-                                            color: selectedLead.followup_locked ? 'var(--success)' : 'var(--warning)',
-                                            fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                            padding: '4px 10px', borderRadius: '20px', border: `1px solid ${selectedLead.followup_locked ? 'var(--border)' : 'var(--warning-soft)'}`,
+                                            backgroundColor: selectedLead.followup_locked ? 'var(--bg-secondary)' : 'var(--warning-soft)',
+                                            color: selectedLead.followup_locked ? 'var(--text-muted)' : 'var(--warning)',
+                                            fontWeight: '700', fontSize: '0.6rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.2s'
                                         }}
                                     >
-                                        {selectedLead.followup_locked ? <Unlock size={14} /> : <Lock size={14} />}
-                                        {selectedLead.followup_locked ? 'Liberar F/U' : 'Travar F/U'}
+                                        {selectedLead.followup_locked ? <Lock size={10} /> : <Unlock size={10} />}
+                                        {selectedLead.followup_locked ? 'F/U Travado' : 'F/U Ativo'}
                                     </button>
                                 </div>
+                            </div>
 
-                                {/* Sarah Intervention Block */}
-                                <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: selectedLead.ia_active ? 'var(--success-soft)' : 'var(--warning-soft)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: selectedLead.ia_active ? 'var(--success)' : 'var(--warning)', boxShadow: `0 0 10px ${selectedLead.ia_active ? 'var(--success)' : 'var(--warning)'}` }} />
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.7rem', fontWeight: '800', color: selectedLead.ia_active ? 'var(--success)' : 'var(--warning)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            {selectedLead.ia_active ? 'Sarah Ativa' : 'Intervenção Humana'}
+                            {/* Scrollable sections */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '0 1rem' }}>
+
+                                {/* ── INFORMAÇÕES ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('info')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Building2 size={12} /> Informações
                                         </span>
-                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-                                            {selectedLead.ia_active ? 'IA conduzindo a conversa' : 'Aguardando ação manual'}
-                                        </span>
-                                    </div>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.info ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.info && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)' }}>Funil</span>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-primary)', padding: '2px 8px', borderRadius: '10px', backgroundColor: 'var(--bg-secondary)' }}>{selectedLead.stage || 'Sem estágio'}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}><Unlock size={10} /> Follow-up</span>
+                                                <div ref={followupSelectorRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <button
+                                                        onClick={() => setShowFollowupSelector(!showFollowupSelector)}
+                                                        style={{
+                                                            padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)',
+                                                            backgroundColor: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning-soft)' : 'var(--bg-secondary)',
+                                                            color: (selectedLead.followup_stage || 0) > 0 ? 'var(--warning)' : 'var(--text-primary)',
+                                                            fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        {(selectedLead.followup_stage || 0) === 0 ? 'Nenhum' : `${selectedLead.followup_stage}ª Etapa`}
+                                                    </button>
+                                                    {showFollowupSelector && (
+                                                        <div style={{
+                                                            position: 'absolute', top: '100%', right: 0, marginTop: '4px',
+                                                            background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)',
+                                                            boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
+                                                            zIndex: 999, overflow: 'hidden', minWidth: '100px',
+                                                        }}>
+                                                            {[0, 1, 2, 3, 4, 5].map(stage => (
+                                                                <div
+                                                                    key={stage}
+                                                                    onClick={() => handleChangeFollowupStage(stage)}
+                                                                    style={{
+                                                                        padding: '6px 12px', cursor: 'pointer', fontSize: '0.72rem',
+                                                                        fontWeight: (selectedLead.followup_stage || 0) === stage ? '800' : '600',
+                                                                        color: (selectedLead.followup_stage || 0) === stage ? 'var(--accent)' : 'var(--text-primary)',
+                                                                        backgroundColor: (selectedLead.followup_stage || 0) === stage ? 'var(--bg-secondary)' : 'transparent',
+                                                                        transition: 'background-color 0.1s',
+                                                                    }}
+                                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = (selectedLead.followup_stage || 0) === stage ? 'var(--bg-secondary)' : 'transparent'}
+                                                                >
+                                                                    {stage === 0 ? 'Nenhum' : `${stage}ª Etapa`}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={10} /> Local</span>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-primary)' }}>{(selectedLead as any).cidade || 'Não informada'}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={10} /> Criado</span>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-primary)' }}>{selectedLead.created_at ? format(new Date(selectedLead.created_at), "dd/MM/yy HH:mm") : '-'}</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
+                                {/* ── RESUMO SARAH ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('aiSummary')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--accent)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Bot size={12} /> Resumo Sarah
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.aiSummary ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.aiSummary && (
+                                        <div style={{ paddingBottom: '12px' }}>
+                                            <div style={{
+                                                padding: '10px', borderRadius: 'var(--radius-md)',
+                                                background: 'linear-gradient(145deg, var(--bg-primary), var(--accent-light))',
+                                                border: '1px solid var(--accent-soft)', position: 'relative', overflow: 'hidden'
+                                            }}>
+                                                <div style={{ position: 'absolute', top: -8, right: -8, opacity: 0.04 }}><Bot size={60} /></div>
+                                                <p style={{ position: 'relative', zIndex: 1, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.5', fontWeight: '500', fontStyle: aiSummary ? 'normal' : 'italic', margin: '0 0 8px' }}>
+                                                    {aiSummary || 'Clique em Gerar para a Sarah resumir esta conversa.'}
+                                                </p>
+                                                <button
+                                                    onClick={handleGenerateAiSummary}
+                                                    disabled={isGeneratingSummary}
+                                                    style={{
+                                                        background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)',
+                                                        fontSize: '0.6rem', padding: '5px 10px', fontWeight: '800', cursor: 'pointer',
+                                                        transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)',
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                    }}
+                                                >
+                                                    {isGeneratingSummary ? <Loader2 size={10} className="animate-spin" /> : (aiSummary ? 'Atualizar' : 'Gerar Resumo')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── NOTAS ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('notes')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <FileText size={12} /> Notas do Especialista
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.notes ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.notes && (
+                                        <div style={{ paddingBottom: '12px' }}>
+                                            <textarea
+                                                value={observacoesInput}
+                                                onChange={(e) => setObservacoesInput(e.target.value)}
+                                                placeholder="Anotações estratégicas..."
+                                                rows={3}
+                                                style={{
+                                                    width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-soft)',
+                                                    backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.75rem', lineHeight: '1.5',
+                                                    fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s',
+                                                }}
+                                                onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                                                onBlur={e => e.currentTarget.style.borderColor = 'var(--border-soft)'}
+                                            />
+                                            <button
+                                                onClick={handleSaveObservacoes}
+                                                disabled={isSavingObs}
+                                                style={{
+                                                    marginTop: '6px', width: '100%', padding: '7px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                                                    backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.7rem',
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: 'all 0.1s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                            >
+                                                {isSavingObs ? <Loader2 size={12} className="animate-spin" /> : 'Salvar Notas'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── CAMPOS PERSONALIZADOS ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('customFields')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <FileText size={12} /> Campos Extra
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.customFields ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.customFields && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px' }}>
+                                            {SIDEBAR_CUSTOM_FIELDS.map(field => (
+                                                <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                    <label style={{ fontSize: '0.6rem', fontWeight: '700', color: 'var(--text-muted)' }}>{field.label}</label>
+                                                    {field.type === 'select' ? (
+                                                        <select
+                                                            value={editingCustomFields[field.key] || ''}
+                                                            onChange={e => setEditingCustomFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                            style={{
+                                                                width: '100%', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                                border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                                                                color: 'var(--text-primary)', fontSize: '0.72rem', outline: 'none', boxSizing: 'border-box',
+                                                            }}
+                                                        >
+                                                            <option value="">Selecione</option>
+                                                            {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            type={field.type}
+                                                            placeholder={field.placeholder}
+                                                            value={editingCustomFields[field.key] || ''}
+                                                            onChange={e => setEditingCustomFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                            style={{
+                                                                width: '100%', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                                border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                                                                color: 'var(--text-primary)', fontSize: '0.72rem', outline: 'none', boxSizing: 'border-box',
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                            <button
+                                                onClick={handleSaveCustomFields}
+                                                disabled={isSavingCustomFields}
+                                                style={{
+                                                    marginTop: '4px', width: '100%', padding: '7px', borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)',
+                                                    color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.7rem',
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                }}
+                                            >
+                                                {isSavingCustomFields ? <Loader2 size={12} className="animate-spin" /> : 'Salvar Campos'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── TAREFAS ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('tasks')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <ListTodo size={12} /> Tarefas
+                                            {(selectedLead.tasks || []).filter(t => !t.completed).length > 0 && (
+                                                <span style={{ fontSize: '0.55rem', padding: '1px 5px', borderRadius: '8px', backgroundColor: 'var(--error)', color: 'white', fontWeight: '800' }}>
+                                                    {(selectedLead.tasks || []).filter(t => !t.completed).length}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.tasks ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.tasks && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px' }}>
+                                            {/* Add task form */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <input
+                                                    type="text" placeholder="Nova tarefa..." value={newTaskTitle}
+                                                    onChange={e => setNewTaskTitle(e.target.value)}
+                                                    style={{
+                                                        width: '100%', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                        border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                                                        color: 'var(--text-primary)', fontSize: '0.72rem', outline: 'none', boxSizing: 'border-box',
+                                                    }}
+                                                />
+                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'flex-start' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <DateTimePicker
+                                                            value={newTaskDate}
+                                                            onChange={setNewTaskDate}
+                                                            placeholder="Data e hora..."
+                                                            compact
+                                                            minDate={new Date()}
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        disabled={!newTaskTitle || !newTaskDate || isSavingTasks}
+                                                        onClick={handleAddTask}
+                                                        style={{
+                                                            padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+                                                            border: 'none', background: 'var(--accent)', color: 'white',
+                                                            fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer',
+                                                            opacity: (!newTaskTitle || !newTaskDate) ? 0.5 : 1,
+                                                            display: 'flex', alignItems: 'center', gap: '3px',
+                                                            flexShrink: 0, height: '28px',
+                                                        }}
+                                                    >
+                                                        {isSavingTasks ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {/* Task list */}
+                                            {(selectedLead.tasks || []).length === 0 ? (
+                                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>Nenhuma tarefa.</p>
+                                            ) : (
+                                                (selectedLead.tasks || [])
+                                                    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+                                                    .map(task => {
+                                                        const isOverdue = !task.completed && isPast(new Date(task.due_date));
+                                                        const isDueToday = !task.completed && isToday(new Date(task.due_date));
+                                                        return (
+                                                            <div key={task.id} style={{
+                                                                display: 'flex', alignItems: 'flex-start', gap: '6px',
+                                                                padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                                                                backgroundColor: task.completed ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                                                border: `1px solid ${isOverdue ? 'var(--error-soft)' : 'var(--border-soft)'}`,
+                                                                opacity: task.completed ? 0.6 : 1,
+                                                            }}>
+                                                                <button onClick={() => handleToggleTask(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px', color: task.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
+                                                                    {task.completed ? <CheckSquare size={14} /> : <Square size={14} />}
+                                                                </button>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <p style={{ fontSize: '0.72rem', fontWeight: '600', margin: 0, color: task.completed ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</p>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.58rem', marginTop: '2px', color: task.completed ? 'var(--text-muted)' : (isOverdue ? 'var(--error)' : (isDueToday ? 'var(--warning)' : 'var(--text-secondary)')), fontWeight: isOverdue || isDueToday ? '700' : '500' }}>
+                                                                        <Clock size={9} />
+                                                                        {format(new Date(task.due_date), "dd/MMM HH:mm", { locale: ptBR })}
+                                                                        {isOverdue && ' (Atrasada)'}
+                                                                        {isDueToday && ' (Hoje)'}
+                                                                    </div>
+                                                                </div>
+                                                                <button onClick={() => handleDeleteTask(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: '1px', opacity: 0.3, flexShrink: 0 }}
+                                                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.3'}
+                                                                >
+                                                                    <Trash2 size={11} />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── AGENDA ── */}
+                                <div style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                                    <button onClick={() => toggleSection('meeting')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <CalendarIcon size={12} /> Agenda
+                                            {nextMeeting && <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'inline-block' }} />}
+                                        </span>
+                                        <ChevronRight size={12} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedSections.meeting ? 'rotate(90deg)' : 'none' }} />
+                                    </button>
+                                    {expandedSections.meeting && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px' }}>
+                                            {nextMeeting && (
+                                                <div style={{
+                                                    padding: '10px', borderRadius: 'var(--radius-md)', color: 'white',
+                                                    backgroundColor: nextMeeting.confirmation_status === 'confirmed' ? '#10b981'
+                                                        : nextMeeting.confirmation_status === 'unconfirmed' ? '#ef4444'
+                                                        : 'var(--accent)',
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                        <span style={{ fontSize: '0.6rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.9 }}>Próxima Reunião</span>
+                                                        <span style={{
+                                                            fontSize: '0.55rem', fontWeight: '700', padding: '2px 6px',
+                                                            borderRadius: '100px', backgroundColor: 'rgba(255,255,255,0.2)',
+                                                        }}>
+                                                            {nextMeeting.confirmation_status === 'confirmed' ? 'Confirmada'
+                                                                : nextMeeting.confirmation_status === 'unconfirmed' ? 'Não confirmada'
+                                                                : 'Pendente'}
+                                                        </span>
+                                                    </div>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: '800', lineHeight: '1.2' }}>{nextMeeting.title}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', opacity: 0.9, marginTop: '4px' }}>
+                                                        <Clock size={10} />
+                                                        {format(new Date(nextMeeting.start_time), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {!showMeetingForm ? (
+                                                <button
+                                                    onClick={() => setShowMeetingForm(true)}
+                                                    style={{
+                                                        width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                                                        backgroundColor: 'var(--bg-primary)', color: 'var(--accent)', fontWeight: '700', fontSize: '0.7rem',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                                                >
+                                                    <CalendarIcon size={12} /> Agendar Reunião
+                                                </button>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-soft)' }}>
+                                                    <input
+                                                        type="text" placeholder="Título da Reunião" value={meetingTitle}
+                                                        onChange={e => setMeetingTitle(e.target.value)}
+                                                        style={{ width: '100%', padding: '7px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.75rem', boxSizing: 'border-box', outline: 'none' }}
+                                                    />
+                                                    <DateTimePicker
+                                                        value={meetingDate}
+                                                        onChange={setMeetingDate}
+                                                        placeholder="Selecionar data e hora"
+                                                        compact
+                                                        minDate={new Date()}
+                                                    />
+                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                        <button
+                                                            onClick={() => { setShowMeetingForm(false); setMeetingTitle(''); setMeetingDate(''); }}
+                                                            style={{ flex: 1, padding: '7px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer' }}
+                                                        >Cancelar</button>
+                                                        <button
+                                                            disabled={!meetingTitle || !meetingDate}
+                                                            onClick={() => { handleSaveMeeting(meetingTitle, meetingDate); setShowMeetingForm(false); setMeetingTitle(''); setMeetingDate(''); }}
+                                                            style={{ flex: 1, padding: '7px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--accent)', color: 'white', fontSize: '0.7rem', fontWeight: '800', cursor: 'pointer', opacity: (!meetingTitle || !meetingDate) ? 0.5 : 1 }}
+                                                        >Agendar</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                            </div>
+
+                            {/* Bottom actions — always visible */}
+                            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {/* Fluxo Visual */}
                                 {activeFlowExec ? (
                                     <div style={{
-                                        width: '100%', padding: '12px', borderRadius: 'var(--radius-md)',
+                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-md)',
                                         backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)',
-                                        display: 'flex', flexDirection: 'column', gap: '8px',
+                                        display: 'flex', flexDirection: 'column', gap: '6px',
                                     }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <GitBranch size={16} style={{ color: 'var(--accent)' }} />
-                                            <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--accent)', letterSpacing: '0.02em' }}>
-                                                Fluxo Ativo
-                                            </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <GitBranch size={14} style={{ color: 'var(--accent)' }} />
+                                            <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--accent)' }}>Fluxo Ativo</span>
                                             <span style={{
-                                                fontSize: '0.6rem', padding: '2px 8px', borderRadius: 'var(--radius-xl)',
+                                                fontSize: '0.55rem', padding: '2px 6px', borderRadius: 'var(--radius-xl)',
                                                 backgroundColor: activeFlowExec.status === 'running' ? 'var(--success-soft)' : 'var(--warning-soft)',
                                                 color: activeFlowExec.status === 'running' ? 'var(--success)' : 'var(--warning)',
-                                                fontWeight: '700', border: '1px solid var(--border)'
+                                                fontWeight: '700',
                                             }}>
                                                 {activeFlowExec.status === 'running' ? 'Rodando' : 'Pausado'}
                                             </span>
                                         </div>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>
                                             {activeFlowExec.flow_name || `Fluxo #${activeFlowExec.flow_id}`}
                                         </span>
-                                        <button
-                                            onClick={handleCancelFlow}
-                                            style={{
-                                                padding: '6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
-                                                backgroundColor: 'var(--bg-primary)', color: 'var(--error)',
-                                                fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
-                                            }}
-                                        >
-                                            <StopCircle size={14} /> Cancelar Fluxo
+                                        <button onClick={handleCancelFlow} style={{ padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-primary)', color: 'var(--error)', fontSize: '0.65rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                            <StopCircle size={12} /> Cancelar Fluxo
                                         </button>
                                     </div>
                                 ) : companyFlows.length > 0 ? (
@@ -2104,41 +2294,36 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                             onClick={() => setShowFlowSelector(!showFlowSelector)}
                                             disabled={isStartingFlow}
                                             style={{
-                                                width: '100%', padding: '10px', borderRadius: 'var(--radius-md)',
+                                                width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)',
                                                 border: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)', color: 'var(--accent)',
-                                                fontWeight: '800', fontSize: '0.75rem', display: 'flex', alignItems: 'center',
-                                                justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.1s'
+                                                fontWeight: '800', fontSize: '0.7rem', display: 'flex', alignItems: 'center',
+                                                justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
                                             }}
                                             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
                                         >
-                                            {isStartingFlow ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                                            {isStartingFlow ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                                             Iniciar Fluxo Visual
                                         </button>
                                         {showFlowSelector && (
                                             <div style={{
                                                 position: 'absolute', bottom: '100%', left: 0, right: 0,
-                                                marginBottom: '8px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)',
+                                                marginBottom: '6px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)',
                                                 boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
-                                                zIndex: 999, overflow: 'hidden', padding: '6px'
+                                                zIndex: 999, overflow: 'hidden', padding: '4px'
                                             }}>
-                                                <div style={{ padding: '8px 10px', fontSize: '0.65rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                <div style={{ padding: '6px 10px', fontSize: '0.6rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                     Escolha um fluxo
                                                 </div>
                                                 {companyFlows.map(flow => (
                                                     <div
                                                         key={flow.id}
                                                         onClick={() => handleStartFlow(flow.id)}
-                                                        style={{
-                                                            padding: '10px 12px', cursor: 'pointer', fontSize: '0.8rem',
-                                                            fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px',
-                                                            color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)',
-                                                            transition: 'all 0.1s'
-                                                        }}
+                                                        style={{ padding: '8px 10px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)', transition: 'all 0.1s' }}
                                                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
                                                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                                                     >
-                                                        <GitBranch size={14} style={{ color: 'var(--accent)' }} />
+                                                        <GitBranch size={12} style={{ color: 'var(--accent)' }} />
                                                         {flow.name}
                                                     </div>
                                                 ))}
@@ -2151,20 +2336,22 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                     <button
                                         onClick={handleCloseConversation}
                                         style={{
-                                            width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                            backgroundColor: 'var(--bg-primary)', color: 'var(--error)', fontWeight: '800', fontSize: '0.75rem',
+                                            width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                                            backgroundColor: 'var(--bg-primary)', color: 'var(--error)', fontWeight: '800', fontSize: '0.7rem',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.1s'
                                         }}
                                         onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--error-soft)'}
                                         onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
                                     >
-                                        <X size={16} /> Encerrar Caso
+                                        <X size={14} /> Encerrar Caso
                                     </button>
                                 ) : (
                                     <div style={{
-                                        width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                        width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-secondary)',
+                                        border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.7rem',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                                     }}>
-                                        <XCircle size={16} /> Lead Encerrado: {selectedLead.closed_reason || 'Sem motivo'}
+                                        <XCircle size={14} /> Encerrado: {selectedLead.closed_reason || 'Sem motivo'}
                                     </div>
                                 )}
                             </div>
