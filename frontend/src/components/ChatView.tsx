@@ -13,6 +13,7 @@ interface ChatViewProps {
     authUser: UserProfile;
     openPhone?: string | null;
     onPhoneOpened?: () => void;
+    readOnly?: boolean;
 }
 
 const SIDEBAR_CUSTOM_FIELDS: Array<{ key: string; label: string; type: string; placeholder?: string; options?: string[] }> = [
@@ -50,7 +51,7 @@ const parseTextVariables = (text: string, lead: any) => {
     return parsed;
 };
 
-const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatViewProps) => {
+const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened, readOnly = false }: ChatViewProps) => {
     const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -689,7 +690,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     }, [selectedLead?.id]);
 
     const handleToggleIA = async () => {
-        if (!selectedLead) return;
+        if (!selectedLead || readOnly) return;
         const newState = !selectedLead.ia_active;
 
         const { error } = await supabase
@@ -869,7 +870,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     const handleSaveObservacoes = async () => {
-        if (!selectedLead || isSavingObs) return;
+        if (!selectedLead || isSavingObs || readOnly) return;
         setIsSavingObs(true);
         const { error } = await supabase
             .from('sp3chat')
@@ -913,7 +914,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     const handleSaveCustomFields = async () => {
-        if (!selectedLead) return;
+        if (!selectedLead || readOnly) return;
         setIsSavingCustomFields(true);
         const merged = { ...(selectedLead.custom_fields || {}), ...editingCustomFields };
         const { error } = await supabase.from('sp3chat').update({ custom_fields: merged }).eq('id', selectedLead.id);
@@ -982,7 +983,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     const handleSendMessage = async () => {
-        if (!inputValue.trim() || !selectedLead || isSending) return;
+        if (!inputValue.trim() || !selectedLead || isSending || readOnly) return;
         setIsSending(true);
         const messageToSend = inputValue.trim();
         setInputValue('');
@@ -1023,7 +1024,7 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
     };
 
     const handleSendNote = async () => {
-        if (!inputValue.trim() || !selectedLead) return;
+        if (!inputValue.trim() || !selectedLead || readOnly) return;
         const noteText = inputValue.trim();
         setInputValue('');
 
@@ -1802,8 +1803,8 @@ const ChatView = ({ initialLeads, authUser, openPhone, onPhoneOpened }: ChatView
                                                     }
                                                 }}
                                                 onKeyDown={(e) => e.key === 'Enter' && (noteMode ? handleSendNote() : handleSendMessage())}
-                                                placeholder={noteMode ? 'Escreva uma nota interna (só a equipe vê)...' : 'Envie uma mensagem (Intervenção)... (Digite / para atalhos)'}
-                                                disabled={isSending}
+                                                placeholder={readOnly ? 'Modo leitura — visualização apenas' : noteMode ? 'Escreva uma nota interna (só a equipe vê)...' : 'Envie uma mensagem (Intervenção)... (Digite / para atalhos)'}
+                                                disabled={isSending || readOnly}
                                                 style={{ width: '100%', padding: '8px 0', border: 'none', outline: 'none', fontSize: '0.95rem', background: 'transparent', color: noteMode ? '#92400e' : undefined }}
                                             />
                                         </div>

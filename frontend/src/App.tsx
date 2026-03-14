@@ -137,6 +137,7 @@ function App() {
   );
 
   // ─── IMPERSONAÇÃO — VALORES DERIVADOS ──────────────────────────────────────
+  if (authUser) console.log('[Impersonação] company_name:', JSON.stringify(authUser.company_name), '| role:', authUser.role);
   const isSuperAdmin = authUser?.company_name === 'SP3 Company - Master';
   const effectiveCompanyId = (isSuperAdmin && viewingCompanyId) ? viewingCompanyId : authUser?.company_id;
   const isImpersonating = !!(isSuperAdmin && viewingCompanyId && viewingCompanyId !== authUser?.company_id);

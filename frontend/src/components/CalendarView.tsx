@@ -5,6 +5,7 @@ import type { UserProfile, CalendarEvent } from '../lib/supabase';
 
 interface CalendarViewProps {
     authUser: UserProfile;
+    readOnly?: boolean;
 }
 
 // ─── MODAL DE EVENTO ─────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
 
 // ─── COMPONENTE PRINCIPAL ────────────────────────────────────────────────────
 
-export default function CalendarView({ authUser }: CalendarViewProps) {
+export default function CalendarView({ authUser, readOnly = false }: CalendarViewProps) {
     const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -289,6 +290,7 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
     };
 
     const handleSaveEvent = async (data: Partial<CalendarEvent>) => {
+        if (readOnly) return;
         if (data.id) {
             const { error } = await supabase
                 .from('sp3_calendar_events')
@@ -312,6 +314,7 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
     };
 
     const handleDeleteEvent = async (id: number) => {
+        if (readOnly) return;
         const { error } = await supabase
             .from('sp3_calendar_events')
             .delete()
@@ -353,27 +356,29 @@ export default function CalendarView({ authUser }: CalendarViewProps) {
                     </span>
                 </div>
 
-                <button
-                    onClick={() => { setModalDefaultDate(new Date()); setModalEvent('new'); }}
-                    style={{
-                        padding: '10px 20px',
-                        borderRadius: '12px',
-                        background: 'var(--accent)',
-                        color: 'white',
-                        border: 'none',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                    onMouseLeave={e => e.currentTarget.style.transform = 'none'}
-                >
-                    <Plus size={20} /> Criar Evento
-                </button>
+                {!readOnly && (
+                    <button
+                        onClick={() => { setModalDefaultDate(new Date()); setModalEvent('new'); }}
+                        style={{
+                            padding: '10px 20px',
+                            borderRadius: '12px',
+                            background: 'var(--accent)',
+                            color: 'white',
+                            border: 'none',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                    >
+                        <Plus size={20} /> Criar Evento
+                    </button>
+                )}
             </div>
 
             <div style={{ 

@@ -13,9 +13,10 @@ import FlowExecutionLog from './FlowExecutionLog';
 interface FlowBuilderViewProps {
   authUser: UserProfile;
   isDarkMode: boolean;
+  readOnly?: boolean;
 }
 
-export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderViewProps) {
+export default function FlowBuilderView({ authUser, isDarkMode, readOnly = false }: FlowBuilderViewProps) {
   const [flows, setFlows] = useState<FlowDefinition[]>([]);
   const [selectedFlowId, setSelectedFlowId] = useState<number | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -110,7 +111,7 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
 
   // CRUD operations
   const handleCreateFlow = async () => {
-    if (!companyId) return;
+    if (!companyId || readOnly) return;
 
     const triggerId = crypto.randomUUID();
     const defaultFlow = {
@@ -145,7 +146,7 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
   };
 
   const handleSaveFlow = async () => {
-    if (!selectedFlowId || !companyId) return;
+    if (!selectedFlowId || !companyId || readOnly) return;
 
     // Validate first
     const flowData = {
@@ -209,6 +210,7 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
   };
 
   const handleDeleteFlow = (id: number) => {
+    if (readOnly) return;
     setConfirmDelete(id);
   };
 
@@ -255,6 +257,7 @@ export default function FlowBuilderView({ authUser, isDarkMode }: FlowBuilderVie
   };
 
   const handleToggleActive = async (id: number, active: boolean) => {
+    if (readOnly) return;
     const { error } = await supabase
       .from('sp3_flows')
       .update({ is_active: active })

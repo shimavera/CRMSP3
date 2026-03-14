@@ -634,7 +634,7 @@ const MetricsBar = ({ leads }: { leads: Lead[] }) => {
 
 // ─── COMPONENTE PRINCIPAL ────────────────────────────────────────────────────
 
-const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
+const KanbanView = ({ authUser, readOnly = false }: { authUser: UserProfile; readOnly?: boolean }) => {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -723,6 +723,7 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
 
     // ── Drag and Drop (@hello-pangea/dnd) ────────────────────────────────────────────────────────
     const onDragEnd = (result: DropResult) => {
+        if (readOnly) return;
         const { destination, source, draggableId } = result;
 
         if (!destination) return; // Fora droppable
@@ -979,9 +980,9 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
     );
 };
 
-const KanbanViewWithErrorBoundary = ({ authUser }: { authUser: UserProfile }) => (
+const KanbanViewWithErrorBoundary = ({ authUser, readOnly }: { authUser: UserProfile; readOnly?: boolean }) => (
     <KanbanErrorBoundary>
-        <KanbanView authUser={authUser} />
+        <KanbanView authUser={authUser} readOnly={readOnly} />
     </KanbanErrorBoundary>
 );
 
