@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
 
-const LoginView = () => {
+const LoginView = ({ onSignup }: { onSignup?: () => void }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -152,9 +152,21 @@ const LoginView = () => {
                     </button>
                 </form>
 
-                <p style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Acesso restrito a usuários autorizados
-                </p>
+                {onSignup && (
+                    <p
+                        onClick={onSignup}
+                        style={{
+                            textAlign: 'center',
+                            marginTop: '1.5rem',
+                            fontSize: '0.85rem',
+                            color: 'var(--accent)',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Criar conta gratis - 3 dias de teste
+                    </p>
+                )}
                 <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.65rem', color: '#cbd5e1', fontWeight: '600' }}>
                     Saúde IA v1.0
                 </p>

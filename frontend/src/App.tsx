@@ -19,7 +19,9 @@ import {
   Moon,
   Instagram,
   GitBranch,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Building2,
+  Eye
 } from 'lucide-react';
 // Lazy Load Componentes
 const LazyChatView = lazy(() => import('./components/ChatView'));
@@ -30,8 +32,10 @@ const LazyDashboardView = lazy(() => import('./components/DashboardView'));
 const LazyInstagramView = lazy(() => import('./components/InstagramView'));
 const LazyFlowBuilderView = lazy(() => import('./components/FlowBuilder/FlowBuilderView'));
 const LazyCalendarView = lazy(() => import('./components/CalendarView'));
+const LazySignupView = lazy(() => import('./components/SignupView'));
+const LazyBlockedView = lazy(() => import('./components/BlockedView'));
 import { supabase } from './lib/supabase';
-import type { Lead, UserProfile } from './lib/supabase';
+import type { Lead, UserProfile, SubscriptionStatus } from './lib/supabase';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) => (
   <button
@@ -93,6 +97,13 @@ function App() {
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [openChatWithPhone, setOpenChatWithPhone] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  // ─── SUBSCRIPTION / BILLING ─────────────────────────────────────────────────
+  const [showSignup, setShowSignup] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+  // ─── IMPERSONAÇÃO DE EMPRESA (SUPER ADMIN) ─────────────────────────────────
+  const [viewingCompanyId, setViewingCompanyId] = useState<string | null>(null);
+  const [viewingCompanyName, setViewingCompanyName] = useState<string | null>(null);
+  const [tenantsList, setTenantsList] = useState<{ id: string; name: string }[]>([]);
   // ─── ADICIONAR / EDITAR LEAD ────────────────────────────────────────────────
   const [showAddLead, setShowAddLead] = useState(false);
   const [newLeadNome, setNewLeadNome] = useState('');
@@ -124,6 +135,42 @@ function App() {
   (l.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     l.telefone.includes(searchTerm))
   );
+
+  // ─── IMPERSONAÇÃO — VALORES DERIVADOS ──────────────────────────────────────
+  const isSuperAdmin = authUser?.company_name === 'SP3 Company - Master';
+  const effectiveCompanyId = (isSuperAdmin && viewingCompanyId) ? viewingCompanyId : authUser?.company_id;
+  const isImpersonating = !!(isSuperAdmin && viewingCompanyId && viewingCompanyId !== authUser?.company_id);
+
+  const effectiveAuthUser: UserProfile | null = authUser ? {
+    ...authUser,
+    company_id: effectiveCompanyId,
+    company_name: isImpersonating ? (viewingCompanyName || '') : authUser.company_name,
+  } : null;
+
+  const handleSwitchCompany = (companyId: string | null, companyName: string | null) => {
+    setViewingCompanyId(companyId);
+    setViewingCompanyName(companyName);
+    setLeads([]);
+    setOpenChatWithPhone(null);
+  };
+
+  // Buscar lista de empresas para super admin
+  useEffect(() => {
+    if (!isSuperAdmin || !authUser) return;
+    supabase.rpc('get_all_tenants').then(({ data, error }) => {
+      if (error) {
+        console.error('[Impersonação] Erro ao buscar empresas:', error.message);
+        return;
+      }
+      if (data) {
+        const clients = data
+          .filter((t: any) => t.name !== 'SP3 Company - Master')
+          .map((t: any) => ({ id: t.id, name: t.name }));
+        console.log('[Impersonação] Empresas encontradas:', clients.length);
+        setTenantsList(clients);
+      }
+    });
+  }, [isSuperAdmin, authUser?.id]);
 
   const handleExportLeads = () => {
     const headers = ['ID', 'Nome', 'Telefone', 'Email', 'Status', 'Forecast', 'Criado Em'];
@@ -208,6 +255,16 @@ function App() {
         permissions: userPerms,
         company_name: sp3_companies?.name || ''
       } as UserProfile);
+
+      // Verificar status da assinatura
+      if (userData.company_id) {
+        const { data: subStatus } = await supabase.rpc('check_subscription_status', {
+          p_company_id: userData.company_id
+        });
+        if (subStatus) {
+          setSubscriptionStatus(subStatus as SubscriptionStatus);
+        }
+      }
     } else {
       // Usuário não cadastrado — não auto-criar (apenas masters podem cadastrar usuários)
       console.warn('Usuário não encontrado na tabela sp3_users. Acesso negado.');
@@ -228,26 +285,34 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
+        setShowSignup(false);
         loadUserProfile(session.user.id, session.user.email || '');
       } else if (event === 'SIGNED_OUT') {
         setAuthUser(null);
+        setSubscriptionStatus(null);
         setAuthLoading(false);
         setActiveTab('dashboard');
       }
     });
+
+    // Verificar retorno do checkout Abacate Pay
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('billing') === 'success' || params.get('billing') === 'complete') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
 
     return () => subscription.unsubscribe();
   }, []);
 
   // ─── DADOS ──────────────────────────────────────────────────────────────────
   const fetchLeads = async () => {
-    if (!authUser) return;
+    if (!authUser || !effectiveCompanyId) return;
     setLeadsLoading(true);
     try {
       let query = supabase
         .from('sp3chat')
         .select('*')
-        .eq('company_id', authUser.company_id)
+        .eq('company_id', effectiveCompanyId)
         .order('id', { ascending: false })
         .limit(2000);
 
@@ -268,17 +333,17 @@ function App() {
   };
 
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || !effectiveCompanyId) return;
     fetchLeads();
 
     // Realtime: novos leads aparecem instantaneamente
     const channel = supabase
-      .channel('app-leads-realtime')
+      .channel(`leads-${effectiveCompanyId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'sp3chat',
-        filter: `company_id=eq.${authUser.company_id}`
+        filter: `company_id=eq.${effectiveCompanyId}`
       }, (payload) => {
         const newLead = payload.new as Lead;
         setLeads(prev => {
@@ -291,7 +356,7 @@ function App() {
         event: 'UPDATE',
         schema: 'public',
         table: 'sp3chat',
-        filter: `company_id=eq.${authUser.company_id}`
+        filter: `company_id=eq.${effectiveCompanyId}`
       }, (payload) => {
         const updated = payload.new as Lead;
         setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
@@ -300,7 +365,7 @@ function App() {
         event: 'DELETE',
         schema: 'public',
         table: 'sp3chat',
-        filter: `company_id=eq.${authUser.company_id}`
+        filter: `company_id=eq.${effectiveCompanyId}`
       }, (payload) => {
         const deleted = payload.old as any;
         setLeads(prev => prev.filter(l => l.id !== deleted.id));
@@ -309,7 +374,7 @@ function App() {
         event: 'INSERT',
         schema: 'public',
         table: 'n8n_chat_histories',
-        filter: `company_id=eq.${authUser.company_id}`
+        filter: `company_id=eq.${effectiveCompanyId}`
       }, (payload) => {
         const newMsg = payload.new as any;
         try {
@@ -328,7 +393,7 @@ function App() {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [authUser]);
+  }, [authUser, effectiveCompanyId]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -358,7 +423,24 @@ function App() {
 
   if (!authUser) return (
     <Suspense fallback={null}>
-      <LazyLoginView />
+      {showSignup ? (
+        <LazySignupView onBackToLogin={() => setShowSignup(false)} />
+      ) : (
+        <LazyLoginView onSignup={() => setShowSignup(true)} />
+      )}
+    </Suspense>
+  );
+
+  // ─── BLOQUEIO POR ASSINATURA ──────────────────────────────────────────────
+  if (subscriptionStatus && !subscriptionStatus.allowed) return (
+    <Suspense fallback={null}>
+      <LazyBlockedView
+        subscriptionStatus={subscriptionStatus}
+        companyId={authUser.company_id || ''}
+        email={authUser.email}
+        companyName={authUser.company_name || ''}
+        onLogout={async () => { await supabase.auth.signOut(); }}
+      />
     </Suspense>
   );
 
@@ -516,6 +598,45 @@ function App() {
           </span>
         </div>
 
+        {/* Seletor de empresa — Super Admin */}
+        {isSuperAdmin && (
+          <div style={{ padding: '0 0.75rem', marginBottom: '1rem' }}>
+            <label style={{ fontSize: '0.6rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
+              <Eye size={10} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+              Visualizar empresa
+            </label>
+            {tenantsList.length > 0 ? (
+              <select
+                value={viewingCompanyId || ''}
+                onChange={(e) => {
+                  const id = e.target.value || null;
+                  const name = id ? tenantsList.find(t => t.id === id)?.name || null : null;
+                  handleSwitchCompany(id, name);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: isImpersonating ? '2px solid #f59e0b' : '1px solid var(--border)',
+                  background: isImpersonating ? '#fef3c7' : 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                <option value="">Minha Empresa (SP3)</option>
+                {tenantsList.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Carregando empresas...</span>
+            )}
+          </div>
+        )}
+
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {authUser.permissions.dashboard && (
             <SidebarItem icon={LayoutDashboard} label="Visão Geral" active={activeTab === 'dashboard'} onClick={() => navigate('dashboard')} />
@@ -556,6 +677,93 @@ function App() {
       </aside>
 
       <main className="main-content" style={activeTab === 'chats' ? { padding: 0, overflow: 'hidden' } : activeTab !== 'dashboard' ? { paddingTop: '1.5rem' } : undefined}>
+        {/* Banner de impersonação */}
+        {isImpersonating && (
+          <div style={{
+            background: 'linear-gradient(90deg, #f59e0b, #f97316)',
+            color: 'white',
+            padding: '8px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.85rem',
+            fontWeight: '700',
+            zIndex: 100,
+            position: 'sticky',
+            top: 0,
+            gap: '8px',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Building2 size={16} />
+              Visualizando: {viewingCompanyName} (Modo Leitura)
+            </span>
+            <button
+              onClick={() => handleSwitchCompany(null, null)}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.4)',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '700',
+                fontSize: '0.8rem',
+              }}
+            >
+              Voltar para SP3
+            </button>
+          </div>
+        )}
+        {/* Banner de trial */}
+        {subscriptionStatus?.status === 'trialing' && (
+          <div style={{
+            background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+            padding: '10px 20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid #f59e0b40',
+            flexWrap: 'wrap',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#92400e' }}>
+              Teste gratis: {subscriptionStatus.days_remaining ?? 0} {(subscriptionStatus.days_remaining ?? 0) === 1 ? 'dia restante' : 'dias restantes'} | {subscriptionStatus.trial_leads_used ?? 0}/{subscriptionStatus.trial_lead_limit ?? 20} leads
+            </span>
+            <button
+              onClick={() => {
+                setSubscriptionStatus({ ...subscriptionStatus, allowed: false, reason: 'upgrade' });
+              }}
+              style={{
+                padding: '6px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: '#f59e0b',
+                color: 'white',
+                fontWeight: '700',
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              Assinar Agora
+            </button>
+          </div>
+        )}
+        {/* Banner pagamento pendente */}
+        {subscriptionStatus?.status === 'past_due' && (
+          <div style={{
+            background: 'linear-gradient(135deg, #fee2e2, #fecaca)',
+            padding: '10px 20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid #ef444440'
+          }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#991b1b' }}>
+              Pagamento pendente. Atualize seus dados de pagamento para evitar interrupcao.
+            </span>
+          </div>
+        )}
         {/* Toggle button when header is hidden */}
         {activeTab !== 'dashboard' && activeTab !== 'chats' && (
           <button
@@ -678,30 +886,31 @@ function App() {
           {activeTab === 'chats' && authUser.permissions.chats && (
             <LazyChatView
               initialLeads={leads}
-              authUser={authUser}
+              authUser={effectiveAuthUser!}
               openPhone={openChatWithPhone}
               onPhoneOpened={() => setOpenChatWithPhone(null)}
+              readOnly={isImpersonating}
             />
           )}
 
           {activeTab === 'kanban' && authUser.permissions.kanban && (
-            <LazyKanbanView authUser={authUser} />
+            <LazyKanbanView authUser={effectiveAuthUser!} readOnly={isImpersonating} />
           )}
 
           {activeTab === 'settings' && authUser.permissions.settings && (
-            <LazySettingsView authUser={authUser} />
+            <LazySettingsView authUser={effectiveAuthUser!} readOnly={isImpersonating} />
           )}
 
           {activeTab === 'instagram' && (
-            <LazyInstagramView authUser={authUser} />
+            <LazyInstagramView authUser={effectiveAuthUser!} readOnly={isImpersonating} />
           )}
 
           {activeTab === 'calendar' && authUser.permissions.calendar !== false && (
-            <LazyCalendarView authUser={authUser} />
+            <LazyCalendarView authUser={effectiveAuthUser!} readOnly={isImpersonating} />
           )}
 
           {activeTab === 'flows' && authUser.permissions.settings && (
-            <LazyFlowBuilderView authUser={authUser} isDarkMode={isDarkMode} />
+            <LazyFlowBuilderView authUser={effectiveAuthUser!} isDarkMode={isDarkMode} readOnly={isImpersonating} />
           )}
         </Suspense>
         {activeTab === 'leads' && authUser.permissions.leads && (
@@ -712,12 +921,14 @@ function App() {
                 <h3 style={{ fontWeight: '700', fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.02em' }}><Users size={20} color="var(--text-primary)" /> Base de Leads</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>{leads.length} leads cadastrados</p>
               </div>
-              <button
-                onClick={() => { setNewLeadNome(''); setNewLeadTelefone(''); setEditingLeadId(null); setShowAddLead(true); setAddLeadError(null); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
-              >
-                <Plus size={16} /> Adicionar Lead
-              </button>
+              {!isImpersonating && (
+                <button
+                  onClick={() => { setNewLeadNome(''); setNewLeadTelefone(''); setEditingLeadId(null); setShowAddLead(true); setAddLeadError(null); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  <Plus size={16} /> Adicionar Lead
+                </button>
+              )}
             </div>
 
             {/* Formulário de novo lead */}
@@ -829,21 +1040,23 @@ function App() {
                                   <MessageSquare size={14} />
                                 </button>
                               )}
-                              <button
-                                onClick={() => {
-                                  setNewLeadNome(lead.nome || '');
-                                  setNewLeadTelefone(lead.telefone);
-                                  setEditingLeadId(lead.id);
-                                  setShowAddLead(true);
-                                  setAddLeadError(null);
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                title="Editar Lead"
-                                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-soft)', backgroundColor: 'white', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                              >
-                                <Edit2 size={14} />
-                              </button>
-                              {authUser.role === 'master' && (
+                              {!isImpersonating && (
+                                <button
+                                  onClick={() => {
+                                    setNewLeadNome(lead.nome || '');
+                                    setNewLeadTelefone(lead.telefone);
+                                    setEditingLeadId(lead.id);
+                                    setShowAddLead(true);
+                                    setAddLeadError(null);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  title="Editar Lead"
+                                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-soft)', backgroundColor: 'white', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                              )}
+                              {authUser.role === 'master' && !isImpersonating && (
                                 <button
                                   onClick={() => handleDeleteLead(lead.id)}
                                   title="Excluir Lead"

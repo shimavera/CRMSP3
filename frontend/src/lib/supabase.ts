@@ -320,3 +320,18 @@ export type IAGap = {
   created_at?: string;
   resolved_at?: string;
 };
+
+// ===== Subscription / Billing =====
+
+export type SubscriptionStatus = {
+  allowed: boolean;
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'blocked' | 'legacy';
+  plan_type: 'trial' | 'monthly' | 'annual' | 'legacy';
+  reason?: string;
+  warning?: string;
+  trial_end?: string;
+  trial_leads_used?: number;
+  trial_lead_limit?: number;
+  days_remaining?: number;
+  current_period_end?: string;
+};

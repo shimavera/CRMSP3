@@ -31,9 +31,10 @@ const N8N_WEBHOOK_BASE = import.meta.env.VITE_N8N_WEBHOOK_BASE;
 
 interface Props {
   authUser: UserProfile;
+  readOnly?: boolean;
 }
 
-export default function InstagramView({ authUser }: Props) {
+export default function InstagramView({ authUser, readOnly: _readOnly = false }: Props) {
   // === Estados: Configuração Meta App ===
   const [igAppId, setIgAppId] = useState('');
   const [igAppSecret, setIgAppSecret] = useState('');

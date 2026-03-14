@@ -6,6 +6,7 @@ import PromptBuilderChat from './PromptBuilderChat';
 
 interface SettingsViewProps {
     authUser: UserProfile;
+    readOnly?: boolean;
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -227,7 +228,7 @@ function ExecutionLogsPanel({ companyId }: { companyId: string }) {
     );
 }
 
-const SettingsView = ({ authUser }: SettingsViewProps) => {
+const SettingsView = ({ authUser, readOnly = false }: SettingsViewProps) => {
     const isSuperAdmin = authUser.company_name === 'SP3 Company - Master';
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
     const [qrCode, setQrCode] = useState<string | null>(null);
@@ -1253,9 +1254,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsLoadingSaas(true);
         const { data, error } = await supabase.rpc('get_all_tenants');
         if (data && !error) {
-            setSaasClientsList(data);
+            // Buscar dados de subscription para cada tenant
+            const { data: subs } = await supabase.from('sp3_subscriptions').select('company_id, plan_type, status, trial_leads_used, trial_lead_limit, trial_end');
+            const subsMap: Record<string, any> = {};
+            (subs || []).forEach((s: any) => { subsMap[s.company_id] = s; });
+            const enriched = data.map((t: any) => ({ ...t, subscription: subsMap[t.id] || null }));
+            setSaasClientsList(enriched);
             // Verificar status do WhatsApp de cada cliente em background
-            checkWhatsappStatuses(data);
+            checkWhatsappStatuses(enriched);
         }
         setIsLoadingSaas(false);
     };
@@ -1624,6 +1630,21 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             });
         }
     }, [activeSubTab]);
+
+    if (readOnly) {
+        return (
+            <div className="fade-in" style={{ padding: '2rem' }}>
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
+                    <Eye size={48} color="var(--text-muted)" style={{ marginBottom: '1rem' }} />
+                    <h3 style={{ fontWeight: '800', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Modo Leitura</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                        As configurações desta empresa estão visíveis apenas para consulta.<br />
+                        Para editar, volte para sua empresa no seletor do menu lateral.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '2rem' }}>
@@ -3052,6 +3073,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Empresa</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Instância (Evo)</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>
+                                            <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Plano</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>WhatsApp</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Cadastro</th>
                                             <th style={{ padding: '14px 16px', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Audio IA</th>
@@ -3061,14 +3083,14 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                     <tbody>
                                         {isLoadingSaas ? (
                                             <tr>
-                                                <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                                <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                                                     <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto', marginBottom: '8px' }} />
                                                     Carregando clientes...
                                                 </td>
                                             </tr>
                                         ) : saasClientsList.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum cliente SaaS encontrado.</td>
+                                                <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum cliente SaaS encontrado.</td>
                                             </tr>
                                         ) : (
                                             saasClientsList.map(empresa => (
@@ -3087,6 +3109,26 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                                                         <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: empresa.active ? '#dcfce7' : '#fee2e2', color: empresa.active ? '#15803d' : '#b91c1c', fontWeight: '700', textTransform: 'uppercase' }}>
                                                             {empresa.active ? 'Ativa' : 'Inativa'}
                                                         </span>
+                                                    </td>
+                                                    <td style={{ padding: '14px 16px' }}>
+                                                        {(() => {
+                                                            const sub = (empresa as any).subscription;
+                                                            if (!sub) return <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: '#f1f5f9', color: '#64748b', fontWeight: '700' }}>Legado</span>;
+                                                            const planLabel = sub.plan_type === 'trial' ? 'Trial' : sub.plan_type === 'monthly' ? 'Mensal' : sub.plan_type === 'annual' ? 'Anual' : sub.plan_type;
+                                                            const statusColor = sub.status === 'active' ? { bg: '#dcfce7', color: '#15803d' } : sub.status === 'trialing' ? { bg: '#fef3c7', color: '#92400e' } : { bg: '#fee2e2', color: '#b91c1c' };
+                                                            return (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px', background: statusColor.bg, color: statusColor.color, fontWeight: '700', display: 'inline-block', width: 'fit-content' }}>
+                                                                        {planLabel}
+                                                                    </span>
+                                                                    {sub.status === 'trialing' && (
+                                                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                                                            {sub.trial_leads_used}/{sub.trial_lead_limit} leads
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </td>
                                                     <td style={{ padding: '14px 16px' }}>
                                                         {(() => {
