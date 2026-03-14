@@ -40,6 +40,10 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const storageKey = `sp3_prompt_builder_chat_${companyId}`;
+    const [dialog, setDialog] = useState<{ type: 'alert' | 'confirm'; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
+    const showConfirm = (message: string) => new Promise<boolean>((resolve) => {
+        setDialog({ type: 'confirm', title: 'Confirmação', message, onConfirm: () => { setDialog(null); resolve(true); }, onCancel: () => { setDialog(null); resolve(false); } });
+    });
 
     // Load saved conversation from localStorage
     useEffect(() => {
@@ -135,14 +139,14 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
             const aiReply = data.reply || 'Desculpe, ocorreu um erro ao processar. Tente novamente.';
 
             // Check for [PROMPT_FINAL] markers — handle both [/PROMPT_FINAL] and [PROMPT_FINAL] as closing tag
-            const promptMatch = aiReply.match(/\[PROMPT_FINAL\]([\s\S]*?)\[\/?\s*PROMPT_FINAL\]\s*$/);
+            const promptMatch = aiReply.match(/\[PROMPT_FINAL\]([\s\S]*?)\[\/?\s*PROMPT_FINAL\]/);
             if (promptMatch) {
                 setPendingPrompt(promptMatch[1].trim());
             }
 
             // Display reply without markers and clean up --- delimited blocks (prompt snippets)
             const displayReply = aiReply
-                .replace(/\[PROMPT_FINAL\][\s\S]*?\[\/PROMPT_FINAL\]/, '')
+                .replace(/\[PROMPT_FINAL\][\s\S]*?\[\/?\s*PROMPT_FINAL\]/, '')
                 .replace(/---[\s\S]*?---/g, '')
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
@@ -216,8 +220,8 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Converse para criar ou ajustar o prompt da sua IA</p>
                 </div>
                 <button
-                    onClick={() => {
-                        if (confirm('Limpar conversa? O histórico será apagado.')) {
+                    onClick={async () => {
+                        if (await showConfirm('Limpar conversa? O histórico será apagado.')) {
                             localStorage.removeItem(storageKey);
                             setPendingPrompt(null);
                             const greeting = currentPrompt.trim()
@@ -428,6 +432,21 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
                     <Send size={18} />
                 </button>
             </div>
+
+            {dialog && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                    <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--border)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{dialog.title}</h3>
+                        <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            {dialog.type !== 'alert' && (
+                                <button onClick={dialog.onCancel} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '500' }}>Cancelar</button>
+                            )}
+                            <button onClick={dialog.onConfirm} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '500' }}>OK</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
