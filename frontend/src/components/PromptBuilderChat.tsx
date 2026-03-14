@@ -20,9 +20,9 @@ const WEBHOOK_URL = `${import.meta.env.VITE_N8N_WEBHOOK_BASE}/webhook/prompt-bui
 // Clean --- delimited blocks and [PROMPT_FINAL] markers from message content
 function cleanMessageContent(content: string): string {
     return content
-        .replace(/\[PROMPT_FINAL\][\s\S]*?\[\/PROMPT_FINAL\]/g, '')
+        .replace(/\[PROMPT_FINAL\][\s\S]*?\[\/?\s*PROMPT_FINAL\]/g, '')
         .replace(/\[PROMPT_FINAL\][\s\S]*/g, '')
-        .replace(/\[\/PROMPT_FINAL\]/g, '')
+        .replace(/\[\/?\s*PROMPT_FINAL\]/g, '')
         .replace(/---[\s\S]*?---/g, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
@@ -134,8 +134,8 @@ export default function PromptBuilderChat({ companyId, currentPrompt, onSaveProm
             const data = await response.json();
             const aiReply = data.reply || 'Desculpe, ocorreu um erro ao processar. Tente novamente.';
 
-            // Check for [PROMPT_FINAL] markers
-            const promptMatch = aiReply.match(/\[PROMPT_FINAL\]([\s\S]*?)\[\/PROMPT_FINAL\]/);
+            // Check for [PROMPT_FINAL] markers — handle both [/PROMPT_FINAL] and [PROMPT_FINAL] as closing tag
+            const promptMatch = aiReply.match(/\[PROMPT_FINAL\]([\s\S]*?)\[\/?\s*PROMPT_FINAL\]\s*$/);
             if (promptMatch) {
                 setPendingPrompt(promptMatch[1].trim());
             }
