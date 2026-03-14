@@ -15,6 +15,7 @@ type Props = {
 const BlockedView = ({ subscriptionStatus, companyId, email, companyName, onLogout }: Props) => {
   const [loading, setLoading] = useState<'monthly' | 'annual' | null>(null);
   const [coupon, setCoupon] = useState('');
+  const [taxId, setTaxId] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const reason = subscriptionStatus.reason || subscriptionStatus.status;
@@ -55,6 +56,12 @@ const BlockedView = ({ subscriptionStatus, companyId, email, companyName, onLogo
   };
 
   const handleSubscribe = async (plan: 'monthly' | 'annual') => {
+    const cleanTaxId = taxId.replace(/\D/g, '');
+    if (!cleanTaxId || (cleanTaxId.length !== 11 && cleanTaxId.length !== 14)) {
+      setError('Informe um CPF (11 digitos) ou CNPJ (14 digitos) valido.');
+      return;
+    }
+
     setLoading(plan);
     setError(null);
 
@@ -67,7 +74,8 @@ const BlockedView = ({ subscriptionStatus, companyId, email, companyName, onLogo
           email,
           company_name: companyName,
           plan,
-          coupon: coupon.trim() || undefined
+          coupon: coupon.trim() || undefined,
+          taxId: cleanTaxId
         })
       });
 
@@ -200,27 +208,49 @@ const BlockedView = ({ subscriptionStatus, companyId, email, companyName, onLogo
           </button>
         </div>
 
+        {/* CPF/CNPJ */}
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px', display: 'block' }}>
+            CPF ou CNPJ
+          </label>
+          <input
+            type="text"
+            value={taxId}
+            onChange={(e) => setTaxId(e.target.value.replace(/[^\d.-/]/g, ''))}
+            placeholder="000.000.000-00"
+            disabled={!!loading}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              border: '1.5px solid #e2e8f0',
+              fontSize: '0.9rem',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+
         {/* Cupom */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="text"
-              value={coupon}
-              onChange={(e) => setCoupon(e.target.value.toUpperCase())}
-              placeholder="Cupom de desconto"
-              disabled={!!loading}
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: '10px',
-                border: '1.5px solid #e2e8f0',
-                fontSize: '0.85rem',
-                outline: 'none',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
-              }}
-            />
-          </div>
+          <input
+            type="text"
+            value={coupon}
+            onChange={(e) => setCoupon(e.target.value.toUpperCase())}
+            placeholder="Cupom de desconto (opcional)"
+            disabled={!!loading}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              border: '1.5px solid #e2e8f0',
+              fontSize: '0.85rem',
+              outline: 'none',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              boxSizing: 'border-box'
+            }}
+          />
         </div>
 
         {error && (
