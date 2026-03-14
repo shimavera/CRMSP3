@@ -1,6 +1,6 @@
 {
-    "buildCommand": "cd Saude/frontend && npm install && npm run build",
-    "outputDirectory": "Saude/frontend/dist",
+    "buildCommand": "cd frontend && npm install && npm run build",
+    "outputDirectory": "frontend/dist",
     "rewrites": [
         {
             "source": "/(.*)",

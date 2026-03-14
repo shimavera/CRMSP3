@@ -80,6 +80,9 @@ export const FLOW_VARIABLES = [
   { token: '{{company_name}}', label: 'Nome da Empresa' },
   { token: '{{saudacao}}', label: 'Saudação (Bom dia/Boa tarde)' },
   { token: '{{meeting_link}}', label: 'Link da Reunião' },
+  { token: '{{meeting_datetime}}', label: 'Data/Hora da Reunião' },
+  { token: '{{meeting_date}}', label: 'Data da Reunião' },
+  { token: '{{meeting_time}}', label: 'Hora da Reunião' },
 ];
 
 // Stages do pipeline (mesmo padrao do KanbanView)

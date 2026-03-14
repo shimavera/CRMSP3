@@ -65,6 +65,12 @@ export default function InstagramView({ authUser }: Props) {
   // === Estados: Feedback ===
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // === Estados: Dialog customizado ===
+  const [dialog, setDialog] = useState<{ type: 'alert' | 'confirm'; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
+  const showConfirm = (message: string) => new Promise<boolean>((resolve) => {
+    setDialog({ type: 'confirm', title: 'Confirmação', message, onConfirm: () => { setDialog(null); resolve(true); }, onCancel: () => { setDialog(null); resolve(false); } });
+  });
+
   const popupRef = useRef<Window | null>(null);
 
   // ============================================================
@@ -183,7 +189,7 @@ export default function InstagramView({ authUser }: Props) {
 
   const handleDisconnectInstagram = async () => {
     if (!igAccount) return;
-    if (!window.confirm('Desconectar a conta Instagram? As automações ficarão inativas.')) return;
+    if (!await showConfirm('Desconectar a conta Instagram? As automações ficarão inativas.')) return;
     try {
       await supabase
         .from('sp3_instagram_accounts')
@@ -256,7 +262,7 @@ export default function InstagramView({ authUser }: Props) {
   };
 
   const handleDeleteAutomation = async (id: number) => {
-    if (!window.confirm('Excluir esta automação? Esta ação não pode ser desfeita.')) return;
+    if (!await showConfirm('Excluir esta automação? Esta ação não pode ser desfeita.')) return;
     try {
       await supabase.from('sp3_instagram_automations').delete().eq('id', id);
       setAutomations(prev => prev.filter(a => a.id !== id));
@@ -1288,6 +1294,21 @@ export default function InstagramView({ authUser }: Props) {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {dialog && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--border)' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{dialog.title}</h3>
+            <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              {dialog.type !== 'alert' && (
+                <button onClick={dialog.onCancel} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '500' }}>Cancelar</button>
+              )}
+              <button onClick={dialog.onConfirm} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '500' }}>OK</button>
+            </div>
           </div>
         </div>
       )}

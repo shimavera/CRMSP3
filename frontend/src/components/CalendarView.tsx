@@ -39,6 +39,7 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
     });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -192,8 +193,15 @@ function EventModal({ event, onClose, onSave, onDelete, authUser, defaultDate }:
 
                     {/* Ações Finais */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px', borderTop: '1px solid var(--border-soft)', paddingTop: '20px' }}>
-                        {!isNew && onDelete && event?.id && (
-                            <button onClick={() => { if (confirm('Remover este evento?')) onDelete(event.id!); }} style={{ background: 'none', border: 'none', color: 'var(--error)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginRight: 'auto' }}>Excluir</button>
+                        {!isNew && onDelete && event?.id && !confirmDelete && (
+                            <button onClick={() => setConfirmDelete(true)} style={{ background: 'none', border: 'none', color: 'var(--error)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginRight: 'auto' }}>Excluir</button>
+                        )}
+                        {confirmDelete && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: 'auto' }}>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Remover?</span>
+                                <button onClick={() => onDelete!(event!.id!)} style={{ background: 'none', border: 'none', color: 'var(--error)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Sim</button>
+                                <button onClick={() => setConfirmDelete(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>Não</button>
+                            </div>
                         )}
                         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', padding: '10px 16px' }}>Cancelar</button>
                         <button

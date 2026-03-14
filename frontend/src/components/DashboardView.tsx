@@ -341,7 +341,7 @@ const MetricCard = ({ title, value, icon, color, onClick }: any) => (
     <div
         onClick={onClick}
         className="glass-card"
-        style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderLeft: `1px solid var(--border)`, cursor: 'pointer', transition: 'all 0.1s' }}
+        style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderRadius: 'var(--radius-lg)', cursor: 'pointer', transition: 'all 0.1s' }}
     >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</span>

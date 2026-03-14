@@ -15,6 +15,7 @@ import { ptBR } from 'date-fns/locale';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 
+// ErrorBoundary para capturar erros de renderização
 class KanbanErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
     constructor(props: { children: ReactNode }) {
         super(props);
@@ -301,6 +302,61 @@ const LeadCard = (props: {
     );
 };
 
+// ─── SYNC CALENDÁRIO ─────────────────────────────────────────────────────────
+
+async function syncCalendarEvent(leadId: number, meetingDatetime: string, meetingStatus: string, leadName: string) {
+    try {
+        // Buscar company_id do lead
+        const { data: leadData } = await supabase.from('sp3chat').select('company_id').eq('id', leadId).single();
+        if (!leadData?.company_id) return;
+
+        // Buscar duração padrão da empresa
+        const { data: settings } = await supabase.from('sp3_calendar_settings').select('default_meeting_duration').eq('company_id', leadData.company_id).single();
+        const duration = settings?.default_meeting_duration || 30;
+
+        const startTime = new Date(meetingDatetime);
+        const endTime = new Date(startTime.getTime() + duration * 60000);
+
+        // Mapear status do lead para status do calendário
+        const calendarStatus = meetingStatus === 'scheduled' ? 'scheduled'
+            : meetingStatus === 'completed' ? 'completed'
+            : meetingStatus === 'no_show' ? 'no_show'
+            : 'cancelled';
+
+        // Verificar se já existe evento para este lead
+        const { data: existing } = await supabase
+            .from('sp3_calendar_events')
+            .select('id')
+            .eq('lead_id', leadId)
+            .eq('company_id', leadData.company_id)
+            .in('status', ['scheduled'])
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (existing && existing.length > 0) {
+            // Atualizar evento existente
+            await supabase.from('sp3_calendar_events').update({
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                status: calendarStatus,
+                title: `Reunião - ${leadName}`,
+            }).eq('id', existing[0].id);
+        } else if (meetingStatus === 'scheduled') {
+            // Criar novo evento
+            await supabase.from('sp3_calendar_events').insert({
+                company_id: leadData.company_id,
+                lead_id: leadId,
+                title: `Reunião - ${leadName}`,
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                status: 'scheduled',
+            });
+        }
+    } catch (err) {
+        console.error('Erro ao sincronizar calendário:', err);
+    }
+}
+
 // ─── MODAL DE DETALHES ────────────────────────────────────────────────────────
 
 const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: Lead; onClose: () => void; onUpdate: (updated: Lead) => void; currentPipeline: any[] }) => {
@@ -311,6 +367,10 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
     });
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'details' | 'tasks' | 'custom'>('details');
+    const [dialogModal, setDialogModal] = useState<{ type: 'alert' | 'confirm'; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
+    const showAlertModal = (message: string) => new Promise<void>((resolve) => {
+        setDialogModal({ type: 'alert', title: 'Aviso', message, onConfirm: () => { setDialogModal(null); resolve(); }, onCancel: () => { setDialogModal(null); resolve(); } });
+    });
 
     // Nova Tarefa
     const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -336,8 +396,12 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
         setSaving(false);
         if (error) {
             console.error("Erro ao salvar lead:", error);
-            alert(`Oops! Ocorreu um erro ao salvar o lead: ${error.message}`);
+            showAlertModal(`Oops! Ocorreu um erro ao salvar o lead: ${error.message}`);
         } else {
+            // Sync com calendário: criar/atualizar evento quando tem reunião agendada
+            if (form.meeting_datetime && form.meeting_status) {
+                syncCalendarEvent(lead.id, form.meeting_datetime, form.meeting_status, lead.nome || lead.telefone);
+            }
             onUpdate({ ...lead, ...form });
         }
     };
@@ -516,6 +580,21 @@ const LeadDetailModal = ({ lead, onClose, onUpdate, currentPipeline }: { lead: L
                     {saving ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
             </div>
+
+            {dialogModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+                    <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--border)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{dialogModal.title}</h3>
+                        <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialogModal.message}</p>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            {dialogModal.type !== 'alert' && (
+                                <button onClick={dialogModal.onCancel} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '500' }}>Cancelar</button>
+                            )}
+                            <button onClick={dialogModal.onConfirm} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '500' }}>OK</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -561,6 +640,10 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [showMetrics, setShowMetrics] = useState(true);
     const [leadsWithActiveFlows, setLeadsWithActiveFlows] = useState<Set<number>>(new Set());
+    const [dialog, setDialog] = useState<{ type: 'alert' | 'confirm'; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
+    const showConfirm = (message: string) => new Promise<boolean>((resolve) => {
+        setDialog({ type: 'confirm', title: 'Confirmação', message, onConfirm: () => { setDialog(null); resolve(true); }, onCancel: () => { setDialog(null); resolve(false); } });
+    });
 
     // Funil State
     const [activePipelineId, setActivePipelineId] = useState('vendas');
@@ -574,10 +657,6 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
     const [closedReasonFilter, setClosedReasonFilter] = useState<string>('all');
 
     const fetchLeads = async () => {
-        if (!authUser?.company_id) {
-            setLoading(false);
-            return;
-        }
         const { data, error } = await supabase
             .from('sp3chat')
             .select('*')
@@ -637,7 +716,7 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
     };
 
     const deleteCard = async (leadId: number) => {
-        if (!confirm('Remover este lead do Kanban?')) return;
+        if (!await showConfirm('Remover este lead do Kanban?')) return;
         setLeads(prev => prev.filter(l => l.id !== leadId));
         await supabase.from('sp3chat').update({ stage: null }).eq('id', leadId);
     };
@@ -880,6 +959,21 @@ const KanbanView = ({ authUser }: { authUser: UserProfile }) => {
                         setSelectedLead(null);
                     }}
                 />
+            )}
+
+            {dialog && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                    <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '400px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--border)' }}>
+                        <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{dialog.title}</h3>
+                        <p style={{ margin: '0 0 20px 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>{dialog.message}</p>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            {dialog.type !== 'alert' && (
+                                <button onClick={dialog.onCancel} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: '500' }}>Cancelar</button>
+                            )}
+                            <button onClick={dialog.onConfirm} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--accent)', color: 'white', cursor: 'pointer', fontWeight: '500' }}>OK</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -9,6 +9,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   new_lead: 'Novo Lead',
   no_response_timeout: 'Sem Resposta',
   external_lead: 'Lead do Site',
+  meeting_scheduled: 'Reunião Agendada',
 };
 
 const UNIT_LABELS: Record<string, string> = {
@@ -38,6 +39,9 @@ export default function TriggerNode({ data, selected }: NodeProps) {
       )}
       {d.triggerType === 'external_lead' && (
         <div style={s.badge}>Formulário externo</div>
+      )}
+      {d.triggerType === 'meeting_scheduled' && (
+        <div style={s.badge}>Agenda paciente</div>
       )}
       <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE_OUTPUT} />
     </div>

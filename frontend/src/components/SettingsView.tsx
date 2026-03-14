@@ -443,8 +443,8 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
                 setFollowupConfig({
                     ...data,
                     active_days: data.active_days || [1, 2, 3, 4, 5],
-                    start_time: data.start_time || '08:00',
-                    end_time: data.end_time || '18:00',
+                    start_time: (data.start_time && data.start_time !== '00:00') ? data.start_time : '08:00',
+                    end_time: (data.end_time && data.end_time !== '00:00') ? data.end_time : '18:00',
                     out_of_hours_message: data.out_of_hours_message || 'Oi! No momento estamos fora do nosso horário de atendimento. Deixe sua mensagem que retornaremos assim que possível!',
                     interval_1: data.interval_1 || 10,
                     interval_2: data.interval_2 || 30,
@@ -463,15 +463,21 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         setIsSavingFollowup(true);
         setFollowupSuccess(false);
         try {
+            // Garantir que horários nunca sejam salvos como 00:00
+            const safeConfig = {
+                ...followupConfig,
+                start_time: (followupConfig.start_time && followupConfig.start_time !== '00:00') ? followupConfig.start_time : '08:00',
+                end_time: (followupConfig.end_time && followupConfig.end_time !== '00:00') ? followupConfig.end_time : '18:00',
+            };
             let error;
-            if (followupConfig.id) {
+            if (safeConfig.id) {
                 const { error: updateError } = await supabase.from('sp3_followup_settings').update({
-                    ...followupConfig,
+                    ...safeConfig,
                     updated_at: new Date()
-                }).eq('id', followupConfig.id);
+                }).eq('id', safeConfig.id);
                 error = updateError;
             } else {
-                const configToInsert = { ...followupConfig };
+                const configToInsert = { ...safeConfig };
                 delete configToInsert.id;
                 const { error: insertError } = await supabase.from('sp3_followup_settings').insert([{
                     company_id: authUser.company_id,
@@ -1490,7 +1496,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     const handleConnectGoogle = () => {
         const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
         if (!clientId) {
-            alert('VITE_GOOGLE_CLIENT_ID não configurado. Adicione nas variáveis de ambiente.');
+            showAlert('VITE_GOOGLE_CLIENT_ID não configurado. Adicione nas variáveis de ambiente.');
             return;
         }
 
@@ -1514,7 +1520,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
     };
 
     const handleDisconnectGoogle = async () => {
-        if (!confirm('Desconectar Google Calendar? Os eventos já criados serão mantidos.')) return;
+        if (!await showConfirm('Desconectar Google Calendar? Os eventos já criados serão mantidos.')) return;
         try {
             await supabase.from('sp3_calendar_settings').update({
                 google_access_token: null,
@@ -1524,7 +1530,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
             }).eq('company_id', authUser.company_id);
             setCalendarSettings((prev: any) => ({ ...prev, google_access_token: null, google_refresh_token: null, google_token_expiry: null, google_calendar_id: null }));
         } catch (err: any) {
-            alert('Erro ao desconectar: ' + err.message);
+            await showAlert('Erro ao desconectar: ' + err.message);
         }
     };
 
@@ -1537,7 +1543,7 @@ const SettingsView = ({ authUser }: SettingsViewProps) => {
         }
         if (params.get('google_error')) {
             const error = params.get('google_error');
-            alert(`Erro ao conectar Google: ${error}`);
+            showAlert(`Erro ao conectar Google: ${error}`);
             window.history.replaceState({}, '', window.location.pathname);
         }
     }, []);

@@ -8,6 +8,7 @@ const CONDITION_LABELS: Record<string, string> = {
   field_check: 'Verificar campo',
   stage_check: 'Verificar stage',
   custom_field_check: 'Campo personalizado',
+  message_contains: 'Mensagem contém?',
 };
 
 export default function ConditionNode({ data, selected }: NodeProps) {
@@ -29,6 +30,9 @@ export default function ConditionNode({ data, selected }: NodeProps) {
       )}
       {d.condition_type === 'field_check' && d.config?.field && (
         <div style={s.badge}>{d.config.field} {d.config.operator} {d.config.value}</div>
+      )}
+      {d.condition_type === 'message_contains' && d.config?.keyword && (
+        <div style={s.badge}>Contém: "{d.config.keyword}"</div>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.6rem' }}>
         <span style={{ color: '#10b981', fontWeight: 600 }}>Sim</span>

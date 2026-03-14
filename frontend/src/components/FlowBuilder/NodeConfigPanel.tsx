@@ -237,6 +237,15 @@ function TriggerConfig({ data, update, selectStyle, labelStyle, sectionStyle, in
           </div>
         </div>
       )}
+      {data.triggerType === 'meeting_scheduled' && (
+        <div style={{ ...sectionStyle, padding: '8px 10px', borderRadius: '8px', backgroundColor: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+          <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 600, marginBottom: '4px' }}>Como funciona</div>
+          <div style={{ fontSize: '0.6rem', color: '#64748b', lineHeight: '1.5' }}>
+            Quando uma reunião é agendada para um lead (via Chat ou Kanban), este fluxo inicia automaticamente.
+            <br />Use delays "X horas/dias antes da reunião" para enviar lembretes antes da consulta.
+          </div>
+        </div>
+      )}
       {data.triggerType === 'stage_change' && (
         <>
           <div style={sectionStyle}>
@@ -580,8 +589,24 @@ function ConditionConfig({ data, update, inputStyle, selectStyle, labelStyle, se
           <option value="stage_check">Verificar Stage</option>
           <option value="field_check">Verificar Campo</option>
           <option value="custom_field_check">Campo Personalizado</option>
+          <option value="message_contains">Mensagem Contém Palavra</option>
         </select>
       </div>
+
+      {data.condition_type === 'message_contains' && (
+        <div style={sectionStyle}>
+          <label style={labelStyle}>Palavra-chave</label>
+          <input
+            style={inputStyle}
+            value={data.config?.keyword || ''}
+            onChange={e => update({ config: { ...data.config, keyword: e.target.value } })}
+            placeholder="ex: confirmo"
+          />
+          <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '4px' }}>
+            Verifica se alguma mensagem do lead contém esta palavra (não diferencia maiúsculas/minúsculas).
+          </div>
+        </div>
+      )}
 
       {data.condition_type === 'stage_check' && (
         <div style={sectionStyle}>
@@ -653,6 +678,7 @@ function ActionConfig({ data, update, inputStyle, selectStyle, labelStyle, secti
           <option value="lock_followup">Pausar Follow-up</option>
           <option value="unlock_followup">Retomar Follow-up</option>
           <option value="close_conversation">Fechar Conversa</option>
+          <option value="update_calendar_confirmation">Atualizar Confirmação Agenda</option>
         </select>
       </div>
 
@@ -702,6 +728,23 @@ function ActionConfig({ data, update, inputStyle, selectStyle, labelStyle, secti
             onChange={e => update({ config: { ...data.config, reason: e.target.value } })}
             placeholder="ex: Sem resposta após follow-up"
           />
+        </div>
+      )}
+
+      {data.action_type === 'update_calendar_confirmation' && (
+        <div style={sectionStyle}>
+          <label style={labelStyle}>Status de Confirmação</label>
+          <select
+            style={selectStyle}
+            value={data.config?.confirmation_status || 'confirmed'}
+            onChange={e => update({ config: { ...data.config, confirmation_status: e.target.value } })}
+          >
+            <option value="confirmed">Confirmado</option>
+            <option value="unconfirmed">Não Confirmado</option>
+          </select>
+          <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '4px' }}>
+            Atualiza o status de confirmação do evento no calendário do lead.
+          </div>
         </div>
       )}
     </>
